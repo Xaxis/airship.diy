@@ -1,0 +1,97 @@
+name: ci
+
+# The premise of this repository is that every number traces to a source and
+# that the model reproduces every rigid airship that ever flew. That is only
+# true if CI checks it. Every job here is also a `make` target, so what CI runs
+# and what a contributor runs locally cannot diverge.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # No package runs arbitrary code at install time, in CI as on a workstation.
+  NPM_CONFIG_IGNORE_SCRIPTS: 'true'
+
+jobs:
+  model:
+    name: the model holds together
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # ci, never install. A lockfile that resolves differently in CI than on a
+      # workstation would mean the published endurance figure depends on when
+      # somebody ran npm.
+      - run: npm ci
+
+      - name: Types
+        run: make type-check
+
+      # Includes no-uncited-constant, which fails any numeric literal in the
+      # physics packages without a @source or @derived annotation, and
+      # no-unqualified-hybrid, which bans the ambiguous bare word.
+      - name: Lint, including the citation and terminology rules
+        run: make lint
+
+      - name: Build
+        run: make build
+
+      - name: Unit and property tests
+        run: make test
+
+      # The physics must run under plain node with no bundler and no test
+      # runner. If this step ever needs a shim, something with a DOM has leaked
+      # into packages/core.
+      - name: Physics runs headless
+        run: make report
+
+  validation:
+    name: the model matches ships that actually flew
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      # Unit tests catch regressions. This catches being wrong. Gross lift for
+      # Hindenburg, Akron and Macon against published figures, and the ISA
+      # standard atmosphere against the published table.
+      - name: Validation gates
+        run: make validate
+
+      # A typo in a source id is a citation that looks real and is not, which is
+      # worse than no citation at all.
+      - name: Every citation resolves
+        run: make uncertainty
+
+  prose:
+    name: documentation holds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      # No em dashes, and no bare "hybrid": in airship literature that word
+      # means hybrid LIFT, and this vehicle is fully buoyant.
+      - name: Style and terminology
+        run: make prose

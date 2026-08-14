@@ -1,0 +1,29 @@
+.idea
+*.iml
+
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.next/
+.next-dev/
+out/
+
+# Local scratch
+tmp/
+.vercel
+
+# OS
+.DS_Store
+
+# Generated reports. Committing these would let a stale pass ship.
+uncertainty-report.json
+validation-report.json
+test-report.json
+*.tsbuildinfo

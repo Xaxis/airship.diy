@@ -1,0 +1,9 @@
+{
+  "//": "The solution file. `make build` names this explicitly, because a bare `tsc --build` resolves tsconfig.json, which is the noEmit lint config, and would silently emit nothing while exiting 0.",
+  "files": [],
+  "references": [
+    { "path": "./packages/units/tsconfig.build.json" },
+    { "path": "./packages/data/tsconfig.build.json" },
+    { "path": "./packages/core/tsconfig.build.json" }
+  ]
+}

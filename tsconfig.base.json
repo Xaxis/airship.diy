@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+
+    // @types/node is not picked up implicitly. Without this every `node:`
+    // import fails to resolve even though the types are installed.
+    "types": ["node"],
+
+    // Strict, and then some. noUncheckedIndexedAccess matters more here than it
+    // looks: the physics packages are full of arrays indexed by station, by
+    // altitude band, and by hour of the year, and an off-by-one read that
+    // silently yields `undefined` becomes `NaN` three functions later, at which
+    // point the mass budget just quietly stops adding up.
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "useUnknownInCatchVariables": true,
+    "noImplicitReturns": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "isolatedModules": true,
+
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "incremental": true,
+
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}

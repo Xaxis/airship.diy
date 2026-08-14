@@ -1,0 +1,40 @@
+{
+  "name": "@airship/root",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A hydrogen airship you can build in a shop and never have to land.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Xaxis/airship.diy.git"
+  },
+  "homepage": "https://airship.diy",
+  "bugs": {
+    "url": "https://github.com/Xaxis/airship.diy/issues"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "build": "tsc --build tsconfig.build.json",
+    "type-check": "tsc --build tsconfig.build.json --force",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "clean": "rm -rf packages/*/dist apps/web/.next apps/web/out"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@fast-check/vitest": "0.4.1",
+    "@types/node": "24.13.3",
+    "eslint": "9.39.5",
+    "fast-check": "4.9.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.67.0",
+    "vitest": "4.1.10"
+  }
+}
