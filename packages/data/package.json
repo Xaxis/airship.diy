@@ -1,0 +1,22 @@
+{
+  "name": "@airship/data",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Every constant, with a source and an uncertainty. A number without a source is a defect.",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@airship/units": "0.1.0"
+  }
+}
