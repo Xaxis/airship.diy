@@ -85,12 +85,16 @@ export default tseslint.config(
   // failure the rule was written to prevent.
   //
   // The exemption is enumerated file by file rather than given as a glob, so
-  // that adding a third exempt file is a visible decision. Everything else in
-  // packages/model still has to cite — including arrangement.ts, which turns
-  // these choices into masses and volumes and therefore makes claims about the
-  // world that DO need sources.
+  // that adding another exempt file is a visible decision. Everything else in
+  // packages/model still has to cite — including arrangement.ts and
+  // architecture.ts, which turn these choices into masses, pressures and
+  // verdicts and therefore make claims about the world that DO need sources.
   {
-    files: ['packages/model/src/designs.ts', 'packages/model/src/configuration.ts'],
+    files: [
+      'packages/model/src/designs.ts',
+      'packages/model/src/configuration.ts',
+      'packages/model/src/architectures.ts',
+    ],
     rules: {
       'airship/no-uncited-constant': 'off',
     },

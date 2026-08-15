@@ -1,7 +1,9 @@
 import {
   assessConfinement,
   atmosphere,
+  buoyancyDistribution,
   cellFilmArea,
+  crossSectionDistribution,
   coveredArea,
   criticalDuctDiameter,
   grossLift,
@@ -10,10 +12,13 @@ import {
   hullShapeForPrismatic,
   inertiaCoefficients,
   MUNK_REAL_FLUID_FACTOR,
+  munkMoment,
   pure,
+  solveBeam,
+  specificLift,
 } from '@airship/core'
 import { barrierFilm, EMPTY_WEIGHT_PER_GAS_VOLUME, v } from '@airship/data'
-import { m, m3, K, rad } from '@airship/units'
+import { m, m3, K, rad, kgPerM3 } from '@airship/units'
 
 import type { Category, Compartment, Configuration, Deck } from './configuration.js'
 import type { DesignPoint } from './design-point.js'
@@ -951,4 +956,163 @@ export const smallestClosingLength = (
     else high = mid
   }
   return high
+}
+
+
+// --------------------------------------------------------------------------
+// The hull girder, loaded by the arrangement rather than by a guess
+// --------------------------------------------------------------------------
+
+/**
+ * Peak bending moment in the hull, from the arrangement's own masses.
+ *
+ * The distributed loads are the hull group, spread along the hull in proportion
+ * to the local cross-section, because that is how frame, cover and cells are
+ * actually distributed. Everything else is a POINT LOAD at its own station: the
+ * gondola, the tanks, the machinery, the propulsors and the fins.
+ *
+ * WHY THIS MATTERS BEYOND THE FRAME. Buoyancy is distributed like AREA and
+ * weight is distributed like the arrangement, and the two do not match. The
+ * mismatch is the whole bending moment. A version of this that put the gondola
+ * at a nominal station and the engines at another nominal station, which is
+ * what the site did before, gets the shape of the diagram roughly right and the
+ * magnitude wrong, and the magnitude is what the pressure-stabilised
+ * architectures live or die on: the envelope pressure they need is the bending
+ * moment divided by pi R^3.
+ */
+export interface HullGirderLoads {
+  /** The static case: weight against buoyancy on a trimmed ship, N m. */
+  readonly staticMoment: number
+  readonly staticStation: number
+  readonly hogging: boolean
+  readonly maximumShear: number
+  /** The gust case, which is what actually sizes the girder, N m. */
+  readonly gustMoment: number
+  /** Incidence the gust puts on the hull, radians. */
+  readonly gustIncidence: number
+  /** The larger of the two, for anything that needs a design moment. */
+  readonly designMoment: number
+  readonly note: string
+}
+
+/**
+ * The gust that sizes the hull girder.
+ *
+ * @source Airship and aeroplane certification both use a sharp-edged vertical
+ * gust as the design case. 7.5 m/s is the standard rough-air gust at low
+ * altitude; airship practice historically used similar figures and the Akron
+ * and Macon losses were both gust-related.
+ *
+ * The incidence a gust puts on the hull is atan(w/V), and it is LARGER at LOW
+ * SPEED, which is the opposite of the aeroplane case where gust load factor
+ * grows with speed. An airship holding station at 8 m/s in a 7.5 m/s vertical
+ * gust sees 43 degrees of incidence. That is why the Munk moment, which peaks
+ * at 45 degrees, is an airship's design load and not a footnote.
+ */
+const DESIGN_GUST = 7.5
+
+export const hullBendingMoment = (
+  design: DesignPoint,
+  config: Configuration,
+): HullGirderLoads => {
+  const { length, finenessRatio, prismaticCoefficient } = design.hull
+  const shape = hullShapeForPrismatic(prismaticCoefficient)
+  const statement = massStatement(design, config)
+
+  /** @derived 201 stations resolves the moment peak to well under a percent. */
+  const STATIONS = 201
+  const sections = crossSectionDistribution(m(length), finenessRatio, STATIONS, shape)
+
+  const air = atmosphere(m(design.mission.altitude))
+  const lift = specificLift(pure(design.gas.species), air, K(air.temperature))
+  const buoyancy = buoyancyDistribution(
+    sections.map((s) => ({ x: s.x, area: s.area as number })),
+    lift,
+  )
+
+  // The hull group is distributed like the cross-section. Everything with a
+  // station of its own is a point load.
+  const distributedIds = new Set(['frame', 'cover', 'gas-cells', 'photovoltaics'])
+  const distributedMass = statement.items
+    .filter((i) => distributedIds.has(i.id))
+    .reduce((sum, i) => sum + i.mass, 0)
+  const areaIntegral = sections.reduce((sum, s) => sum + (s.area as number), 0)
+
+  /** @source Standard gravity, turning the masses into forces. */
+  const g = 9.80665
+
+  const loads = sections.map((section, i) => ({
+    x: section.x,
+    buoyancy: buoyancy[i]?.buoyancy ?? 0,
+    weight: (((section.area as number) / areaIntegral) * distributedMass * g * STATIONS) / length,
+  }))
+
+  const pointLoads = statement.items
+    .filter((i) => !distributedIds.has(i.id))
+    .map((i) => ({ name: i.name, x: m(i.x), mass: i.mass }))
+
+  // TRIM THE SHIP BEFORE LOADING IT. The arrangement's lift margin is not spare
+  // capacity in flight, it is water: the tanks are topped up until the vehicle
+  // is neutrally buoyant, and that is the condition the girder actually sees.
+  //
+  // Solving the beam untrimmed instead leaves a residual force that the
+  // inertial relief spreads over the whole hull as an upward acceleration. The
+  // diagram then describes a vehicle climbing away at a quarter of a g, which
+  // is not a load case and understates the moment by a factor of several.
+  const forwardTank = statement.items.find((i) => i.id === 'water-forward')
+  const aftTank = statement.items.find((i) => i.id === 'water-aft')
+  if (statement.liftMargin > 0 && forwardTank && aftTank) {
+    const perTank = statement.liftMargin / 2
+    pointLoads.push(
+      { name: 'trim ballast forward', x: m(forwardTank.x), mass: perTank },
+      { name: 'trim ballast aft', x: m(aftTank.x), mass: perTank },
+    )
+  }
+
+  const beam = solveBeam(loads, pointLoads)
+
+  // THE GUST CASE, which is what actually sizes the girder.
+  //
+  // The static diagram above comes out at half a meganewton metre on a 115 m
+  // hull, which needs a section modulus of about a cubic decimetre: every
+  // longitudinal would be minimum gauge. That agrees with the buckling module,
+  // which found the frame buckling-limited almost everywhere, and it means the
+  // static case is not the design case.
+  //
+  // The design case is a gust, and for an airship the gust load is the MUNK
+  // MOMENT rather than a wing load factor. It peaks at 45 degrees of incidence,
+  // and incidence from a vertical gust is atan(w/V), so it is worst at LOW
+  // speed: exactly the station-keeping condition this vehicle spends its life
+  // in.
+  const gustIncidence = Math.atan(DESIGN_GUST / Math.max(design.mission.stationKeepingWind, 1))
+  const geometry = hullGeometry(m(length), finenessRatio, shape)
+  const gustMoment =
+    Math.abs(
+      munkMoment(
+        geometry.volume,
+        finenessRatio,
+        kgPerM3(air.density),
+        Math.hypot(design.mission.stationKeepingWind, DESIGN_GUST),
+        gustIncidence,
+      ),
+    ) * MUNK_REAL_FLUID_FACTOR
+
+  const designMoment = Math.max(Math.abs(beam.maximumMoment), gustMoment)
+
+  /** @derived Newton metres to meganewton metres, for the human-readable note. */
+  const MN = 1e6
+
+  return {
+    staticMoment: Math.abs(beam.maximumMoment),
+    staticStation: beam.maximumMomentStation,
+    hogging: beam.hogging,
+    maximumShear: Math.abs(beam.maximumShear),
+    gustMoment,
+    gustIncidence,
+    designMoment,
+    note:
+      gustMoment > Math.abs(beam.maximumMoment)
+        ? `The static case is ${(Math.abs(beam.maximumMoment) / MN).toFixed(2)} MN m and the gust case is ${(gustMoment / MN).toFixed(2)} MN m, so the gust sizes the girder. A ${DESIGN_GUST} m/s vertical gust at ${design.mission.stationKeepingWind} m/s of forward speed is ${((gustIncidence * 180) / Math.PI).toFixed(0)} degrees of incidence, and the Munk moment peaks at 45. An airship's gust case gets WORSE as it slows down, which is the reverse of an aeroplane's and is why station-keeping is the structural design condition.`
+        : `The static case is ${(Math.abs(beam.maximumMoment) / MN).toFixed(2)} MN m and governs, which is unusual and worth checking: for most airships the gust case is larger.`,
+  }
 }

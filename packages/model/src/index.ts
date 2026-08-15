@@ -11,7 +11,14 @@ export { BASELINE, MINIMUM_VIABLE, STRETCH, DESIGN_POINTS, designPoint } from '.
 export type { Deck, Category, Compartment, Propulsor, Configuration } from './configuration.js'
 export { BASELINE_ARRANGEMENT } from './configuration.js'
 
-export type { MassItem, MassStatement, Severity, Finding, FinPlanform } from './arrangement.js'
+export type {
+  MassItem,
+  MassStatement,
+  Severity,
+  Finding,
+  FinPlanform,
+  HullGirderLoads,
+} from './arrangement.js'
 export {
   compartmentVolume,
   keelEnvelopeVolume,
@@ -19,4 +26,33 @@ export {
   massStatement,
   validateArrangement,
   smallestClosingLength,
+  hullBendingMoment,
 } from './arrangement.js'
+
+export type {
+  ArchitectureId,
+  HullForm,
+  GasContainment,
+  BuoyancyControl,
+  LandingGear,
+  Architecture,
+  StructuralMass,
+  PressureLimit,
+  BuoyancyControlCost,
+  ArchitectureComparison,
+} from './architecture.js'
+export {
+  RIGID,
+  SEMI_RIGID,
+  NON_RIGID,
+  HYBRID_LIFT,
+  VARIABLE_BUOYANCY,
+  ARCHITECTURES,
+  architecture,
+} from './architectures.js'
+export {
+  structuralMass,
+  pressureStabilisedLimit,
+  buoyancyControlCost,
+  compareArchitecture,
+} from './architecture.js'
