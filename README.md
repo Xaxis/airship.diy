@@ -14,15 +14,16 @@ Site: **[airship.diy](https://airship.diy)**
 
 ## Status
 
-Phase 1 of 8 complete. The build order is gated: nothing downstream of a failing
-validation gate is trustworthy, so each phase must pass before the next opens.
+Phases 1 and 2 complete, phase 3 in progress. The build order is gated: nothing
+downstream of a failing validation gate is trustworthy, so each phase must pass
+before the next opens.
 
 | Phase | What it answers | Status |
 |---|---|---|
 | 1. Foundation | Units, atmosphere, gas properties, buoyancy | **Gates pass** |
-| 2. Does it close? | Permeation, electrolysis, fuel cell, solar, water balance | Next |
-| 3. Can it be built? | Structure, buckling, mass fraction vs length | |
-| 4. Does it fly? | Aerodynamics, propulsors, 6-DOF with added mass | |
+| 2. Does it close? | Permeation, electrolysis, fuel cell, solar, water balance | **Yes, by a lot** |
+| 3. Can it be built? | Structure, buckling, mass fraction vs size | **Undecided, and that is the finding** |
+| 4. Does it fly? | Aerodynamics, propulsors, 6-DOF with added mass | Added mass and Munk moment done |
 | 4b. The powertrain decision | Fuel choice, TBO consumables, dissimilar redundancy | |
 | 5. Can it be lived in? | Habitat, life support, thermal, the year-long mission | |
 | 6. Will it kill me? | Hydrogen safety, lightning, failure injection, icing, regulation | |
@@ -71,10 +72,68 @@ replaced. On a vehicle whose entire premise is never landing, the only way to
 replace it is to make more, which is why onboard electrolysis is load-bearing
 rather than clever.
 
-**The number carbon fibre has to beat:** USS Macon carried 109.9 t of duralumin
-structure against 182.8 t of gross lift. **60.1 percent of the ship's entire lift
-went into holding itself up.** The target here is 40 to 50 percent, and phase 3
-has to prove that rather than assume it.
+**The number carbon fibre has to beat, corrected.** The brief cited USS Macon's
+60.1 percent, but that figure is the ship's whole fixed weight: frame, cover,
+twelve gas cells, eight engines, three keels, an aircraft hangar, a trapeze and
+armament. It is not a structure figure. The right benchmark is **LZ-129
+Hindenburg at 48.8 percent**, the best any large rigid ever achieved. So "40 to
+50 percent with carbon fibre" does not mean beating old technology. It means
+equalling the single best airship ever built, using hand wet layup in a 12 m
+shop.
+
+## Phase 2: does the loop close?
+
+Yes, and by more than expected. Baseline is 90 m at fineness 5, holding station
+against 8 m/s for two thirds of the day at 15 degrees north, after a 0.68
+clear-sky derate:
+
+```
+  station keeping      43,115 kWh/yr   83.0%
+  habitat and systems   7,884 kWh/yr   15.2%
+  lift makeup             953 kWh/yr    1.8%
+  TOTAL DEMAND         51,952 kWh/yr
+  SOLAR GENERATED     342,824 kWh/yr
+
+  annual margin 539%, worst day 402% on day 354
+  max sustainable wind 12.6 m/s (25 kt) at 65 percent duty
+```
+
+**The finding is not that it closes. It is that energy is not the binding
+constraint and is not close to being one.** Lift makeup, the term that sounds
+like it should dominate a hydrogen airship, is under 2 percent of demand.
+Station keeping is 83 percent and it is cubic in wind speed, so the real
+question this vehicle faces is not whether it can power itself but what weather
+it can live in.
+
+## Phase 3: can it be built?
+
+**Undecided, and the honest answer is that the historical record cannot settle
+it.** Empty weight scaled from the Hindenburg's 0.590 kg per cubic metre, at the
+range of scaling exponents the data cannot distinguish:
+
+```
+  volume          n=1.13      n=1.00      n=0.90      n=0.80      n=0.67
+   5,953 m3          33%         52%         74%       105%!       167%!
+  15,803 m3          37%         52%         67%         86%       121%!
+  37,458 m3          42%         52%         61%         72%         90%
+  80,000 m3          46%         52%         57%         62%         70%
+ 200,000 m3          52%         52%         52%         52%         52%
+
+  ! = cannot lift its own empty weight
+```
+
+Fitting all eight rigids with published figures gives an exponent of 1.13
+(R-squared 0.94), which would mean the baseline closes at 37 percent and that
+mass fraction gets *worse* with size, not better. Restricting to the five
+best-sourced ships, whose volumes span only 1.41 to 1, the fit collapses to 0.16
+with R-squared 0.45. The scatter from gas choice, structural material and
+national design philosophy is about 30 percentage points, which swamps any size
+trend over that range.
+
+**The two candidate exponents disagree about the direction of the entire size
+trade.** At the theoretical square-cube value the baseline ship cannot lift its
+own empty weight. A model that quietly picked the favourable end would report a
+comfortable design where the truth is a coin flip.
 
 ## What this vehicle is
 

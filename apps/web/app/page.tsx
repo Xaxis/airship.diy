@@ -5,8 +5,12 @@ import {
   designs,
   hullProfile,
   hydrogenAdvantage,
+  massFractionExponents,
+  massFractionTable,
   purityDemonstration,
   referenceLift,
+  structuralBenchmark,
+  structuralScaling,
   uncertainties,
   validation,
 } from '../lib/model'
@@ -237,14 +241,12 @@ export default function Home() {
           <Stat label="Hydrogen specific lift" value={referenceLift.hydrogen.toFixed(4)} unit="kg/m³" />
           <Stat label="Helium specific lift" value={referenceLift.helium.toFixed(4)} unit="kg/m³" />
           <Stat label="Hydrogen advantage" value={pct(hydrogenAdvantage)} />
-          {purityDemonstration ? (
-            <Stat
-              label="Duralumin mass fraction"
-              value={pct(purityDemonstration.duraluminMassFraction)}
-              tone="unknown"
-              note="USS Macon. The number carbon fibre must beat."
-            />
-          ) : null}
+          <Stat
+            label="Benchmark to equal"
+            value={pct(structuralBenchmark.target)}
+            tone="unknown"
+            note="LZ-129 Hindenburg, best large rigid ever built"
+          />
         </div>
       </Section>
 
@@ -408,6 +410,103 @@ export default function Home() {
       {/* ---------------------------------------------------------------- */}
       <Section
         n="04"
+        title="Can it be built?"
+        lede="Empty weight scaled from the Hindenburg, across the range of structural scaling exponents the historical record cannot distinguish between. This is deliberately a family of curves: one curve would be a claim the evidence does not support, and the two ends disagree about whether bigger ships are better or worse."
+      >
+        <div className="scroll-x border border-[var(--color-rule)] bg-[var(--color-panel)]">
+          <table className="w-full min-w-[44rem] text-sm">
+            <thead>
+              <tr className="border-b border-[var(--color-rule)] text-left text-[11px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+                <th className="px-4 py-3 font-normal">Envelope volume</th>
+                {massFractionExponents.map((e) => (
+                  <th key={e} className="num px-4 py-3 text-right font-normal">
+                    n = {e.toFixed(2)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {massFractionTable.map((row) => (
+                <tr key={row.volume} className="border-b border-[var(--color-rule)] last:border-0">
+                  <td className="num px-4 py-3">{fmt(row.volume)} m³</td>
+                  {row.cells.map((cell) => (
+                    <td
+                      key={cell.exponent}
+                      className={`num px-4 py-3 text-right ${
+                        cell.infeasible
+                          ? 'text-[var(--color-fail)]'
+                          : cell.emptyWeightFraction > 0.7
+                            ? 'text-[var(--color-unknown)]'
+                            : 'text-[var(--color-pass)]'
+                      }`}
+                    >
+                      {(cell.emptyWeightFraction * 100).toFixed(0)}%{cell.infeasible ? ' ✕' : ''}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-[var(--color-ink-faint)]">
+          ✕ marks a hull that cannot lift its own empty weight. All exponents agree at 200,000 m³
+          because that is the Hindenburg, where the scaling is anchored.
+        </p>
+
+        <div className="mt-6 border-l-2 border-[var(--color-unknown)] bg-[var(--color-panel)] p-5">
+          <h3 className="font-medium">Undecided, and the record cannot settle it</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+            Fitting all eight rigids with published figures gives an exponent of{' '}
+            <span className="num text-[var(--color-ink)]">
+              {structuralScaling.allShipsExponent}
+            </span>{' '}
+            at R² ={' '}
+            <span className="num text-[var(--color-ink)]">{structuralScaling.allShipsRSquared}</span>
+            , which would mean the baseline closes comfortably and that mass fraction gets{' '}
+            <em>worse</em> with size, not better. Restrict to the five best-sourced ships, whose
+            volumes span only 1.41 to 1, and the fit collapses to{' '}
+            <span className="num text-[var(--color-ink)]">
+              {structuralScaling.bestSourcedExponent}
+            </span>{' '}
+            at R² ={' '}
+            <span className="num text-[var(--color-ink)]">
+              {structuralScaling.bestSourcedRSquared}
+            </span>
+            . The scatter from gas choice, structural material and national design philosophy is
+            about 30 percentage points, which swamps any size trend over that range.
+          </p>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+            At the theoretical square-cube value the baseline ship cannot lift its own empty weight.
+            A model that quietly picked the favourable end would report a comfortable design where
+            the truth is a coin flip.
+          </p>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <Stat
+            label="Brief's cited benchmark"
+            value={pct(structuralBenchmark.briefCited)}
+            note="USS Macon, but this is whole fixed weight, not structure"
+          />
+          <Stat
+            label="Macon on hydrogen-equivalent lift"
+            value={pct(structuralBenchmark.maconOnHydrogenEquivalent)}
+            note="a third of the apparent gap is gas choice"
+          />
+          <Stat
+            label="The real target"
+            value={pct(structuralBenchmark.target)}
+            tone="unknown"
+            note="LZ-129 Hindenburg, 1936, duralumin"
+          />
+        </div>
+      </Section>
+
+      <Rule />
+
+      {/* ---------------------------------------------------------------- */}
+      <Section
+        n="05"
         title="Where the model is guessing"
         lede="Values nobody has published, with the range and what measurement would resolve each. A number without a source fails the build here, so anything genuinely unknown has to be declared rather than quietly invented. This list is the project's research queue."
       >
@@ -437,7 +536,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="05"
+        n="06"
         title="Build order"
         lede="Each phase has a validation gate. Nothing downstream of a failing gate is trustworthy, so a phase has to pass before the next opens."
       >
@@ -445,8 +544,8 @@ export default function Home() {
           {[
             ['1', 'Foundation', 'Units, atmosphere, gas properties, buoyancy', 'done'],
             ['2', 'Does it close?', 'Permeation, electrolysis, fuel cell, solar, water balance', 'done'],
-            ['3', 'Can it be built?', 'Structure, buckling, mass fraction versus length', 'active'],
-            ['4', 'Does it fly?', 'Aerodynamics, propulsors, 6-DOF with added mass', 'todo'],
+            ['3', 'Can it be built?', 'Structure, buckling, mass fraction versus size', 'active'],
+            ['4', 'Does it fly?', 'Aerodynamics, propulsors, 6-DOF with added mass', 'active'],
             ['4b', 'The powertrain decision', 'Fuel choice, TBO consumables, dissimilar redundancy', 'todo'],
             ['5', 'Can it be lived in?', 'Habitat, life support, thermal, the year-long mission', 'todo'],
             ['6', 'Will it kill me?', 'Hydrogen safety, lightning, icing, failure injection, regulation', 'todo'],

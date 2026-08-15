@@ -60,14 +60,19 @@ describe('validation gate: gross lift of historical rigid airships', () => {
   })
 
   /**
-   * The empty weight fraction carbon fibre has to beat.
+   * Macon's empty weight fraction, recorded WITHOUT the claim the brief attached
+   * to it.
    *
-   * Macon: 109,930 kg of duralumin structure against 182,797 kg of gross lift,
-   * so 60.1 percent of the ship's entire lift went into holding itself up. The
-   * project targets 40 to 50 percent, and the structures module has to prove
-   * that rather than assume it.
+   * 109,930 kg against 182,797 kg is 60.1 percent, but that 109,930 kg is the
+   * whole fixed weight: frame, cover, twelve gas cells, eight engines and their
+   * shafting, three keels, control car, an aircraft hangar, a trapeze and
+   * armament. It is not a structure figure and a carbon fibre FRAME cannot be
+   * compared against it.
+   *
+   * The real benchmark is the Hindenburg at 48.8 percent. See
+   * packages/core/src/structure/mass-fraction.ts.
    */
-  it('records the duralumin empty weight fraction as the number to beat', () => {
+  it('records the Macon fixed weight fraction, which is not a structure figure', () => {
     const macon = HISTORICAL_SHIPS.find((s) => s.id === 'zrs5-macon')
     if (!macon?.publishedDeadweight || !macon.publishedGrossLift) throw new Error('Macon fixture missing')
 

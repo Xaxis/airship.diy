@@ -1,4 +1,4 @@
-import { HISTORICAL_SHIPS, allUncertain, SOURCES } from '@airship/data'
+import { HISTORICAL_SHIPS, STRUCTURAL_SCALING, allUncertain, SOURCES } from '@airship/data'
 import {
   atmosphere,
   grossLift,
@@ -7,6 +7,8 @@ import {
   hullGeometry,
   hullShapeForPrismatic,
   hullRadiusAt,
+  massFractionAt,
+  benchmark,
   STANDARD_GAS_TEMPERATURE,
 } from '@airship/core'
 import { DESIGN_POINTS, BASELINE } from '@airship/model'
@@ -155,5 +157,32 @@ export const uncertainties = allUncertain()
     spread: (value.high - value.low) / Math.abs(value.nominal || 1),
   }))
   .sort((a, b) => b.spread - a.spread)
+
+/**
+ * THE PHASE 3 RESULT: empty weight fraction against hull size, across the range
+ * of scaling exponents the historical record cannot distinguish between.
+ *
+ * Deliberately a family of curves. One curve would be a claim the evidence does
+ * not support, and the two ends of the range disagree about whether bigger ships
+ * are better or worse.
+ */
+export const massFractionExponents = [
+  STRUCTURAL_SCALING.allShipsExponent,
+  1.0,
+  0.9,
+  0.8,
+  STRUCTURAL_SCALING.theoreticalAreaLaw,
+] as const
+
+export const massFractionVolumes = [5953, 15803, 37458, 80000, 200000] as const
+
+export const massFractionTable = massFractionVolumes.map((volume) => ({
+  volume,
+  cells: massFractionExponents.map((exponent) => massFractionAt(volume as never, exponent)),
+}))
+
+export const structuralBenchmark = benchmark()
+
+export const structuralScaling = STRUCTURAL_SCALING
 
 export const sources = SOURCES

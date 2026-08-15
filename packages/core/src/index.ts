@@ -59,6 +59,15 @@ export {
   pendulumPeriod,
 } from './dynamics/added-mass.js'
 
+export type { MassFractionEstimate } from './structure/mass-fraction.js'
+export {
+  scaledEmptyWeight,
+  massFractionAt,
+  massFractionSweep,
+  minimumViableVolume,
+  benchmark,
+} from './structure/mass-fraction.js'
+
 export type { PermeationRates } from './permeation.js'
 export {
   permeationRates,
