@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CARBON_FIBRES,
   RESIN_SYSTEMS,
+  TEMPERATURE_LIMITS,
   WET_LAYUP,
   WOVEN_KNOCKDOWN,
   maximumOperatingTemperature,
@@ -23,15 +24,18 @@ const resin = (id: string) => {
 const C = (kelvin: number) => kelvin - 273.15
 
 /**
- * THE FINDING THAT MAY KILL THE DESIGN, asserted so it cannot be quietly lost
- * when somebody edits a resin datasheet entry.
+ * THE BINDING MATERIALS CONSTRAINT, asserted so it cannot be quietly lost when
+ * somebody edits a resin datasheet entry.
  *
- * The binding materials constraint is glass transition temperature, not
- * strength, and it rules out every ambient-cure epoxy for primary structure.
+ * It is glass transition temperature rather than strength, and it rules out
+ * every ambient-cure epoxy for primary structure. How much worse than that it
+ * is depends on a moisture basis nobody has pinned down.
  */
 describe('temperature is the binding materials constraint, not strength', () => {
-  const SATURATED = v(WET_LAYUP.voidContent) // placeholder to keep the import honest
-  const saturation = 0.03
+  const SATURATED = v(WET_LAYUP.voidContent)
+  const resinBasis = v(TEMPERATURE_LIMITS.resinSaturationMoistureFraction)
+  const laminateBasis = v(TEMPERATURE_LIMITS.laminateSaturationMoistureFraction)
+  const saturation = resinBasis
 
   it('ambient-cure marine epoxy permits a maximum operating temperature below freezing', () => {
     // West System 105/206 is the default marine laminating epoxy and the first
@@ -56,17 +60,36 @@ describe('temperature is the binding materials constraint, not strength', () => 
     expect(C(maximumOperatingTemperature(postCured, saturation))).toBeGreaterThan(0)
   })
 
-  it('but even post-cured, the saturated limit is only about 8 C', () => {
-    // A vehicle stationed at 15 degrees latitude with a sun-loaded hull is
-    // nowhere near 8 C. Post-cure is necessary and it is not sufficient: a
-    // higher-Tg system than the marine laminating epoxies surveyed here is
-    // probably required, and that search has not been done.
+  it('but even post-cured, the harsh reading permits only about 8 C', () => {
     const mot = maximumOperatingTemperature(
       resin('proset-lam125-postcured').dryGlassTransition,
-      saturation,
+      resinBasis,
     )
     expect(C(mot)).toBeGreaterThan(0)
     expect(C(mot)).toBeLessThan(20)
+  })
+
+  /**
+   * THE PIVOT. Only the resin absorbs water, so 3 percent of resin mass is about
+   * 1.4 percent of laminate mass. Wright's paper does not say which basis its
+   * moisture axis uses, and the difference is 32 K of permissible operating
+   * temperature: 8 C against 40 C. That is the difference between a design
+   * killer and a design constraint.
+   */
+  it('the moisture basis moves the limit by 32 K, and nobody knows which applies', () => {
+    const dryTg = resin('proset-lam125-postcured').dryGlassTransition
+    const harsh = maximumOperatingTemperature(dryTg, resinBasis)
+    const generous = maximumOperatingTemperature(dryTg, laminateBasis)
+
+    expect(C(harsh)).toBeLessThan(20)
+    expect(C(generous)).toBeGreaterThan(30)
+    expect(generous - harsh).toBeGreaterThan(25)
+  })
+
+  it('ambient cure fails on EITHER basis, which is the part that is settled', () => {
+    const dryTg = resin('west-105-206').dryGlassTransition
+    expect(C(maximumOperatingTemperature(dryTg, resinBasis))).toBeLessThan(0)
+    expect(C(maximumOperatingTemperature(dryTg, laminateBasis))).toBeLessThan(15)
   })
 
   it('a dry laminate would be fine, which is why the moisture assumption carries the result', () => {
@@ -132,15 +155,20 @@ describe('the wet layup knockdown, decomposed rather than assumed', () => {
   })
 
   /**
-   * The finding that reverses the conventional wisdom. Hand layup forces woven
-   * fabric, and woven is worse in tension and BETTER in compression. For a frame
-   * whose members are in compression, being forced onto woven is not the penalty
-   * everyone assumes.
+   * A RETRACTED finding. Hand layup forces woven fabric, and an earlier
+   * derivation appeared to show woven BEATING unidirectional in compression,
+   * which would have made that forced choice an advantage. It was a
+   * normalisation artifact. Woven is worse in tension and at best parity in
+   * compression.
    */
-  it('woven costs strength in tension and GAINS it in compression', () => {
+  it('woven costs strength in tension and is at best PARITY in compression', () => {
+    // An earlier version of this model claimed a 20 percent compression BONUS
+    // from crimp. That was a normalisation artifact and it is retracted. The
+    // test now pins the corrected values so the bonus cannot come back.
     expect(v(WOVEN_KNOCKDOWN.tension)).toBeLessThan(1)
-    expect(v(WOVEN_KNOCKDOWN.compression)).toBeGreaterThan(1)
-    expect(v(WOVEN_KNOCKDOWN.modulus)).toBeCloseTo(1, 1)
+    expect(v(WOVEN_KNOCKDOWN.compression)).toBeLessThanOrEqual(1)
+    expect(v(WOVEN_KNOCKDOWN.compression)).toBeGreaterThan(0.85)
+    expect(v(WOVEN_KNOCKDOWN.modulus)).toBeLessThan(1)
   })
 
   it('voids hit interlaminar shear hard and leave fibre properties alone', () => {
@@ -148,7 +176,7 @@ describe('the wet layup knockdown, decomposed rather than assumed', () => {
     // actionable: spend the effort on joint area and bondline quality, not on
     // trying to make the members thinner.
     const ilssLoss = v(WET_LAYUP.ilssLossPerVoidFraction) * v(WET_LAYUP.voidContent)
-    expect(ilssLoss).toBeGreaterThan(0.1)
-    expect(ilssLoss).toBeLessThan(0.3)
+    expect(ilssLoss).toBeGreaterThan(0.2)
+    expect(ilssLoss).toBeLessThan(0.35)
   })
 })

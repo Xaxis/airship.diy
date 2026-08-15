@@ -176,20 +176,37 @@ describe('the CG-below-CB pendulum', () => {
 })
 
 /**
- * A property unique to a FULLY BUOYANT vehicle: the effective-mass ratios are
- * exact rather than approximate, because at neutral buoyancy the ship's mass
- * equals the mass of air it displaces identically. A hybridLift vehicle does
- * not get this.
+ * A property unique to a FULLY BUOYANT vehicle: at neutral buoyancy the ship's
+ * mass equals the displaced air mass identically, so the bare-hull effective
+ * mass ratios are closed-form. A hybridLift vehicle does not get this.
+ *
+ * They are NOT the as-built ratios. Fins and gondola add their own, which is
+ * why the word "exact" was removed after checking.
  */
-describe('at neutral buoyancy the effective mass ratios are exact', () => {
-  it('sway and heave are exactly (1 + k2) times the ship mass', () => {
+describe('at neutral buoyancy the bare-hull mass ratios are closed-form', () => {
+  it('sway and heave are (1 + k2) times the ship mass', () => {
     const { k2 } = inertiaCoefficients(5)
     expect(1 + k2).toBeCloseTo(1.894, 3)
   })
 
-  it('surge is exactly (1 + k1) times the ship mass', () => {
+  it('surge is (1 + k1) times the ship mass', () => {
     const { k1 } = inertiaCoefficients(5)
     expect(1 + k1).toBeCloseTo(1.059, 3)
+  })
+
+  it('the Lamb invariant (1+k1)(1+k2) = 2.006 holds, which is a strong check', () => {
+    // An identity of the prolate spheroid solution. If either coefficient were
+    // wrong this would not close.
+    const { k1, k2 } = inertiaCoefficients(5)
+    expect((1 + k1) * (1 + k2)).toBeCloseTo(2.006, 3)
+  })
+
+  it('and alpha0 + 2*beta0 = 2 exactly, for any fineness ratio', () => {
+    // The other Lamb identity, and it holds across the whole family.
+    for (const fr of [2, 3, 5, 8]) {
+      const { alpha0, beta0 } = inertiaCoefficients(fr)
+      expect(alpha0 + 2 * beta0).toBeCloseTo(2, 6)
+    }
   })
 })
 

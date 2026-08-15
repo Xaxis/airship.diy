@@ -27,10 +27,17 @@ import type { KilogramsPerCubicMeter, CubicMeters } from '@airship/units'
  *
  * A CONSEQUENCE UNIQUE TO A FULLY BUOYANT VEHICLE. At neutral buoyancy the
  * ship's mass equals the mass of air it displaces, identically, because that is
- * what neutral buoyancy MEANS. So the effective-mass ratios are exact rather
- * than approximate: sway and heave are exactly (1 + k2) = 1.894 times the ship
- * mass, and surge exactly (1 + k1) = 1.059. A hybridLift vehicle or a heavy
- * airship does not get this simplification, because for those m is not rho*V.
+ * what neutral buoyancy MEANS. So for the BARE HULL the effective-mass ratios
+ * are closed-form rather than empirical: sway and heave are (1 + k2) = 1.894
+ * times the ship mass and surge (1 + k1) = 1.059. A hybridLift vehicle or a
+ * heavy airship does not get this simplification, because for those m is not
+ * rho*V.
+ *
+ * They are NOT exact for the ship as built. Fins and the gondola add their own
+ * added mass, contributing up to about 40 percent more on the transverse terms,
+ * which puts the as-built sway ratio somewhere around 2.25 to 2.49. That
+ * correction is uncertain and is applied in the flight dynamics model rather
+ * than baked in here.
  */
 
 export interface InertiaCoefficients {

@@ -9,8 +9,9 @@ import { measured, uncertain, under } from '../citation.js'
  * a hand-laid part is the single most common way a composite design turns out
  * 20 percent lighter on paper than it can ever be built.
  *
- * READ THE FOUR FINDINGS BELOW BEFORE USING ANY NUMBER HERE. Two of them
- * reverse the conventional wisdom and one of them may be a design killer.
+ * READ THE FOUR FINDINGS BELOW BEFORE USING ANY NUMBER HERE. One reverses the
+ * conventional wisdom, one was retracted after checking, and one is the binding
+ * constraint on the whole structure.
  */
 
 // ---------------------------------------------------------------------------
@@ -145,8 +146,8 @@ export const WET_LAYUP = under('wetLayup', () => ({
   }),
 
   voidContent: uncertain({
-    low: 0.015,
-    nominal: 0.03,
+    low: 0.03,
+    nominal: 0.034,
     high: 0.05,
     unit: '1',
     reason:
@@ -187,21 +188,28 @@ export const WET_LAYUP = under('wetLayup', () => ({
 }))
 
 /**
- * FINDING 3: the woven crimp knockdown REVERSES SIGN in compression.
+ * FINDING 3, RETRACTED. Woven fabric does NOT beat unidirectional in
+ * compression, and the claim that it did was an artifact of my own arithmetic.
  *
- * Hand wet layup forces woven fabric, because dry unidirectional tape cannot be
- * draped and wet out over compound curvature by hand. The universal claim is
- * that woven costs about 20 percent against UD.
+ * The original reasoning: normalising Hexcel's HexPly 8552 unidirectional and
+ * woven rows to aligned fibre volume, same fibre and same resin in adjacent
+ * tables, appeared to show woven losing 22 percent in tension, matching in
+ * modulus, and gaining 20 percent in COMPRESSION. That would have meant hand
+ * layup's forced use of woven fabric was an advantage for a buckling-critical
+ * frame rather than a penalty.
  *
- * Normalising Hexcel's own HexPly 8552 datasheet rows to aligned fibre volume,
- * same fibre and same resin in adjacent tables, gives a different answer:
- * woven loses about 22 percent in TENSION, matches UD in MODULUS, and is about
- * 20 percent BETTER in COMPRESSION. The crimp that hurts a tensile fibre helps a
- * compressive one, because the interlacing supports it against microbuckling.
+ * It does not survive checking. The normalisation divided the woven row by half
+ * its total fibre volume to get the aligned fraction, which is right, but did
+ * not account for the fill tows contributing to the measured compressive
+ * response while being excluded from the denominator. The apparent bonus is that
+ * omission, not a physical crimp effect.
  *
- * For a frame whose members are in compression and whose failure mode is
- * buckling, being forced onto woven fabric is therefore not the penalty everyone
- * assumes. It may be an advantage.
+ * Corrected: treat woven compression as at-best PARITY per unit aligned fibre,
+ * 0.95 with a band of 0.85 to 1.05. Do not size compression members on a bonus.
+ *
+ * This finding was flagged at the time for priority verification precisely
+ * because it flattered the design. That was the right instinct and it is why the
+ * error lasted an hour rather than reaching a laminate schedule.
  */
 export const WOVEN_KNOCKDOWN = under('wovenKnockdown', () => ({
   tension: uncertain({
@@ -214,22 +222,24 @@ export const WOVEN_KNOCKDOWN = under('wovenKnockdown', () => ({
     source: 'hexcel-8552',
   }),
   modulus: uncertain({
-    low: 0.95,
-    nominal: 1.0,
-    high: 1.03,
+    low: 0.9,
+    nominal: 0.93,
+    high: 0.97,
     unit: '1',
-    reason: 'Same derivation. Crimp does not measurably change aligned modulus.',
+    reason:
+      'Crimp costs a little aligned modulus because the tows are not straight. The earlier figure of 1.00 came from the same flawed normalisation as the compression term.',
     resolvedBy: 'Coupon tests.',
     source: 'hexcel-8552',
   }),
   compression: uncertain({
-    low: 1.05,
-    nominal: 1.2,
-    high: 1.35,
+    low: 0.85,
+    nominal: 0.95,
+    high: 1.05,
     unit: '1',
     reason:
-      'Same derivation, and the direction is the surprise. Worth confirming before it is relied on, because it contradicts the folklore and it favours the design.',
-    resolvedBy: 'Compression coupon tests of the actual fabric and resin. Priority, because a result that flatters the design has to be checked harder than one that does not.',
+      'At-best parity. An earlier derivation from the same datasheet appeared to show a 20 percent BONUS; that was a normalisation artifact, not a crimp effect, and it is retracted. The true value straddles unity and nobody has measured it for a wet-laid woven laminate.',
+    resolvedBy:
+      'Compression coupon tests of the actual fabric and resin. Still a priority, but now to confirm parity rather than to bank a bonus.',
     source: 'hexcel-8552',
   }),
 }))
@@ -291,48 +301,51 @@ export const RESIN_SYSTEMS: readonly ResinSystem[] = under('resin', () => [
 ])
 
 /**
- * FINDING 4, AND IT MAY BE A DESIGN KILLER.
- *
- * The binding materials constraint on this vehicle is glass transition
- * temperature, not strength, and the margin is far tighter than any builder
- * would guess.
+ * FINDING 4: TEMPERATURE, NOT STRENGTH, IS THE BINDING MATERIALS CONSTRAINT.
+ * How binding depends on one unresolved question, and the range is a factor of
+ * five in permissible operating temperature.
  *
  * Chain three published rules:
  *   - FAA PS-ACE-100-2-18-1999 requires maximum operating temperature at least
  *     28 K BELOW the WET glass transition temperature.
  *   - Wright (Composites, 1981) gives wet Tg as roughly dry Tg minus 20 K for
  *     each percent of absorbed moisture.
- *   - Colin and Verdu put epoxy saturation moisture below about 3 percent.
+ *   - Colin and Verdu put epoxy saturation moisture below about 3 percent OF
+ *     THE RESIN.
  *
- * Run it for a saturated laminate:
+ * THE PIVOT IS THAT LAST WORD. Only the resin absorbs water, so 3 percent of
+ * resin mass is about 1.4 percent of LAMINATE mass at 47 percent fibre volume.
+ * Wright's paper does not state which basis its moisture axis uses, and the two
+ * give very different answers:
  *
- *   West System 105/206     dry Tg 59.5 C  ->  max operating  -28.5 C
- *   Pro-Set ambient cure    dry Tg 64.0 C  ->  max operating  -24.0 C
- *   Pro-Set 82 C post-cure  dry Tg 96.0 C  ->  max operating    8.0 C
+ *   resin basis, 3.0 percent      West System   -28 C    Pro-Set post-cured   8 C
+ *   laminate basis, 1.4 percent   West System     4 C    Pro-Set post-cured  40 C
  *
- * Every ambient-cure option is unusable: their permissible operating
- * temperature is below freezing. Even the post-cured system permits only 8 C.
+ * On the resin basis every ambient-cure epoxy is unusable and even the
+ * post-cured system permits only 8 C, which a sun-loaded tropical hull would
+ * exceed constantly. On the laminate basis the post-cured system permits 40 C,
+ * which is workable with attention to hull colour and ventilation.
  *
- * A vehicle stationed at 15 degrees latitude with a sun-loaded hull is nowhere
- * near 8 C. This is not a margin to trim, it is a wall.
+ * WHAT SURVIVES EITHER WAY:
+ *   - Ambient-cure epoxy is ruled out for primary structure. Even on the
+ *     generous basis it permits only about 4 C.
+ *   - Post-cure is mandatory. It buys 32 K of dry Tg, which is the difference
+ *     between a usable structure and an unusable one, and the brief already
+ *     permits an oven or heat blanket.
+ *   - The hull optical property question acquires a third axis. A dark hull
+ *     maximises solar power, superheat, AND structural temperature.
  *
- * WHAT IT MEANS, honestly stated:
- *   - Ambient-cure epoxy is ruled out for primary structure. Post-cure is
- *     mandatory, and the brief already permits an oven or heat blanket.
- *   - Even post-cured, a higher-Tg system than the marine laminating epoxies
- *     surveyed here is probably required. That search has not been done.
- *   - The saturated-moisture assumption is the harshest case. The frame sits
- *     INSIDE the envelope, shaded from the sun and separated from rain by the
- *     cover, so its moisture uptake and its temperature are both lower than the
- *     skin's. How much lower is not known and is the measurement that decides
- *     whether this is a wall or a scare.
- *   - It collides head-on with the open question about hull optical properties.
- *     A dark hull maximises solar power and superheat; it now also maximises
- *     structural temperature. That trade just acquired a third axis.
+ * WHAT IS UNRESOLVED, and it is now the highest-value materials measurement in
+ * the project: condition a laminate coupon to constant mass and measure wet Tg
+ * directly by DMA. That skips Wright's rule entirely and settles the question in
+ * a fortnight of elapsed time and a few hours of work.
  *
- * TODO(uncertainty): nobody has published the skin temperature of a sun-exposed
- * photovoltaic-covered airship hull at sea level. Every thermal study found is
- * stratospheric, where the convective environment is entirely different.
+ * The frame also sits INSIDE the envelope, shaded from the sun and separated
+ * from rain by the cover, so its real moisture uptake and temperature are both
+ * lower than the skin's. Nobody has published the skin temperature of a
+ * sun-exposed photovoltaic-covered airship hull at sea level; every thermal
+ * study found is stratospheric, where the convective environment is entirely
+ * different.
  */
 export const TEMPERATURE_LIMITS = under('temperatureLimits', () => ({
   /** FAA-required margin between maximum operating temperature and wet Tg. */
@@ -351,7 +364,10 @@ export const TEMPERATURE_LIMITS = under('temperatureLimits', () => ({
     note: 'That is 20 K per PERCENT, expressed per unit fraction. Described by its own author as a rule of thumb drawn across several studies, so the uncertainty is real.',
   }),
 
-  saturationMoistureFraction: uncertain({
+  /**
+   * Saturation moisture on a RESIN MASS basis. The published figure.
+   */
+  resinSaturationMoistureFraction: uncertain({
     low: 0.015,
     nominal: 0.03,
     high: 0.038,
@@ -359,8 +375,31 @@ export const TEMPERATURE_LIMITS = under('temperatureLimits', () => ({
     reason:
       'Depends on the resin, the temperature, and how long the part has been wet. A structure that never lands has a very long time to reach equilibrium.',
     resolvedBy:
-      'Immersion or humidity-chamber conditioning of a coupon to constant mass, then a wet DMA. Weeks of elapsed time, hours of work.',
+      'Immersion or humidity-chamber conditioning of a coupon to constant mass, then a wet DMA.',
     source: 'colin-verdu',
+  }),
+
+  /**
+   * The same saturation expressed on a LAMINATE MASS basis, which at 47 percent
+   * fibre volume is roughly 47 percent of the resin figure because only the
+   * resin absorbs water.
+   *
+   * WHICH BASIS APPLIES IS THE PIVOT OF THE WHOLE TEMPERATURE FINDING, and it
+   * changes the answer by a factor of about 2.5. Wright's rule of 20 K of Tg per
+   * percent moisture does not state its basis. On the resin basis the post-cured
+   * system permits 8 C and the design is in serious trouble; on the laminate
+   * basis it permits about 40 C and the design is merely constrained.
+   */
+  laminateSaturationMoistureFraction: uncertain({
+    low: 0.007,
+    nominal: 0.014,
+    high: 0.018,
+    unit: '1',
+    reason:
+      'Derived from the resin figure by fibre volume fraction. The real question is not this number but which basis Wright intended, and his paper does not say.',
+    resolvedBy:
+      'Read Wright 1981 and establish the basis of its moisture axis. Failing that, condition a laminate coupon to constant mass, measure wet Tg directly by DMA, and skip the rule entirely. This is now the highest-value materials measurement in the project.',
+    source: 'wright-1981',
   }),
 }))
 
@@ -369,6 +408,11 @@ export const TEMPERATURE_LIMITS = under('temperatureLimits', () => ({
  *
  * @derived MOT = dryTg - (drop per unit moisture * moisture) - required margin.
  * Chains FAA PS-ACE-100-2-18-1999 with Wright's wet-Tg rule.
+ *
+ * The caller must pass the moisture fraction on the basis Wright intended, and
+ * that basis is unknown. Pass `resinSaturationMoistureFraction` for the harsh
+ * reading and `laminateSaturationMoistureFraction` for the generous one; they
+ * differ by a factor of about 2.5 and the answer differs by 32 K.
  */
 export const maximumOperatingTemperature = (
   dryGlassTransition: number,
