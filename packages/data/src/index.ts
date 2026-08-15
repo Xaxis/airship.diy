@@ -54,6 +54,14 @@ export {
 export type { HistoricalShip } from './validation/historical-ships.js'
 export { HISTORICAL_SHIPS, ZEPPELIN_NT } from './validation/historical-ships.js'
 
+export {
+  MATERIAL_PRICES,
+  FACILITY,
+  GROUND_HANDLING,
+  BUILD_LABOUR,
+  BUILD_PRECEDENT,
+} from './build.js'
+
 export type { FleetEntry, PressureStabilisedEntry } from './validation/structural-fleet.js'
 export {
   STRUCTURAL_FLEET,

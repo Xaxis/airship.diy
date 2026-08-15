@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { ArrangementViewer } from '../components/ArrangementViewer'
 import { Callout, Prose, Stat, StatGrid, fmt, pct } from '../components/site/primitives'
 import { ROUTES } from '../lib/routes'
-import { arrangement, baseline, hullProfile, marine, mission } from '../lib/model'
+import { arrangement, baseline, build, hullProfile, marine, mission } from '../lib/model'
 
 /**
  * The landing page.
@@ -72,12 +72,12 @@ export default function Home() {
       </div>
 
       <section className="py-14">
-        <h2 className="text-xl font-medium tracking-tight">Three findings that decided it</h2>
+        <h2 className="text-xl font-medium tracking-tight">Four findings that decided it</h2>
         <p className="mt-3 max-w-3xl leading-relaxed text-[var(--color-ink-dim)]">
           Each came out of building the model rather than out of reading about airships, and each
           reversed something this project had already written down.
         </p>
-        <div className="mt-7 grid gap-4 lg:grid-cols-3">
+        <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Callout title="Drawing the arrangement made it 25 m longer" tone="unknown">
             <p>
               The baseline was 90 m for as long as the mass budget was a <em>fraction</em>. Giving
@@ -102,6 +102,16 @@ export default function Home() {
               on water at is {fmt(marine.landingHeaviness)} kg. It floats off its float in the
               afternoon and presses two tonnes onto it before dawn, every day. No passive device
               can be sized for that, and this gate is left failing.
+            </p>
+          </Callout>
+          <Callout title="The building costs more than the airship" tone="fail">
+            <p>
+              ${(build.materialsTotal / 1e6).toFixed(1)}M of materials has to be assembled inside a{' '}
+              {build.facility.clearLength.toFixed(0)} m shed that costs{' '}
+              {build.buildingMultiple.toFixed(1)} times as much, cannot be rented, and is required
+              because a rigid airship cannot be assembled in weather. Two people can hold the
+              finished ship broadside in {build.handling.broadside.toFixed(2)} m/s. This is the page
+              where the answer is no, and the reason is not the airship.
             </p>
           </Callout>
         </div>

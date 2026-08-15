@@ -19,7 +19,7 @@ const ORIGIN = (process.argv[2] ?? 'https://airship.diy/').replace(/\/$/, '')
 /**
  * What each route must show for the page to count as alive.
  *
- * The site is eight pages now rather than one scroll, so a single set of
+ * The site is ten pages now rather than one scroll, so a single set of
  * assertions cannot describe it: the flight page has sliders and the validation
  * page has none, and asserting eight sliders everywhere would fail seven pages
  * that are working perfectly.
@@ -35,6 +35,8 @@ const ROUTES = [
   { path: '/structure', minSections: 2 },
   { path: '/water', minSections: 1, canvases: 1, liveReadouts: true },
   { path: '/flight', minSections: 2, canvases: 1, sliders: 8 },
+  { path: '/failure', minSections: 2 },
+  { path: '/build', minSections: 5 },
   { path: '/validation', minSections: 1 },
   { path: '/open', minSections: 2 },
 ]

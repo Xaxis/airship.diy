@@ -57,6 +57,9 @@ import {
   waterLoopCheck,
   assessHabitat,
   FITOUT,
+  buildVerdict,
+  failureModes,
+  failureSummary,
 } from '@airship/model'
 import { energyBalance, integrateMission, maximumSustainableWind } from '@airship/solvers'
 import { m, m3, kg, N, purity as asPurity } from '@airship/units'
@@ -1002,5 +1005,123 @@ export const habitat = (() => {
     totalFitoutMass: assessment.totalFitoutMass,
     arrangementMass: assessment.arrangementMass,
     findings: [...assessment.findings],
+  }
+})()
+
+/**
+ * Can two people build it?
+ *
+ * The one page on this site whose answer is no. Everything here is computed
+ * from the same mass statement that sizes the vehicle, so the bill of materials
+ * cannot describe a different ship from the one in the cutaway.
+ */
+export const build = (() => {
+  const verdict = buildVerdict(BASELINE, BASELINE_ARRANGEMENT)
+
+  return {
+    lines: verdict.bom.lines.map((l) => ({
+      id: l.id,
+      name: l.name,
+      quantity: l.quantity,
+      unit: l.unit,
+      unitPrice: l.unitPrice,
+      unitPriceUnit: l.unitPriceUnit,
+      cost: l.cost,
+      low: l.costRange[0],
+      high: l.costRange[1],
+      note: l.note,
+    })),
+    namedSubtotal: verdict.bom.namedSubtotal,
+    unnamedAllowance: verdict.bom.unnamedAllowance,
+    materialsTotal: verdict.bom.total,
+    materialsLow: verdict.bom.totalRange[0],
+    materialsHigh: verdict.bom.totalRange[1],
+    perKilogram: verdict.bom.perKilogram,
+    concentration: {
+      lines: [...verdict.bom.concentration.lines],
+      share: verdict.bom.concentration.share,
+    },
+
+    tasks: verdict.labour.tasks.map((t) => ({
+      id: t.id,
+      name: t.name,
+      hours: t.hours,
+      low: t.hoursRange[0],
+      high: t.hoursRange[1],
+      basis: t.basis,
+    })),
+    labourHours: verdict.labour.total,
+    labourLow: verdict.labour.totalRange[0],
+    labourHigh: verdict.labour.totalRange[1],
+    yearsForTwo: verdict.labour.yearsForTwo,
+    crossCheckHours: verdict.labour.crossCheckHours,
+    crossCheckAgrees: verdict.labour.crossCheckAgrees,
+    labourFindings: [...verdict.labour.findings],
+
+    facility: {
+      clearLength: verdict.facility.clearLength,
+      clearWidth: verdict.facility.clearWidth,
+      clearHeight: verdict.facility.clearHeight,
+      floorArea: verdict.facility.floorArea,
+      vehicleHeight: verdict.facility.vehicleHeight,
+      rigidHangarCost: verdict.facility.rigidHangarCost,
+      completeBaseCost: verdict.facility.completeBaseCost,
+      airSupportedCost: verdict.facility.airSupportedCost,
+      lateralWindLoad: verdict.facility.lateralWindLoad,
+      mooringCircleArea: verdict.facility.mooringCircleArea,
+      findings: [...verdict.facility.findings],
+    },
+
+    handling: {
+      sideArea: verdict.handling.sideArea,
+      broadside: verdict.handling.twoPersonBroadsideLimit,
+      bowOn: verdict.handling.twoPersonBowOnLimit,
+      unmechanisedCrew: verdict.handling.unmechanisedCrew,
+      mastDragLoad: verdict.handling.mastDragLoad,
+      mastDesignLoad: verdict.handling.mastDesignLoad,
+      findings: [...verdict.handling.findings],
+    },
+
+    capitalRequired: verdict.capitalRequired,
+    buildable: verdict.buildable,
+    blockers: [...verdict.blockers],
+    mitigations: [...verdict.mitigations],
+    verdict: verdict.verdict,
+
+    /** The hangar cost as a multiple of everything that goes inside it. */
+    buildingMultiple: verdict.facility.rigidHangarCost / verdict.bom.total,
+  }
+})()
+
+/**
+ * What breaks, and whether it kills you.
+ *
+ * The consequences are computed from the mass statement rather than asserted,
+ * which is what makes this a check rather than a document: change the ship and
+ * a mode that was survivable stops being survivable.
+ */
+export const failure = (() => {
+  /** @source Water ballast carried in the two tanks, kg, available to answer a lift loss. */
+  const BALLAST_AVAILABLE = 2500
+  const modes = failureModes(BASELINE, BASELINE_ARRANGEMENT, BALLAST_AVAILABLE)
+  const summary = failureSummary(modes)
+
+  return {
+    modes: modes.map((m) => ({
+      id: m.id,
+      name: m.name,
+      effect: m.effect,
+      severity: m.severity,
+      consequence: m.consequence,
+      detection: m.detection,
+      response: m.response,
+      survivable: m.survivable,
+      designAnswer: m.designAnswer,
+    })),
+    total: summary.total,
+    survivable: summary.survivable,
+    catastrophic: summary.catastrophic.map((m) => m.name),
+    verdict: summary.verdict,
+    ballastAvailable: BALLAST_AVAILABLE,
   }
 })()

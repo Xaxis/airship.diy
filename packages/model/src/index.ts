@@ -83,3 +83,20 @@ export { assessRoom, assessHabitat } from './habitat.js'
 
 export type { Severity as FailureSeverity, FailureMode, FailureSummary } from './failure.js'
 export { failureModes, failureSummary } from './failure.js'
+
+export type {
+  BomLine,
+  BillOfMaterials,
+  LabourTask,
+  LabourEstimate,
+  FacilityRequirement,
+  HandlingLimits,
+  BuildVerdict,
+} from './build.js'
+export {
+  billOfMaterials,
+  labourEstimate,
+  facilityRequirement,
+  handlingLimits,
+  buildVerdict,
+} from './build.js'

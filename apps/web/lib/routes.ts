@@ -51,7 +51,7 @@ export const ROUTES: readonly Route[] = [
   {
     href: '/structure',
     label: 'Structure',
-    title: 'Can it be built?',
+    title: 'Will it hold together?',
     question: 'Does the square-cube law let a carbon frame carry this?',
     summary:
       'The mass fraction against every rigid airship with published figures, the buckling allowables that actually size the frame, and the gust case that turns out to govern rather than the static one.',
@@ -71,6 +71,22 @@ export const ROUTES: readonly Route[] = [
     question: 'What does it feel like to handle?',
     summary:
       'The project’s own 6-DOF solver at 100 Hz, with the full added-mass tensor. Slow to respond, slow to stop, and overdamped at cruise where it wallows at rest.',
+  },
+  {
+    href: '/failure',
+    label: 'Failure',
+    title: 'What breaks, and does it kill you?',
+    question: 'Eight ways this vehicle fails, and what happens next in each of them.',
+    summary:
+      'An FMEA whose consequences are computed from the mass statement rather than asserted. Seven of eight are survivable. The eighth is a wiring diagram, not a physics problem, and it is the one worth fixing.',
+  },
+  {
+    href: '/build',
+    label: 'Build',
+    title: 'Could you actually build it?',
+    question: 'What does it cost, how long does it take, and where would you do it?',
+    summary:
+      'A bill of materials priced at what an individual is actually charged, a labour estimate cross-checked two ways, and the building. This is the page where the answer is no, and the reason is not the airship.',
   },
   {
     href: '/validation',
