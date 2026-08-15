@@ -155,6 +155,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
   // applied to the live scene through this ref, so switching views does not
   // throw away and re-upload every buffer.
   const applyMode = useRef<(m: ViewMode) => void>(() => {})
+  const resetRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     applyMode.current(mode)
@@ -849,13 +850,19 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     let elevation = 0.3
     let distance = length * 0.92
     let dragging = false
+    let panning = false
     let lastX = 0
     let lastY = 0
 
     // The ship hangs below its axis, so the frame is centred a little low
     // rather than on the hull centreline: otherwise the gondola sits at the
     // bottom edge and there is a band of empty sky above the array.
-    const target = new THREE.Vector3(0, 0, -maxRadius * 0.35)
+    //
+    // Panning moves this point rather than the camera, so the orbit stays
+    // centred on whatever you panned to. Panning the camera instead would send
+    // the ship swinging out of frame the moment you dragged to rotate.
+    const home = new THREE.Vector3(0, 0, -maxRadius * 0.35)
+    const target = home.clone()
 
     const placeCamera = () => {
       const r = distance
@@ -871,18 +878,28 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     canvas.style.touchAction = 'none'
     canvas.style.cursor = 'grab'
 
+    // Middle button, right button or shift-drag pans. Three ways in because
+    // one of them is always unavailable: trackpads have no middle button, right
+    // drag opens a context menu on some setups, and shift-drag is the only one
+    // a keyboard-and-trackpad user reliably has.
+    const isPanGesture = (e: PointerEvent) => e.button === 1 || e.button === 2 || e.shiftKey
+
     const onPointerDown = (e: PointerEvent) => {
+      panning = isPanGesture(e)
       dragging = true
       lastX = e.clientX
       lastY = e.clientY
-      canvas.style.cursor = 'grabbing'
+      canvas.style.cursor = panning ? 'move' : 'grabbing'
       canvas.setPointerCapture(e.pointerId)
+      e.preventDefault()
     }
     const onPointerUp = (e: PointerEvent) => {
       dragging = false
+      panning = false
       canvas.style.cursor = 'grab'
       canvas.releasePointerCapture(e.pointerId)
     }
+    const onContextMenu = (e: Event) => e.preventDefault()
 
     const pointer = new THREE.Vector2()
     let pointerInside = false
@@ -892,12 +909,40 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
       pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
       pointerInside = true
       if (!dragging) return
-      azimuth -= (e.clientX - lastX) * 0.006
-      elevation = Math.max(-1.35, Math.min(1.35, elevation + (e.clientY - lastY) * 0.005))
+      const dx = e.clientX - lastX
+      const dy = e.clientY - lastY
+
+      if (panning) {
+        // Pan in the camera's own screen plane, scaled so a pixel of drag moves
+        // the same number of pixels of ship whatever the zoom. The vertical
+        // extent of the view at the target distance is 2*d*tan(fov/2), so a
+        // fraction of the canvas height maps to that fraction of it.
+        const height = canvas.clientHeight || 1
+        const worldPerPixel =
+          (2 * distance * Math.tan((camera.fov * Math.PI) / 360)) / height
+        const right = new THREE.Vector3()
+        const up = new THREE.Vector3()
+        camera.matrixWorld.extractBasis(right, up, new THREE.Vector3())
+        target.addScaledVector(right, -dx * worldPerPixel)
+        target.addScaledVector(up, dy * worldPerPixel)
+      } else {
+        azimuth -= dx * 0.006
+        elevation = Math.max(-1.35, Math.min(1.35, elevation + dy * 0.005))
+      }
+
       lastX = e.clientX
       lastY = e.clientY
       placeCamera()
     }
+
+    const resetView = () => {
+      target.copy(home)
+      azimuth = 0.62
+      elevation = 0.3
+      distance = length * 0.92
+      placeCamera()
+    }
+    resetRef.current = resetView
     const onPointerLeave = () => {
       pointerInside = false
       setHovered(null)
@@ -913,6 +958,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerleave', onPointerLeave)
     canvas.addEventListener('wheel', onWheel, { passive: false })
+    canvas.addEventListener('contextmenu', onContextMenu)
 
     const raycaster = new THREE.Raycaster()
     let highlighted: THREE.Mesh | null = null
@@ -1012,6 +1058,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerleave', onPointerLeave)
       canvas.removeEventListener('wheel', onWheel)
+      canvas.removeEventListener('contextmenu', onContextMenu)
       for (const d of disposables) d.dispose()
       renderer.dispose()
       if (canvas.parentNode === container) container.removeChild(canvas)
@@ -1041,8 +1088,15 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
             {m.label}
           </button>
         ))}
-        <span className="ml-auto text-xs text-[var(--color-ink-faint)]">
-          Drag to orbit · scroll to zoom · hover any part
+        <button
+          type="button"
+          onClick={() => resetRef.current()}
+          className="ml-auto border border-[var(--color-rule)] px-3 py-1.5 text-xs tracking-wide text-[var(--color-ink-dim)] transition-colors hover:text-[var(--color-ink)]"
+        >
+          Reset view
+        </button>
+        <span className="w-full text-xs text-[var(--color-ink-faint)] sm:w-auto">
+          Drag to orbit · shift-drag or right-drag to pan · scroll to zoom · hover any part
         </span>
       </div>
 

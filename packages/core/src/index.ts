@@ -35,6 +35,28 @@ export {
   ballastVolume,
 } from './marine/hydrostatics.js'
 
+export type {
+  FloatType,
+  BoatResistance,
+  WindwardPerformance,
+  SeakeepingVerdict,
+  TouchdownVerdict,
+} from './marine/boat.js'
+export {
+  hullSpeed,
+  froudeNumber,
+  frictionCoefficient,
+  boatResistance,
+  windwardSpeed,
+  seakeeping,
+  cushionPressureFor,
+  maximumSeaState,
+  porpoisingSpeed,
+  PORPOISING_FROUDE_LIMIT,
+  waterTouchdown,
+  lateralWaterResistance,
+} from './marine/boat.js'
+
 export type { Attitude, WindLoad } from './marine/windage.js'
 export {
   windLoad,
@@ -109,6 +131,16 @@ export {
   BARE_HULL_DRAG_COEFFICIENT,
   PROPULSIVE_EFFICIENCY,
 } from './aerodynamics/drag.js'
+
+export type { LiftingBodyGeometry, HullLift, HybridLiftPenalty } from './aerodynamics/lifting-body.js'
+export {
+  liftCurveSlope,
+  liftingBodyGeometry,
+  diaphragmArea,
+  hullLift,
+  minimumFlyingSpeed,
+  hybridLiftPenalty,
+} from './aerodynamics/lifting-body.js'
 
 export type { SolarPosition, SolarIrradiance, ArrayLayout, ArrayOutput } from './solar.js'
 export {
