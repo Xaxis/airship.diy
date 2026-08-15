@@ -19,6 +19,14 @@ export {
   CONVENTIONAL_PRISMATIC_COEFFICIENT,
 } from './geometry/hull.js'
 
+export type { DistributedLoad, PointLoad, BeamStation, BeamResult } from './structure/beam.js'
+export {
+  solveBeam,
+  buoyancyDistribution,
+  requiredSectionModulus,
+  ringSectionModulus,
+} from './structure/beam.js'
+
 export type { PermeationRates } from './permeation.js'
 export {
   permeationRates,
