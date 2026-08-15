@@ -37,6 +37,14 @@ export {
   ballastVolume,
 } from './marine/hydrostatics.js'
 
+export type { InertiaCoefficients, AddedMassMatrix } from './dynamics/added-mass.js'
+export {
+  inertiaCoefficients,
+  addedMassMatrix,
+  munkMoment,
+  pendulumPeriod,
+} from './dynamics/added-mass.js'
+
 export type { PermeationRates } from './permeation.js'
 export {
   permeationRates,
