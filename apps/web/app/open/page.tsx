@@ -5,7 +5,6 @@ import {
 import { Shell } from '../../components/site/Shell'
 import {
   uncertainties,
-  validation,
 } from '../../lib/model'
 
 export const metadata = { title: 'Open questions' }
