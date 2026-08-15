@@ -4,6 +4,8 @@
   "references": [
     { "path": "./packages/units/tsconfig.build.json" },
     { "path": "./packages/data/tsconfig.build.json" },
-    { "path": "./packages/core/tsconfig.build.json" }
+    { "path": "./packages/core/tsconfig.build.json" },
+    { "path": "./packages/model/tsconfig.build.json" },
+    { "path": "./packages/solvers/tsconfig.build.json" }
   ]
 }

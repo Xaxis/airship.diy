@@ -1,0 +1,13 @@
+{
+  "name": "@airship/solvers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sizing convergence, energy balance, mission integrator, 6-DOF.",
+  "license": "MIT",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": { "build": "tsc --build" },
+  "dependencies": { "@airship/units": "0.1.0", "@airship/data": "0.1.0", "@airship/core": "0.1.0", "@airship/model": "0.1.0" }
+}

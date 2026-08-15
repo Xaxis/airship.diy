@@ -11,6 +11,7 @@ export {
 
 export { SOURCES, source, sourceExists } from './sources.js'
 export { CONSTANTS, MOLAR_MASS } from './constants.js'
+export { HYDROGEN_ENERGY, FUEL_CELL, ELECTROLYZER, PHOTOVOLTAIC, BATTERY } from './power.js'
 export { ISA, ISA_TABLE } from './isa.js'
 export type { GasSpecies } from './gases.js'
 export {
@@ -19,6 +20,14 @@ export {
   HYDROGEN_STORAGE_DENSITY,
   HYDROGEN_JOULE_THOMSON_INVERSION_TEMPERATURE,
 } from './gases.js'
+
+export type { BarrierFilm } from './materials/films.js'
+export {
+  BARRIER_FILMS,
+  barrierFilm,
+  HYDROGEN_HELIUM_SELECTIVITY,
+  MOLAR_VOLUME_STP,
+} from './materials/films.js'
 
 export type { HistoricalShip } from './validation/historical-ships.js'
 export { HISTORICAL_SHIPS, ZEPPELIN_NT } from './validation/historical-ships.js'

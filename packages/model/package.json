@@ -1,0 +1,13 @@
+{
+  "name": "@airship/model",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The parameter tree and the named design points. One source of truth.",
+  "license": "MIT",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": { "build": "tsc --build" },
+  "dependencies": { "@airship/units": "0.1.0", "@airship/data": "0.1.0", "@airship/core": "0.1.0" }
+}

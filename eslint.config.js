@@ -77,6 +77,21 @@ export default tseslint.config(
     },
   },
 
+  // The named design points are the one place numbers are CHOICES rather than
+  // measurements. "90 m hull" is not a fact about the world that could have a
+  // source; it is a decision, and the sizing sweep exists to move it. Demanding
+  // a citation for it would mean inventing one, which is the exact failure the
+  // rule was written to prevent.
+  //
+  // The exemption is one file wide on purpose. Everything in packages/model
+  // that is not a design point still has to cite.
+  {
+    files: ['packages/model/src/designs.ts'],
+    rules: {
+      'airship/no-uncited-constant': 'off',
+    },
+  },
+
   // Tests assert against published figures, so they are full of numbers by
   // definition. The citation lives in the fixture in packages/data/validation.
   {

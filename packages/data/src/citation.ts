@@ -80,11 +80,17 @@ export const under = <T>(path: string, build: () => T): T => {
   }
 }
 
-export function measured<T extends number>(
-  value: T,
+// The value parameters below are `number` rather than a generic `T extends
+// number` on purpose. Inference would fix T to the literal type of the
+// argument, so `uncertain({low: 0.15, nominal: 0.17, high: 0.19})` would
+// produce `Uncertain<0.15 | 0.17 | 0.19>` and `v()` would return that union.
+// It then propagates into every default parameter that reads the value, and
+// the resulting errors point at the call site rather than at the cause.
+export function measured(
+  value: number,
   spec: { unit: string; source: string; relativeUncertainty: number; note?: string },
-): Measured<T> {
-  const entry: Measured<T> = { kind: 'measured', value, ...spec }
+): Measured<number> {
+  const entry: Measured<number> = { kind: 'measured', value, ...spec }
   registry.push({ path: currentPath, value: entry })
   return entry
 }
@@ -95,16 +101,16 @@ export function measured<T extends number>(
  * Reaching for this is not a failure. Silently picking `nominal` and writing it
  * as a literal is the failure. TODO(uncertainty)
  */
-export function uncertain<T extends number>(spec: {
-  low: T
-  nominal: T
-  high: T
+export function uncertain(spec: {
+  low: number
+  nominal: number
+  high: number
   unit: string
   reason: string
   resolvedBy: string
   source?: string
-}): Uncertain<T> {
-  const entry: Uncertain<T> = { kind: 'uncertain', ...spec }
+}): Uncertain<number> {
+  const entry: Uncertain<number> = { kind: 'uncertain', ...spec }
   registry.push({ path: currentPath, value: entry })
   return entry
 }

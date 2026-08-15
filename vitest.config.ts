@@ -30,6 +30,12 @@ const project = (name: string) => ({
 
 export default defineConfig({
   test: {
-    projects: [project('units'), project('data'), project('core')],
+    projects: [
+      project('units'),
+      project('data'),
+      project('core'),
+      project('model'),
+      project('solvers'),
+    ],
   },
 })

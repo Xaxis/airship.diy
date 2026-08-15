@@ -26,6 +26,33 @@ const STRUCTURAL = new Set([0, 1, 2, -1, -2, 0.5, 3, 4, 6, 12, 100, 180, 360, 10
 
 const TAGS = /@(?:source|derived|uncertainty)\b/
 
+/**
+ * The provenance constructors from @airship/data. A literal passed to one of
+ * these is not an uncited constant: it IS the citation. Their type signatures
+ * make `source` or `reason` plus `resolvedBy` mandatory, so the compiler
+ * already enforces what this rule would be asking for, and requiring a comment
+ * on top of that would be noise that trains people to ignore the rule.
+ */
+const PROVENANCE_CONSTRUCTORS = new Set(['measured', 'uncertain'])
+
+/** True when the node sits inside a measured(...) or uncertain(...) call. */
+function insideProvenanceConstructor(node) {
+  for (let n = node; n; n = n.parent) {
+    if (n.type === 'CallExpression') {
+      const callee = n.callee
+      if (callee?.type === 'Identifier' && PROVENANCE_CONSTRUCTORS.has(callee.name)) return true
+      if (
+        callee?.type === 'MemberExpression' &&
+        callee.property?.type === 'Identifier' &&
+        PROVENANCE_CONSTRUCTORS.has(callee.property.name)
+      ) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
 export default {
   meta: {
     type: 'problem',
@@ -81,6 +108,8 @@ export default {
           : node.value
 
         if (STRUCTURAL.has(value) || extra.has(value)) return
+
+        if (insideProvenanceConstructor(node)) return
 
         // An array index is structural no matter how large it is.
         if (node.parent?.type === 'MemberExpression' && node.parent.computed && node.parent.property === node) {

@@ -52,6 +52,12 @@ export const SOURCES: readonly Source[] = [
     note: 'Standard atomic weights. Intervals rather than single values for elements with variable isotopic composition, which is why hydrogen carries a real uncertainty and helium does not.',
   },
   {
+    id: 'aiaa-envelope-permeation',
+    title: 'Helium permeation through flexible aerostat and stratospheric airship envelope laminates',
+    author: 'Various; see docs/derivations/permeation.md for the individual papers',
+    note: 'COMPILATION of several published measurements: a K5 para-aramid laminate at 0.04 L/(m2 day) helium, multi-ply polyester and Tedlar envelopes quoted as below 1 L/(m2 day), and laminate studies reporting 0.4 to 8.0 cc/(m2 day atm). EVERY figure in this body of work is for HELIUM. No hydrogen measurement on an airship-grade laminate appears to have been published, which is why the hydrogen entries in packages/data/src/materials/films.ts are Uncertain rather than Measured.',
+  },
+  {
     id: 'buck-1981',
     title: 'New equations for computing vapor pressure and enhancement factor',
     author: 'A. L. Buck',

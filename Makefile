@@ -56,6 +56,7 @@ report: build ## Headless run of the physics. No browser, no bundler, no test ru
 	# The standing proof that packages/core has not acquired a dependency on
 	# anything with a DOM. If this ever needs a shim, something has leaked in.
 	@node tools/report-lift.mjs
+	@node tools/report-loop.mjs
 
 uncertainty: build ## Every Uncertain value, sorted by how much it moves endurance
 	# The project's research queue. A value here is one nobody has measured yet,
