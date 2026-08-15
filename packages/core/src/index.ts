@@ -110,6 +110,18 @@ export {
   projectedAreaEstimate,
 } from './solar.js'
 
+export type { FuelOption } from './power/fuel-decision.js'
+export {
+  FUEL_OPTIONS,
+  BLEND_COMPONENTS,
+  WATER_PER_HYDROGEN_BURNED,
+  energyPerLiftGivenUp,
+  rankedByLiftCost,
+  heavinessPerKilogramOfCellHydrogenBurned,
+  engineDutyCycleLimit,
+  airDensityBlend,
+} from './power/fuel-decision.js'
+
 export type { FuelCellOutput, ElectrolyzerOutput } from './power/electrochemistry.js'
 export {
   fuelCell,
