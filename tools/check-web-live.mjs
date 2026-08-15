@@ -14,7 +14,30 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const URL_UNDER_TEST = process.argv[2] ?? 'https://airship-diy.vercel.app/'
+const ORIGIN = (process.argv[2] ?? 'https://airship.diy/').replace(/\/$/, '')
+
+/**
+ * What each route must show for the page to count as alive.
+ *
+ * The site is eight pages now rather than one scroll, so a single set of
+ * assertions cannot describe it: the flight page has sliders and the validation
+ * page has none, and asserting eight sliders everywhere would fail seven pages
+ * that are working perfectly.
+ *
+ * `minSections` is the structural floor. `canvases` and `sliders` are only
+ * asserted where that page is supposed to have them.
+ */
+const ROUTES = [
+  { path: '/', minSections: 3, canvases: 1 },
+  { path: '/ship', minSections: 2, canvases: 1 },
+  { path: '/architecture', minSections: 1 },
+  { path: '/energy', minSections: 3 },
+  { path: '/structure', minSections: 2 },
+  { path: '/water', minSections: 1, canvases: 1, liveReadouts: true },
+  { path: '/flight', minSections: 2, canvases: 1, sliders: 8 },
+  { path: '/validation', minSections: 1 },
+  { path: '/open', minSections: 2 },
+]
 
 const CHROME =
   process.env['CHROME_PATH'] ??
@@ -115,7 +138,6 @@ const main = async () => {
   await send('Runtime.enable')
   await send('Network.enable')
   await send('Page.enable')
-  await send('Page.navigate', { url: URL_UNDER_TEST })
 
   // Give hydration and the first simulator frames time to run or to fail.
   await new Promise((r) => setTimeout(r, 6000))
@@ -125,50 +147,72 @@ const main = async () => {
     return result?.result?.value
   }
 
-  const checks = []
-  const check = (name, ok, detail) => checks.push({ name, ok, detail })
-
-  check('page has a title', Boolean(await evaluate('document.title')), await evaluate('document.title'))
-
-  // React actually mounted and rendered the tree.
-  const sectionCount = await evaluate('document.querySelectorAll("section").length')
-  check('sections rendered', sectionCount >= 10, `${sectionCount} sections`)
-
-  // The two Three.js views both created a WebGL context. A canvas that never
-  // appears is the signature of a client component that threw on mount.
-  const canvasCount = await evaluate('document.querySelectorAll("canvas").length')
-  check('both WebGL canvases present', canvasCount >= 2, `${canvasCount} canvases`)
-
-  // The simulator's instrument row updates from the physics loop, so a readout
-  // that is still showing the placeholder means the loop never ran.
-  const readouts = await evaluate(
-    `Array.from(document.querySelectorAll('.num')).map(e => e.textContent).filter(t => t && t.includes('m/s')).join('|')`,
-  )
-  check('simulator instruments are live', Boolean(readouts && !readouts.includes('—')), readouts)
-
-  // The explorer runs the solvers client-side. Missing sliders means the
-  // component threw on mount and the section is a hollow shell.
-  const sliderCount = await evaluate(
-    "document.querySelectorAll('input[type=range]').length",
-  )
-  check('design explorer sliders present', sliderCount >= 8, `${sliderCount} sliders`)
-
-  check('no uncaught exceptions', pageErrors.length === 0, pageErrors.join(' | '))
-  check('no console errors', consoleErrors.length === 0, consoleErrors.join(' | '))
-  check(
-    'no failed requests',
-    failedRequests.length === 0,
-    failedRequests.join(' | '),
-  )
-
-  console.log(`\nLive check: ${URL_UNDER_TEST}\n`)
+  console.log(`\nLive check: ${ORIGIN}\n`)
   let failed = 0
-  for (const c of checks) {
-    console.log(`  ${c.ok ? 'PASS' : 'FAIL'}  ${c.name}${c.detail ? `  (${c.detail})` : ''}`)
-    if (!c.ok) failed += 1
-  }
-  console.log()
 
+  for (const route of ROUTES) {
+    pageErrors.length = 0
+    consoleErrors.length = 0
+    failedRequests.length = 0
+
+    await send('Page.navigate', { url: ORIGIN + route.path })
+    await new Promise((r) => setTimeout(r, 6000))
+
+    const checks = []
+    const check = (name, ok, detail) => checks.push({ name, ok, detail })
+
+    check('title', Boolean(await evaluate('document.title')), await evaluate('document.title'))
+
+    // React actually mounted and rendered the tree.
+    const sectionCount = await evaluate('document.querySelectorAll("section").length')
+    check(
+      'sections rendered',
+      sectionCount >= route.minSections,
+      `${sectionCount} of ${route.minSections} required`,
+    )
+
+    // The navigation is on every page and it is the thing a route split breaks.
+    const navLinks = await evaluate("document.querySelectorAll('header a').length")
+    check('navigation present', navLinks >= 2, `${navLinks} links`)
+
+    if (route.canvases) {
+      // A canvas that never appears is the signature of a client component that
+      // threw on mount.
+      const canvasCount = await evaluate('document.querySelectorAll("canvas").length')
+      check('WebGL canvas present', canvasCount >= route.canvases, `${canvasCount} canvases`)
+    }
+
+    if (route.liveReadouts) {
+      // The simulator's instrument row updates from the physics loop, so a
+      // readout still showing the placeholder means the loop never ran.
+      const readouts = await evaluate(
+        `Array.from(document.querySelectorAll('.num')).map(e => e.textContent).filter(t => t && t.includes('m/s')).slice(0, 4).join('|')`,
+      )
+      check('instruments are live', Boolean(readouts && !readouts.includes('—')), readouts)
+    }
+
+    if (route.sliders) {
+      const sliderCount = await evaluate("document.querySelectorAll('input[type=range]').length")
+      check('sliders present', sliderCount >= route.sliders, `${sliderCount} sliders`)
+    }
+
+    check('no uncaught exceptions', pageErrors.length === 0, pageErrors.join(' | '))
+    check('no console errors', consoleErrors.length === 0, consoleErrors.join(' | '))
+    // ERR_ABORTED is what a cancelled prefetch looks like: the router starts
+    // fetching the next route's payload and the navigation supersedes it. It is
+    // normal on a multi-page app and asserting against it fails every page.
+    const realFailures = failedRequests.filter((f) => !f.includes('ERR_ABORTED'))
+    check('no failed requests', realFailures.length === 0, realFailures.join(' | '))
+
+    const routeFailed = checks.filter((c) => !c.ok)
+    failed += routeFailed.length
+    console.log(`  ${routeFailed.length === 0 ? 'PASS' : 'FAIL'}  ${route.path}`)
+    for (const c of checks) {
+      if (!c.ok) console.log(`          FAIL ${c.name}${c.detail ? `  (${c.detail})` : ''}`)
+    }
+  }
+
+  console.log()
   ws.close()
   cleanup()
 
@@ -176,7 +220,7 @@ const main = async () => {
     console.error(`${failed} live check(s) failed.\n`)
     process.exit(1)
   }
-  console.log('The deployed page loads, hydrates and runs.\n')
+  console.log(`All ${ROUTES.length} routes load, hydrate and run.\n`)
 }
 
 main().catch((error) => {
