@@ -140,25 +140,39 @@ describe('the benchmark, corrected', () => {
     expect(corrected).toBeCloseTo(0.555, 2)
   })
 
-  it('the real target is the Hindenburg, the best large rigid ever built', () => {
-    expect(benchmark().target).toBeCloseTo(0.488, 3)
+  it('the real target is the Hindenburg, on an ISA basis', () => {
+    // 51.8 percent, not the 48.8 first published here. That figure divided by a
+    // 242 tonne gross lift only reachable with pure hydrogen at 0 degrees C,
+    // which is not the basis anything else in this repository uses.
+    expect(benchmark().target).toBeCloseTo(0.518, 3)
   })
 
-  it('so 40 to 50 percent means equalling the best ever, not beating old technology', () => {
-    // The framing this correction changes. Hand wet layup in a 12 m shop has to
-    // match what Luftschiffbau Zeppelin achieved in duralumin in 1936.
-    expect(benchmark().target).toBeLessThan(0.5)
+  it('so 40 to 50 percent means BEATING the best ever, not equalling it', () => {
+    // The correction makes the target harder. Hand wet layup in a 12 m shop has
+    // to beat what Luftschiffbau Zeppelin achieved in duralumin in 1936 by two
+    // to twelve points.
+    expect(benchmark().target).toBeGreaterThan(0.5)
   })
 })
 
 describe('the historical fleet', () => {
-  it('material swings the fraction by five points at constant size and year', () => {
+  it('material swings the fraction by nine points at constant size and year', () => {
     // R100 and R101 were built to the same specification in the same year. The
-    // only stainless steel ship in the set is also the worst.
+    // only stainless steel ship in the set is also the worst, by more than any
+    // size effect in the whole dataset.
     const r100 = STRUCTURAL_FLEET.find((s) => s.id === 'r100')
     const r101 = STRUCTURAL_FLEET.find((s) => s.id === 'r101')
     expect(r101?.material).toBe('stainless steel')
-    expect((r101?.emptyWeightFraction ?? 0) - (r100?.emptyWeightFraction ?? 0)).toBeGreaterThan(0.04)
+    expect((r101?.emptyWeightFraction ?? 0) - (r100?.emptyWeightFraction ?? 0)).toBeGreaterThan(0.08)
+  })
+
+  it('every apparent achievement in the table needs a gas and basis check first', () => {
+    // Three of the eight entries were wrong in the first version of this file,
+    // all in the direction that flattered the historical fleet. LZ-126 is
+    // quoted at 43.5 percent on hydrogen and 59 on the helium it flew on.
+    const lz126 = STRUCTURAL_FLEET.find((s) => s.id === 'lz126')
+    expect(lz126?.liftingGas).toBe('helium')
+    expect(lz126?.note).toContain('CONTESTED')
   })
 
   it('the one ship that reached 45 percent broke in half on acceptance trials', () => {
@@ -179,6 +193,14 @@ describe('the historical fleet', () => {
     const fractions = STRUCTURAL_FLEET.map((s) => s.emptyWeightFraction)
     const fractionSpread = Math.max(...fractions) / Math.min(...fractions)
     expect(spread).toBeLessThan(fractionSpread)
+  })
+
+  it('the model computes the Hindenburg gross lift the fleet entry claims', () => {
+    // A self-consistency check worth having: the fleet entry uses the model's
+    // own ISA gross lift rather than a published figure on an unstated basis,
+    // so the two must agree.
+    const hindenburg = STRUCTURAL_FLEET.find((s) => s.id === 'lz129-hindenburg')
+    expect(massFractionAt(m3(200000), 1.0).grossLift).toBeCloseTo(hindenburg?.grossLift ?? 0, -2)
   })
 
   it('scaled empty weight reproduces the Hindenburg at its own volume', () => {

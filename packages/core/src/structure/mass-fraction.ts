@@ -27,6 +27,10 @@ import { kg } from '@airship/units'
  * national design philosophy is about 30 percentage points of mass fraction,
  * which swamps any size trend over that range.
  *
+ * The fleet-wide fit is also not robust. It is dominated by two derived clusters
+ * over a 3.3 to 1 volume range, so the usable range is 0.67 to 1.15 with a
+ * nominal near 1.0 rather than the 1.13 the raw regression returns.
+ *
  * SO THE EXPONENT IS THE WHOLE BALLGAME, and this module makes that visible
  * rather than picking a value. Extrapolating the Hindenburg's 0.590 kg per m3
  * down to a 15,800 m3 ship:
@@ -165,8 +169,14 @@ export const minimumViableVolume = (
  *
  * The brief's "beat 60.1 percent" was comparing a carbon fibre frame against
  * the Macon's entire fixed weight, which included eight engines, an aircraft
- * hangar, a trapeze and armament. The real target is the Hindenburg's 48.8
- * percent, which is the best any large rigid achieved.
+ * hangar, a trapeze and armament. The real target is the Hindenburg, and on an
+ * ISA basis that is 51.8 percent rather than the 48.8 first published here: the
+ * lower figure divided by a 242 tonne gross lift that is only reachable with
+ * pure hydrogen at 0 degrees C.
+ *
+ * The correction makes the target HARDER. "40 to 50 percent" no longer means
+ * equalling the best airship ever built, it means beating it by two to twelve
+ * points with hand wet layup.
  */
 export const benchmark = () => {
   const hindenburg = STRUCTURAL_FLEET.find((s) => s.id === 'lz129-hindenburg')

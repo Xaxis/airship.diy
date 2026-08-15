@@ -72,14 +72,17 @@ replaced. On a vehicle whose entire premise is never landing, the only way to
 replace it is to make more, which is why onboard electrolysis is load-bearing
 rather than clever.
 
-**The number carbon fibre has to beat, corrected.** The brief cited USS Macon's
-60.1 percent, but that figure is the ship's whole fixed weight: frame, cover,
+**The number carbon fibre has to beat, corrected twice.** The brief cited USS
+Macon's 60.1 percent, but that is the ship's whole fixed weight: frame, cover,
 twelve gas cells, eight engines, three keels, an aircraft hangar, a trapeze and
-armament. It is not a structure figure. The right benchmark is **LZ-129
-Hindenburg at 48.8 percent**, the best any large rigid ever achieved. So "40 to
-50 percent with carbon fibre" does not mean beating old technology. It means
-equalling the single best airship ever built, using hand wet layup in a 12 m
-shop.
+armament. Not a structure figure. The right benchmark is LZ-129 Hindenburg, and
+on an ISA basis that is **51.8 percent**, not the 48.8 first published here: the
+lower figure divides by a 242 tonne gross lift only reachable with pure hydrogen
+at 0 degrees C.
+
+So "40 to 50 percent with carbon fibre" means **beating the best airship ever
+built by two to twelve points**, using hand wet layup in a 12 m shop. The
+correction made the target harder, not easier.
 
 ## Phase 2: does the loop close?
 
@@ -124,11 +127,16 @@ range of scaling exponents the data cannot distinguish:
 
 Fitting all eight rigids with published figures gives an exponent of 1.13
 (R-squared 0.94), which would mean the baseline closes at 37 percent and that
-mass fraction gets *worse* with size, not better. Restricting to the five
-best-sourced ships, whose volumes span only 1.41 to 1, the fit collapses to 0.16
-with R-squared 0.45. The scatter from gas choice, structural material and
-national design philosophy is about 30 percentage points, which swamps any size
-trend over that range.
+mass fraction gets *worse* with size, not better. But the fit is not robust: it
+is dominated by two derived clusters over a 3.3 to 1 volume range, and
+restricting to the five best-sourced ships collapses it to 0.16 at R-squared
+0.45. The usable range is 0.67 to 1.15 with a nominal near 1.0.
+
+The scatter that swamps the size trend is worth naming, because it is where the
+real leverage is. **Structural material moves the fraction by 9.5 points at
+constant size, year and specification**: R100 in duralumin came in at 67.4
+percent against R101's 76.9 in stainless steel, both built to the same Air
+Ministry requirement in the same year. Gas choice moves it by about 4.6.
 
 **The two candidate exponents disagree about the direction of the entire size
 trade.** At the theoretical square-cube value the baseline ship cannot lift its

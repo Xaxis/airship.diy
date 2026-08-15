@@ -1,4 +1,10 @@
-import { HISTORICAL_SHIPS, STRUCTURAL_SCALING, allUncertain, SOURCES } from '@airship/data'
+import {
+  HISTORICAL_SHIPS,
+  STRUCTURAL_FLEET,
+  STRUCTURAL_SCALING,
+  allUncertain,
+  SOURCES,
+} from '@airship/data'
 import {
   atmosphere,
   grossLift,
@@ -9,6 +15,7 @@ import {
   hullRadiusAt,
   massFractionAt,
   benchmark,
+  rankedByLiftCost,
   STANDARD_GAS_TEMPERATURE,
 } from '@airship/core'
 import { DESIGN_POINTS, BASELINE } from '@airship/model'
@@ -184,5 +191,21 @@ export const massFractionTable = massFractionVolumes.map((volume) => ({
 export const structuralBenchmark = benchmark()
 
 export const structuralScaling = STRUCTURAL_SCALING
+
+/** The historical fleet, sorted by empty weight fraction. */
+export const fleet = [...STRUCTURAL_FLEET].sort(
+  (a, b) => a.emptyWeightFraction - b.emptyWeightFraction,
+)
+
+/** The fuel decision matrix, ranked by the metric that governs. */
+export const fuelRanking = rankedByLiftCost().map(({ option, energyPerLift }) => ({
+  id: option.id,
+  name: option.name,
+  specificEnergy: option.specificEnergy,
+  liftCost: option.liftCostPerKilogram,
+  energyPerLift,
+  waterRecovery: option.waterRecoveryForNeutrality,
+  note: option.note,
+}))
 
 export const sources = SOURCES

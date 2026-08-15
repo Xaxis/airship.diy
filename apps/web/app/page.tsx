@@ -5,6 +5,8 @@ import {
   designs,
   hullProfile,
   hydrogenAdvantage,
+  fleet,
+  fuelRanking,
   massFractionExponents,
   massFractionTable,
   purityDemonstration,
@@ -482,7 +484,48 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-8 scroll-x border border-[var(--color-rule)] bg-[var(--color-panel)]">
+          <table className="w-full min-w-[44rem] text-sm">
+            <thead>
+              <tr className="border-b border-[var(--color-rule)] text-left text-[11px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+                <th className="px-4 py-3 font-normal">Every rigid with published figures</th>
+                <th className="px-4 py-3 font-normal">Gas</th>
+                <th className="px-4 py-3 font-normal">Structure</th>
+                <th className="px-4 py-3 text-right font-normal">Empty weight fraction</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fleet.map((ship) => (
+                <tr key={ship.id} className="border-b border-[var(--color-rule)] last:border-0">
+                  <td className="px-4 py-3">
+                    {ship.name}
+                    <span className="num ml-2 text-xs text-[var(--color-ink-faint)]">{ship.year}</span>
+                  </td>
+                  <td className="px-4 py-3 text-[var(--color-ink-dim)]">{ship.liftingGas}</td>
+                  <td
+                    className={`px-4 py-3 ${
+                      ship.material === 'stainless steel'
+                        ? 'text-[var(--color-fail)]'
+                        : 'text-[var(--color-ink-dim)]'
+                    }`}
+                  >
+                    {ship.material}
+                  </td>
+                  <td className="num px-4 py-3 text-right">{pct(ship.emptyWeightFraction)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-faint)]">
+          Structural material moves the fraction by 9.5 points at constant size, year and
+          specification: R100 in duralumin against R101 in stainless steel, both built to the same
+          Air Ministry requirement in the same year. That is larger than any size effect in the
+          dataset. Three of these eight entries were wrong in the first version of this table, all
+          in the direction that flattered the historical fleet.
+        </p>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <Stat
             label="Brief's cited benchmark"
             value={pct(structuralBenchmark.briefCited)}
@@ -497,7 +540,7 @@ export default function Home() {
             label="The real target"
             value={pct(structuralBenchmark.target)}
             tone="unknown"
-            note="LZ-129 Hindenburg, 1936, duralumin"
+            note="LZ-129 Hindenburg on an ISA basis, 1936, duralumin"
           />
         </div>
       </Section>
@@ -507,6 +550,75 @@ export default function Home() {
       {/* ---------------------------------------------------------------- */}
       <Section
         n="05"
+        title="What should the engine burn?"
+        lede="Comparing fuels by energy per kilogram is the habit of every other vehicle and it is the wrong metric here. On an airship the scarce resource is not mass, it is lift: every kilogram of fuel aboard is a kilogram of payload that is not, and every cubic metre inside the hull is a cubic metre that is not lifting. Ranked by energy stored per kilogram of lift given up, the order inverts."
+      >
+        <div className="scroll-x border border-[var(--color-rule)] bg-[var(--color-panel)]">
+          <table className="w-full min-w-[48rem] text-sm">
+            <thead>
+              <tr className="border-b border-[var(--color-rule)] text-left text-[11px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+                <th className="px-4 py-3 font-normal">Fuel</th>
+                <th className="px-4 py-3 text-right font-normal">MJ/kg</th>
+                <th className="px-4 py-3 text-right font-normal">Lift cost</th>
+                <th className="px-4 py-3 text-right font-normal">MJ per kg of lift</th>
+                <th className="px-4 py-3 text-right font-normal">Water recovery needed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fuelRanking.map((f, i) => (
+                <tr key={f.id} className="border-b border-[var(--color-rule)] last:border-0">
+                  <td className="px-4 py-3">{f.name}</td>
+                  <td className="num px-4 py-3 text-right text-[var(--color-ink-dim)]">
+                    {(f.specificEnergy / 1e6).toFixed(1)}
+                  </td>
+                  <td className="num px-4 py-3 text-right text-[var(--color-ink-dim)]">
+                    {f.liftCost < 0.01 ? '~0' : f.liftCost.toFixed(2)}
+                  </td>
+                  <td
+                    className={`num px-4 py-3 text-right ${
+                      i === 0 ? 'text-[var(--color-pass)]' : i >= fuelRanking.length - 2 ? 'text-[var(--color-fail)]' : ''
+                    }`}
+                  >
+                    {(f.energyPerLift / 1e6).toFixed(1)}
+                  </td>
+                  <td className="num px-4 py-3 text-right text-[var(--color-ink-dim)]">
+                    {f.waterRecovery === Infinity
+                      ? 'impossible'
+                      : f.waterRecovery === 0
+                        ? 'none'
+                        : pct(f.waterRecovery, 0)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-6 border-l-2 border-[var(--color-fail)] bg-[var(--color-panel)] p-5">
+          <h3 className="font-medium">You cannot burn the lifting gas</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+            &ldquo;One gas for lift and fuel&rdquo; is the most attractive idea in the propulsion
+            module and it does not survive the buoyancy budget. Removing 1 kg of hydrogen from a
+            cell removes 1 kg of weight and about 13.4 kg of gross lift, so the ship goes 12.4 kg{' '}
+            <em>heavy</em> per kilogram burned, while combustion returns only 8.94 kg of water. No
+            recovery fraction can hold trim, and recovering the water makes it worse rather than
+            better: 21.3 kg heavy instead of 12.4.
+          </p>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+            A modern buoyancy-neutral blend is trivial to formulate and better than the historical
+            one: 46.1 mol% propane with 53.9 mol% methane is <em>exactly</em> air density, 46.6
+            MJ/kg, both commodity fuels obtainable anywhere. Blaugas itself was not air density,
+            despite what every popular source says: relative density 0.963, so consuming Graf
+            Zeppelin&rsquo;s full load made it about 1,316 kg heavier.
+          </p>
+        </div>
+      </Section>
+
+      <Rule />
+
+      {/* ---------------------------------------------------------------- */}
+      <Section
+        n="06"
         title="Where the model is guessing"
         lede="Values nobody has published, with the range and what measurement would resolve each. A number without a source fails the build here, so anything genuinely unknown has to be declared rather than quietly invented. This list is the project's research queue."
       >
@@ -536,7 +648,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="06"
+        n="07"
         title="Build order"
         lede="Each phase has a validation gate. Nothing downstream of a failing gate is trustworthy, so a phase has to pass before the next opens."
       >
@@ -546,9 +658,9 @@ export default function Home() {
             ['2', 'Does it close?', 'Permeation, electrolysis, fuel cell, solar, water balance', 'done'],
             ['3', 'Can it be built?', 'Structure, buckling, mass fraction versus size', 'active'],
             ['4', 'Does it fly?', 'Aerodynamics, propulsors, 6-DOF with added mass', 'active'],
-            ['4b', 'The powertrain decision', 'Fuel choice, TBO consumables, dissimilar redundancy', 'todo'],
+            ['4b', 'The powertrain decision', 'Fuel choice, TBO consumables, dissimilar redundancy', 'active'],
             ['5', 'Can it be lived in?', 'Habitat, life support, thermal, the year-long mission', 'todo'],
-            ['6', 'Will it kill me?', 'Hydrogen safety, lightning, icing, failure injection, regulation', 'todo'],
+            ['6', 'Will it kill me?', 'Hydrogen safety, lightning, icing, failure injection, regulation', 'active'],
             ['7', 'The site', 'Design explorer, flight simulator, mission player', 'todo'],
             ['8', 'Build documentation', 'Frame drawings, laminate schedules, bill of materials', 'todo'],
           ].map(([n, title, detail, state]) => (

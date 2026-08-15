@@ -13,11 +13,26 @@
  * breakdown separates the bare girder framework from the rest. Comparing a
  * carbon fibre FRAME against it is comparing two different quantities.
  *
- * THE RIGHT BENCHMARK IS THE HINDENBURG AT 48.8 PERCENT. It is the best empty
- * weight fraction any large rigid ever achieved, in duralumin, in 1936, with
- * hydrogen. So the project's "40 to 50 percent with carbon fibre" target does
- * not mean "beat the old technology". It means "equal or slightly beat the
- * single best airship ever built, using hand wet layup in a 12 m shop".
+ * THE RIGHT BENCHMARK IS THE HINDENBURG, AND THE FIGURE IS ABOUT 52 PERCENT,
+ * NOT THE 48.8 THIS FILE FIRST CLAIMED.
+ *
+ * That first figure divided 118,000 kg of empty weight by a 242,000 kg gross
+ * lift, and 242,000 kg is only reachable with pure hydrogen at 0 degrees C. At
+ * ISA sea level, which is the condition every other number in this repository
+ * uses, the same envelope gives 227,944 kg. The model computes exactly that
+ * from the shape function and the buoyancy module, independently, which is a
+ * useful check on both.
+ *
+ * So the empty weight fraction is 118,000 / 227,944 = 51.8 percent. The value
+ * here is taken from the model's own computed gross lift rather than from a
+ * published figure on an unstated basis, because the published figures for this
+ * ship span 220 to 242 tonnes depending on temperature and purity assumptions
+ * nobody records.
+ *
+ * The correction makes the project's target HARDER, not easier. "40 to 50
+ * percent with carbon fibre" no longer means equalling the best airship ever
+ * built; it means beating it by two to twelve points, using hand wet layup in a
+ * 12 m shop.
  *
  * Two structural corrections to the comparison, both of which flatter this
  * project and should be applied honestly rather than quietly:
@@ -27,11 +42,20 @@
  *     volume and purity, so correcting Macon to a hydrogen-equivalent gross
  *     lift moves 60.1 percent to 55.5 percent. Of the 11 point gap, roughly
  *     4.6 points is gas and only about 6 points is structural design.
- *   - Material matters more than size. R101 at 72.6 percent is the only ship in
+ *   - Material matters more than size. R101 at 76.9 percent is the only ship in
  *     the set with a stainless steel primary structure. R100, built to the same
  *     Air Ministry specification in the same year in duralumin, came in at 67.4
- *     percent. Five points from alloy choice alone at constant size, year,
- *     national practice and requirement.
+ *     percent. NINE AND A HALF points from alloy choice alone at constant size,
+ *     year, national practice and requirement.
+ *
+ * A WARNING ABOUT THIS TABLE. Every apparent structural achievement in it needs
+ * checking for a gas or a basis difference before it is believed. LZ-126 is
+ * quoted at 43.5 percent on hydrogen and 59 percent on the helium it actually
+ * operated on; R101's famous 72.6 percent is a structure weight over gross
+ * lift, which is a different quantity from an empty weight fraction and comes
+ * out at 76.9 when computed consistently. Three of the eight entries were wrong
+ * in the first version of this file, all in the direction that made the
+ * historical fleet look better than it was.
  */
 
 export interface FleetEntry {
@@ -58,12 +82,16 @@ export const STRUCTURAL_FLEET: readonly FleetEntry[] = [
     name: 'LZ-126 / USS Los Angeles',
     year: 1924,
     gasVolume: 70000,
-    liftingGas: 'hydrogen',
-    grossLift: 79800,
-    emptyWeight: 33800,
-    emptyWeightFraction: 0.435,
+    // Helium, as operated by the US Navy. The 0.435 figure that circulates for
+    // this ship is on a HYDROGEN basis, as delivered, and the two are the same
+    // airframe: quoting the hydrogen fraction alongside helium ships makes it
+    // look like a structural achievement when most of the difference is gas.
+    liftingGas: 'helium',
+    grossLift: 73900,
+    emptyWeight: 43600,
+    emptyWeightFraction: 0.59,
     material: 'duralumin',
-    note: 'The best fraction in the set, and it was built as a war reparation with Zeppelin fighting for the company survival. Delivered on hydrogen and operated by the US Navy on helium, which is why its published figures differ by source.',
+    note: 'CONTESTED. Sources give 0.435 on the as-delivered hydrogen basis and about 0.59 on the helium basis the US Navy actually operated it at. The helium figure is used here so the fleet is compared like for like. Anyone citing 0.435 as evidence that 44 percent is achievable is comparing gases, not structures.',
   },
   {
     id: 'r38',
@@ -107,10 +135,13 @@ export const STRUCTURAL_FLEET: readonly FleetEntry[] = [
     gasVolume: 156000,
     liftingGas: 'hydrogen',
     grossLift: 154033,
-    emptyWeight: 111867,
-    emptyWeightFraction: 0.726,
+    // 154,033 gross minus 35,562 disposable. The often-quoted 111,867 kg is a
+    // weighed STRUCTURE weight, and dividing it by gross lift gives 0.726,
+    // which is not an empty weight fraction and must not be compared with one.
+    emptyWeight: 118471,
+    emptyWeightFraction: 0.769,
     material: 'stainless steel',
-    note: 'The worst fraction in the set and the only stainless steel primary structure. Built to the SAME specification as R100 in the same year: five points of the gap is alloy choice alone. Delivered so overweight that a whole extra bay was inserted to recover lift, and lost with 48 aboard.',
+    note: 'The worst fraction in the set and the only stainless steel primary structure. Built to the SAME specification as R100 in the same year, and the gap is 9.5 points from alloy choice alone. Delivered so overweight that a whole extra bay was inserted to recover lift, and lost with 48 aboard. The widely quoted 0.726 is a structure weight over gross lift, a different quantity.',
   },
   {
     id: 'zrs4-akron',
@@ -141,11 +172,14 @@ export const STRUCTURAL_FLEET: readonly FleetEntry[] = [
     year: 1936,
     gasVolume: 200000,
     liftingGas: 'hydrogen',
-    grossLift: 242000,
+    // ISA sea level, computed by the buoyancy module from the 200,000 m3
+    // envelope. NOT the 242,000 kg figure that circulates, which is pure
+    // hydrogen at 0 degrees C and is not the condition anything else here uses.
+    grossLift: 227944,
     emptyWeight: 118000,
-    emptyWeightFraction: 0.488,
+    emptyWeightFraction: 0.518,
     material: 'duralumin',
-    note: 'THE RIGHT BENCHMARK. The best empty weight fraction of any large rigid, and the target this project has to equal with hand wet layup rather than beat easily.',
+    note: 'THE BENCHMARK, on an ISA basis. Published gross lift for this ship spans 220 to 242 tonnes depending on unstated temperature and purity assumptions, which moves the fraction from 0.49 to 0.54. The ISA figure is used because every other number in this repository is on that basis.',
   },
 ] as const
 
@@ -191,9 +225,20 @@ export const EMPTY_WEIGHT_PER_GAS_VOLUME = {
  * trend over that range.
  */
 export const STRUCTURAL_SCALING = {
-  /** Fitted over all eight ships. High R^2, wide volume span, mixed everything. */
+  /**
+   * Fitted over all eight ships. High R^2, wide volume span, mixed everything,
+   * AND NOT ROBUST. The fit is dominated by two derived clusters over a 3.3 to 1
+   * volume range, and the mass-fraction scatter from gas, alloy and national
+   * practice is larger than the size trend it is trying to measure. Treat the
+   * usable range as 0.67 to 1.15 with a nominal near 1.0, which is what the
+   * sweep does.
+   */
   allShipsExponent: 1.13,
   allShipsRSquared: 0.94,
+  /** The honest nominal, and the value the sizing prior should use. */
+  robustNominalExponent: 1.0,
+  robustExponentLow: 0.67,
+  robustExponentHigh: 1.15,
   /** Fitted over the five best-sourced ships, whose volumes span only 1.41x. */
   bestSourcedExponent: 0.16,
   bestSourcedRSquared: 0.45,
