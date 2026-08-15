@@ -34,10 +34,44 @@ describe('the fuel decision is settled by lift cost, not energy density', () => 
     expect(h2.liftCostPerKilogram / jetA.liftCostPerKilogram).toBeGreaterThan(15)
   })
 
-  it('an air-density gas blend wins the ranking by a wide margin', () => {
+  it('an air-density gas blend wins, by five to eight times and not by a thousand', () => {
+    // The margin matters. An earlier version used the TRIM EXCURSION as the
+    // lift cost, which made a buoyancy-neutral gas look free to carry and put
+    // it a thousand times ahead. It is neutral on CONSUMPTION and costs 0.93 kg
+    // of lift per kilogram carried, because the cell it occupies could have
+    // held hydrogen.
     const ranked = rankedByLiftCost()
     expect(ranked[0]?.option.id).toBe('air-density-blend')
-    expect(ranked[0]?.energyPerLift ?? 0).toBeGreaterThan((ranked[2]?.energyPerLift ?? 0) * 5)
+
+    const best = ranked[0]?.energyPerLift ?? 0
+    const worst = ranked[ranked.length - 1]?.energyPerLift ?? 1
+    expect(best / worst).toBeGreaterThan(5)
+    expect(best / worst).toBeLessThan(12)
+  })
+
+  it('reproduces the independently researched figures for all five options', () => {
+    // The strongest check available: five numbers derived here from densities
+    // and heating values, against five figures compiled from the literature.
+    const expected: Record<string, number> = {
+      'air-density-blend': 50.0,
+      'historical-blaugas': 49.6,
+      'jet-a': 40.6,
+      'hydrogen-cell': 9.0,
+      'hydrogen-700bar': 6.2,
+    }
+    for (const { option, energyPerLift } of rankedByLiftCost()) {
+      const target = expected[option.id] ?? 0
+      expect(Math.abs(energyPerLift / 1e6 / target - 1)).toBeLessThan(0.03)
+    }
+  })
+
+  it('separates the cost of CARRYING a fuel from the trim excursion on burning it', () => {
+    // Two different questions. A buoyancy-neutral gas has zero trim excursion
+    // and a lift cost near unity; conflating them is what caused the error.
+    const blend = option('air-density-blend')
+    expect(blend.trimExcursionPerKilogram).toBeCloseTo(0, 6)
+    expect(blend.liftCostPerKilogram).toBeGreaterThan(0.9)
+    expect(blend.liftCostPerKilogram).toBeLessThan(1.0)
   })
 
   it('and hydrogen finishes last on the metric that governs', () => {
@@ -100,17 +134,18 @@ describe('you cannot burn the lifting gas', () => {
 describe('Blaugas was not the same density as air', () => {
   it('it was 3.6 percent lighter, so burning it did change buoyancy', () => {
     const blau = option('historical-blaugas')
-    expect(blau.liftCostPerKilogram).toBeGreaterThan(0.02)
-    expect(blau.liftCostPerKilogram).toBeLessThan(0.05)
+    expect(blau.trimExcursionPerKilogram).toBeGreaterThan(0.02)
+    expect(blau.trimExcursionPerKilogram).toBeLessThan(0.06)
   })
 
-  it('but 27 times better than a liquid fuel, and in the safe direction', () => {
+  it('but 25 times better than a liquid fuel, and in the safe direction', () => {
+    // A liquid loses a full kilogram of weight per kilogram burned, making the
+    // ship LIGHT. Blaugas makes it slightly HEAVY, which is the safe direction.
     const blau = option('historical-blaugas')
     const jetA = option('jet-a')
-    expect(jetA.liftCostPerKilogram / blau.liftCostPerKilogram).toBeGreaterThan(20)
-    // Positive lift cost means consuming it makes the ship HEAVY, which is the
-    // safe direction. A fuel lighter than air would make it go light.
-    expect(blau.liftCostPerKilogram).toBeGreaterThan(0)
+    expect(Math.abs(jetA.trimExcursionPerKilogram / blau.trimExcursionPerKilogram)).toBeGreaterThan(20)
+    expect(blau.trimExcursionPerKilogram).toBeGreaterThan(0)
+    expect(jetA.trimExcursionPerKilogram).toBeLessThan(0)
   })
 
   it('a modern blend can hit air density exactly, which the original did not', () => {

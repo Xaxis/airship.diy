@@ -16,6 +16,10 @@ import {
   massFractionAt,
   benchmark,
   rankedByLiftCost,
+  crossSectionDistribution,
+  buoyancyDistribution,
+  solveBeam,
+  powerRequired,
   STANDARD_GAS_TEMPERATURE,
 } from '@airship/core'
 import { DESIGN_POINTS, BASELINE } from '@airship/model'
@@ -229,6 +233,95 @@ export const mission = (() => {
     exhaustion: Object.entries(result.resourceExhaustion)
       .map(([resource, day]) => ({ resource, day }))
       .sort((a, b) => a.day - b.day),
+  }
+})()
+
+/**
+ * Diagnostics computed at build time and handed to the chart components.
+ *
+ * The physics stays on this side of the boundary; the charts only draw. That
+ * keeps the client bundle from shipping a solver it does not need, and it means
+ * a chart cannot quietly disagree with the model by recomputing something
+ * slightly differently.
+ */
+export const diagnostics = (() => {
+  const design = BASELINE
+  const shape = hullShapeForPrismatic(design.hull.prismaticCoefficient)
+  const hull = hullGeometry(m(design.hull.length), design.hull.finenessRatio, shape)
+  const air = atmosphere(m(design.mission.altitude))
+  const energy = energyBalance(design)
+
+  // --- power required against airspeed, the cube law ---------------------
+  const powerCurve = Array.from({ length: 41 }, (_, i) => {
+    const speed = (i / 40) * 20
+    return { speed, power: speed === 0 ? 0 : powerRequired(hull, air, speed as never) }
+  })
+
+  // --- hours of station keeping per day, against wind --------------------
+  // The brief calls this one of the most important operational numbers: above
+  // some wind the ship cannot hold position at all and must drift.
+  const dailyEnergy = energy.annualGenerated / 365.2425
+  const otherLoads = (energy.habitatEnergy + energy.liftMakeupEnergy) / 365.2425
+  const available = Math.max(dailyEnergy - otherLoads, 0)
+
+  const holdingCurve = Array.from({ length: 41 }, (_, i) => {
+    const wind = (i / 40) * 20
+    const power = wind === 0 ? 0 : powerRequired(hull, air, wind as never)
+    const hours = power <= 0 ? 24 : Math.min(available / power / 3600, 24)
+    return { wind, hours }
+  })
+
+  const cutoffWind =
+    holdingCurve.find((p) => p.hours < 24)?.wind ??
+    holdingCurve[holdingCurve.length - 1]?.wind ??
+    0
+
+  // --- shear and bending moment along the hull ---------------------------
+  // Buoyancy follows cross-sectional AREA; weight follows where the heavy
+  // things are. The mismatch is what bends the ship.
+  const stations = crossSectionDistribution(m(design.hull.length), design.hull.finenessRatio, 201, shape)
+  const buoyancy = buoyancyDistribution(stations, 1.1397)
+
+  const width = (i: number) => {
+    const previous = stations[i - 1]
+    const next = stations[i + 1]
+    const here = stations[i]
+    if (!here) return 0
+    return (previous ? (here.x - previous.x) / 2 : 0) + (next ? (next.x - here.x) / 2 : 0)
+  }
+
+  // Cover and frame mass follows surface area, so weight per unit length goes
+  // as radius rather than as area. That is the mismatch.
+  const radii = stations.map((s) => Math.sqrt(s.area / Math.PI))
+  const radiusIntegral = radii.reduce((a, r, i) => a + r * width(i), 0)
+  const distributedWeightForce = energy.grossLiftAvailable * 9.80665 * 0.45
+
+  const loads = stations.map((station, i) => ({
+    x: station.x,
+    buoyancy: buoyancy[i]?.buoyancy ?? 0,
+    weight: ((radii[i] ?? 0) / radiusIntegral) * distributedWeightForce,
+  }))
+
+  const beam = solveBeam(loads, [
+    { name: 'gondola', x: m(design.hull.length * 0.3), mass: 3200 },
+    { name: 'engines', x: m(design.hull.length * 0.62), mass: 900 },
+    { name: 'fins', x: m(design.hull.length * 0.88), mass: 700 },
+  ])
+
+  return {
+    powerCurve,
+    holdingCurve,
+    cutoffWind,
+    designWind: design.mission.stationKeepingWind,
+    hullLength: design.hull.length,
+    beam: {
+      stations: beam.stations.map((s) => ({ x: s.x, shear: s.shear, moment: s.moment })),
+      maximumMoment: beam.maximumMoment,
+      maximumMomentStation: beam.maximumMomentStation,
+      maximumShear: beam.maximumShear,
+      maximumShearStation: beam.maximumShearStation,
+      hogging: beam.hogging,
+    },
   }
 })()
 

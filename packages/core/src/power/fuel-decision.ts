@@ -19,9 +19,9 @@ import { GAS, HYDROGEN_ENERGY, MOLAR_MASS, v } from '@airship/data'
  * and on that metric the ranking inverts:
  *
  *   air-density gas blend      50.0 MJ per kg of lift
- *   historical Blaugas         49.7
+ *   historical Blaugas         49.6
  *   Jet-A in a tank            40.6
- *   methane at ambient         28.1
+ *   methane at ambient         29.3
  *   hydrogen in a lift cell      9.0
  *   hydrogen at 700 bar          6.2
  *
@@ -29,6 +29,13 @@ import { GAS, HYDROGEN_ENERGY, MOLAR_MASS, v } from '@airship/data'
  * hydrogen at ambient pressure is so diffuse that the volume it occupies would
  * have lifted more than the energy is worth, and it loses at 700 bar because the
  * pressure vessel masses roughly twenty times the gas it contains.
+ *
+ * The gaseous fuels win by five to eight times, NOT by a thousand. An earlier
+ * version of this file used the trim excursion as the lift cost, which made a
+ * buoyancy-neutral gas look free to carry. It is neutral on CONSUMPTION and
+ * costs a full kilogram of lift per kilogram carried, like everything else.
+ * The error surfaced only when the ranking was rendered as a table and a cell
+ * read 46,550 MJ per kilogram of lift.
  *
  * AND THERE IS A HARDER PROBLEM. You cannot burn the lifting gas.
  */
@@ -86,15 +93,30 @@ export interface FuelOption {
   /** Lower heating value, J/kg. */
   readonly specificEnergy: number
   /**
-   * Kilograms of lift given up per kilogram of fuel carried.
+   * Kilograms of gross lift given up per kilogram of fuel CARRIED.
    *
-   * 1.0 for a liquid in a tank: the fuel's own mass, and its volume is outside
-   * the envelope so it costs no lift. Near zero for an air-density gas carried
-   * inside the hull, because the cell it occupies would have lifted nothing
-   * anyway. Large for hydrogen in a lift cell, because that volume WOULD have
-   * lifted.
+   * TWO DIFFERENT QUESTIONS LIVE HERE AND CONFLATING THEM IS A THOUSANDFOLD
+   * ERROR, which an earlier version of this file made.
+   *
+   * This field is the cost of CARRYING the fuel. For a liquid in an external
+   * tank it is just its own mass plus the tank, so a little over 1.0. For a gas
+   * carried in a hull cell it is the lift that volume WOULD have generated had
+   * it been filled with hydrogen instead, per kilogram of fuel:
+   * (rho_air - rho_H2) / rho_fuel. An air-density blend comes out at 0.93, not
+   * at zero.
+   *
+   * The other question, what happens to TRIM when the fuel is consumed, is
+   * `trimExcursionPerKilogram` below. A buoyancy-neutral fuel is neutral on
+   * CONSUMPTION; it is never free to carry.
    */
   readonly liftCostPerKilogram: number
+
+  /**
+   * Kilograms of heaviness gained per kilogram of fuel CONSUMED, before any
+   * water recovery. This is the ballast problem the brief is really asking
+   * about, and it is what "buoyancy neutral" means.
+   */
+  readonly trimExcursionPerKilogram: number
   /** Fraction of product water that must be recovered to hold trim. */
   readonly waterRecoveryForNeutrality: number
   /** Exhaust temperature that recovery requires, K. Lower is harder. */
@@ -110,35 +132,57 @@ export interface FuelOption {
 export const energyPerLiftGivenUp = (option: FuelOption): number =>
   option.specificEnergy / option.liftCostPerKilogram
 
+/**
+ * Lift given up per kilogram of a gas carried INSIDE the hull.
+ *
+ * @derived The cell could have held hydrogen. Lift forgone per unit volume is
+ * (rho_air - rho_H2); per kilogram of fuel that is (rho_air - rho_H2)/rho_fuel.
+ * @source ISA sea level densities, computed by the buoyancy module.
+ */
+const hullGasLiftCost = (fuelDensity: number): number => {
+  const airDensity = 1.225
+  const hydrogenDensity = 0.0852
+  return (airDensity - hydrogenDensity) / fuelDensity
+}
+
+/**
+ * Heaviness gained per kilogram of a hull-carried gas CONSUMED.
+ *
+ * @derived The vacated cell volume fills with air, so the ship swaps fuel for
+ * air of a different density: (rho_air - rho_fuel)/rho_fuel per kilogram burned.
+ * Zero when the fuel is exactly air density, which is the whole point of a
+ * buoyancy-neutral fuel.
+ */
+const hullGasTrimExcursion = (fuelDensity: number): number => {
+  const airDensity = 1.225
+  return (airDensity - fuelDensity) / fuelDensity
+}
+
+/** @source Density of the air-density blend, by construction. */
+const BLEND_DENSITY = 1.225
+/** @source Blaugas at ISA sea level: relative density 0.963. */
+const BLAUGAS_DENSITY = 1.1797
+
 export const FUEL_OPTIONS: readonly FuelOption[] = [
   {
     id: 'air-density-blend',
     name: 'Modern air-density gas blend, 46 mol% propane / 54 mol% methane',
     /** @source Computed LHV of the blend at exactly air density. */
     specificEnergy: 46.55e6,
-    /**
-     * Almost nothing. The blend is formulated to exactly the density of air, so
-     * the cell it occupies was generating no lift to begin with and burning it
-     * changes buoyancy not at all.
-     * @derived Exactly zero by construction; a small value avoids dividing by zero.
-     */
-    liftCostPerKilogram: 0.001,
+    liftCostPerKilogram: hullGasLiftCost(BLEND_DENSITY),
+    trimExcursionPerKilogram: hullGasTrimExcursion(BLEND_DENSITY),
     waterRecoveryForNeutrality: 0,
     condenserOutletTemperature: 0,
     note:
-      'Solving x*44.096 + (1-x)*16.043 = 28.9647 g/mol gives 46.1 mol% propane and 53.9 mol% methane, which is EXACTLY air density. Both are commodity fuels available anywhere in the world. No ballast compensation, no condenser, no trim excursion.',
+      'Solving x*44.096 + (1-x)*16.043 = 28.9647 g/mol gives 46.1 mol% propane and 53.9 mol% methane, which is EXACTLY air density. Both are commodity fuels available anywhere in the world. No ballast compensation, no condenser, no trim excursion. It still costs 0.93 kg of lift for every kilogram carried, because the cell it occupies could have held hydrogen.',
   },
   {
     id: 'historical-blaugas',
     name: 'Blaugas, as carried by LZ-127 Graf Zeppelin',
     /** @source Historical Blaugas LHV. */
     specificEnergy: 47.97e6,
-    /**
-     * @derived Relative density 0.963, so 3.6 percent lighter than air rather
-     * than equal to it. Burning it made Graf Zeppelin heavier by 43.9 g per
-     * cubic metre consumed.
-     */
-    liftCostPerKilogram: 0.0353,
+    liftCostPerKilogram: hullGasLiftCost(BLAUGAS_DENSITY),
+    trimExcursionPerKilogram: hullGasTrimExcursion(BLAUGAS_DENSITY),
     waterRecoveryForNeutrality: 0,
     condenserOutletTemperature: 0,
     note:
@@ -149,25 +193,25 @@ export const FUEL_OPTIONS: readonly FuelOption[] = [
     name: 'Jet-A with exhaust water recovery',
     /** @source Jet A-1 minimum net specific energy, ASTM D1655. */
     specificEnergy: 42.8e6,
-    /** @derived A liquid in an external tank costs its own mass and no volume. */
-    liftCostPerKilogram: 1.0,
+    /** @derived Its own mass plus about 5 percent for the tank. External to the envelope, so it costs no volume. */
+    liftCostPerKilogram: 1.054,
+    /** @derived A liquid leaving an external tank is a straight mass loss. */
+    trimExcursionPerKilogram: -1.0,
     /** @derived 1.238 kg of water per kg burned; 80.8 percent must be recovered. */
     waterRecoveryForNeutrality: 0.808,
     /** @source Condenser outlet needed for 80 percent recovery at lambda 2. */
     condenserOutletTemperature: 284.3,
     note:
-      'The densest reserve by far, and the recovery burden is brutal: 80.8 percent of product water, which needs the exhaust cooled to 11 C. In a 30 C tropical climate that is not achievable with any reasonable condenser, so a hydrocarbon ship goes light exactly where it is hottest and lowest, which is where it least wants to.',
+      'The densest reserve by far, and the recovery burden is brutal: 80.8 percent of product water, which needs the exhaust cooled to 11 C. In a 30 C tropical climate that is not achievable with any reasonable condenser, so a hydrocarbon ship goes light exactly where it is hottest and lowest.',
   },
   {
     id: 'hydrogen-cell',
     name: 'Hydrogen drawn from the lift cells',
     specificEnergy: v(HYDROGEN_ENERGY.lowerHeatingValue),
-    /**
-     * @derived 13.4 kg of lift lost per kilogram burned, less the kilogram of
-     * weight that leaves with it, gives 12.4 kg net heaviness. Expressed as a
-     * lift cost this is catastrophic.
-     */
+    /** @derived 13.4 kg of lift lost per kilogram drawn; see the module docstring. */
     liftCostPerKilogram: 13.4,
+    /** @derived The ship goes 12.4 kg heavy per kilogram burned, before any water. */
+    trimExcursionPerKilogram: 12.4,
     /** @derived Even full recovery cannot hold trim; see the module docstring. */
     waterRecoveryForNeutrality: Infinity,
     condenserOutletTemperature: HYDROGEN_CONDENSER_OUTLET,
@@ -178,13 +222,13 @@ export const FUEL_OPTIONS: readonly FuelOption[] = [
     id: 'hydrogen-700bar',
     name: 'Hydrogen in 700 bar Type IV storage',
     specificEnergy: v(HYDROGEN_ENERGY.lowerHeatingValue),
-    /**
-     * @derived At 5.5 wt% system gravimetric capacity, one kilogram of usable
-     * hydrogen brings about 18 kg of tank with it, and all of it is dead mass.
-     */
+    /** @derived At 5.5 wt% system capacity, one kilogram of usable hydrogen brings about 18 kg of tank. */
     liftCostPerKilogram: 19.4,
+    /** @derived Mass leaves the tank; the tank stays. */
+    trimExcursionPerKilogram: -1.0,
     /** @derived 11.2 percent of product water holds trim, which is easy. */
     waterRecoveryForNeutrality: 0.112,
+    /** @source Condenser outlet for 11 percent recovery at lambda 4. */
     condenserOutletTemperature: HYDROGEN_CONDENSER_OUTLET,
     note:
       'Ballast compensation is nearly free here, needing only 11 percent water recovery at an exhaust temperature of 44 C which almost any climate allows. The problem is the tank: the storage system masses roughly nineteen times the hydrogen it holds.',

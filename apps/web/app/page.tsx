@@ -1,5 +1,6 @@
 import { BASELINE } from '@airship/model'
 import { DesignExplorer } from '../components/DesignExplorer'
+import { Diagnostics } from '../components/Diagnostics'
 import { FlightSimulator } from '../components/FlightSimulator'
 import { HullViewer } from '../components/HullViewer'
 import {
@@ -7,6 +8,7 @@ import {
   designs,
   hullProfile,
   hydrogenAdvantage,
+  diagnostics,
   fleet,
   fuelRanking,
   massFractionExponents,
@@ -757,6 +759,24 @@ export default function Home() {
       {/* ---------------------------------------------------------------- */}
       <Section
         n="09"
+        title="Diagnostics"
+        lede="The curves the design actually turns on. Shear and bending moment are drawn as two charts sharing an axis rather than one chart with two scales, because newtons and newton metres are not comparable heights and putting them on one plot invites a reading that means nothing."
+      >
+        <Diagnostics
+          powerCurve={diagnostics.powerCurve}
+          holdingCurve={diagnostics.holdingCurve}
+          cutoffWind={diagnostics.cutoffWind}
+          designWind={diagnostics.designWind}
+          hullLength={diagnostics.hullLength}
+          beam={diagnostics.beam}
+        />
+      </Section>
+
+      <Rule />
+
+      {/* ---------------------------------------------------------------- */}
+      <Section
+        n="10"
         title="Where the model is guessing"
         lede="Values nobody has published, with the range and what measurement would resolve each. A number without a source fails the build here, so anything genuinely unknown has to be declared rather than quietly invented. This list is the project's research queue."
       >
@@ -786,7 +806,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="10"
+        n="11"
         title="Build order"
         lede="Each phase has a validation gate. Nothing downstream of a failing gate is trustworthy, so a phase has to pass before the next opens."
       >
