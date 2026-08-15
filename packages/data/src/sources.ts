@@ -186,6 +186,24 @@ export const SOURCES: readonly Source[] = [
     note: 'PRIMARY. The paired hydrogen and methane figures throughout the safety module come from its Table II, which is why the comparison is like for like rather than assembled from different sources at different conditions. Also the source of the warning that ventilation does not produce mixing.',
   },
   {
+    id: 'rotax-912',
+    title: 'Rotax 912 series operators manual, maintenance manual and Service Instruction SI-912-020',
+    author: 'BRP-Rotax',
+    note: 'MANUFACTURER. Note that TBO and most maintenance intervals are published as hours OR calendar, whichever comes first, and quick summaries drop the calendar leg. At the roughly one percent duty cycle this vehicle can afford, the calendar leg is the only one that ever fires.',
+  },
+  {
+    id: 'rotax-915',
+    title: 'Rotax 915 iS product data and operators manual',
+    author: 'BRP-Rotax',
+    note: 'MANUFACTURER. Shorter TBO than the 912 despite being newer, which is what turbocharging costs.',
+  },
+  {
+    id: 'austro-ae300',
+    title: 'Austro Engine AE300 factsheet, May 2024',
+    author: 'Austro Engine GmbH',
+    note: 'MANUFACTURER. The best brake thermal efficiency of the candidates, quoted at its BEST POINT around 60 percent load. Comparing it against a Rotax max-continuous figure is an artefact rather than a result.',
+  },
+  {
     id: 'nasa-bvad',
     title: 'Life Support Baseline Values and Assumptions Document, NASA/TP-2015-218570',
     author: 'NASA',
