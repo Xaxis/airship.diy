@@ -27,6 +27,16 @@ export {
   ringSectionModulus,
 } from './structure/beam.js'
 
+export type { FloatingState, RightingMoments, WindageState } from './marine/hydrostatics.js'
+export {
+  floatingState,
+  rightingMoments,
+  windage,
+  seaAnchorArea,
+  ballastToLandOnWater,
+  ballastVolume,
+} from './marine/hydrostatics.js'
+
 export type { PermeationRates } from './permeation.js'
 export {
   permeationRates,

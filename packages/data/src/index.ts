@@ -12,6 +12,7 @@ export {
 export { SOURCES, source, sourceExists } from './sources.js'
 export { CONSTANTS, MOLAR_MASS } from './constants.js'
 export { HYDROGEN_ENERGY, FUEL_CELL, ELECTROLYZER, PHOTOVOLTAIC, BATTERY } from './power.js'
+export { WATER, WINDAGE, GALVANIC, SEA_STATE } from './marine.js'
 export { ISA, ISA_TABLE } from './isa.js'
 export type { GasSpecies } from './gases.js'
 export {
