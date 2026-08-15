@@ -9,6 +9,7 @@ import {
   fuelRanking,
   massFractionExponents,
   massFractionTable,
+  mission,
   purityDemonstration,
   referenceLift,
   structuralBenchmark,
@@ -619,6 +620,96 @@ export default function Home() {
       {/* ---------------------------------------------------------------- */}
       <Section
         n="06"
+        title="Which resource runs out first?"
+        lede="The energy balance said energy does not bind. This steps a day at a time through a multi-year mission tracking gas mass and purity, water, food and consumables, to find out what does. The answer is a legal interval, and the thing everyone expects to bind turns out not to."
+      >
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat
+            label="Physical endurance"
+            value={fmt(mission.physicalEnduranceDays)}
+            unit="days"
+            tone="pass"
+            note={`limited by ${mission.physicalLimit}`}
+          />
+          <Stat
+            label="Including legal limits"
+            value={fmt(mission.enduranceDays)}
+            unit="days"
+            tone="unknown"
+            note={mission.limitingResource}
+          />
+          <Stat
+            label="Water: catchment margin"
+            value={`${fmt(mission.water.catchmentMargin)}×`}
+            tone="pass"
+            note="rain collected over net loss"
+          />
+          <Stat
+            label="Water: daily surplus"
+            value={fmt(mission.water.dailyNet)}
+            unit="kg/day"
+            tone="pass"
+            note={`against ${(mission.water.dailyConsumption - mission.water.dailyRecovered).toFixed(1)} kg/day net loss`}
+          />
+        </div>
+
+        <div className="mt-6 scroll-x border border-[var(--color-rule)] bg-[var(--color-panel)]">
+          <table className="w-full min-w-[32rem] text-sm">
+            <thead>
+              <tr className="border-b border-[var(--color-rule)] text-left text-[11px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+                <th className="px-4 py-3 font-normal">Resource, on its own</th>
+                <th className="px-4 py-3 text-right font-normal">Days</th>
+                <th className="px-4 py-3 text-right font-normal">Years</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mission.exhaustion.map((row) => (
+                <tr key={row.resource} className="border-b border-[var(--color-rule)] last:border-0">
+                  <td className="px-4 py-3">{row.resource}</td>
+                  <td className="num px-4 py-3 text-right">{fmt(row.day)}</td>
+                  <td className="num px-4 py-3 text-right text-[var(--color-ink-dim)]">
+                    {(row.day / 365.2425).toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-6 border-l-2 border-[var(--color-pass)] bg-[var(--color-panel)] p-5">
+          <h3 className="font-medium">Water was expected to bind. It does not.</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+            A 90 m hull presents about 1,170 m² of plan area to the rain. In the trade wind belt at a
+            metre of annual rainfall, even a poor 40 percent collection efficiency gathers{' '}
+            <span className="num text-[var(--color-ink)]">
+              {fmt(mission.water.dailyCatchment)} kg/day
+            </span>{' '}
+            against a net loss of{' '}
+            <span className="num text-[var(--color-ink)]">
+              {(mission.water.dailyConsumption - mission.water.dailyRecovered).toFixed(1)} kg/day
+            </span>{' '}
+            for two people at 85 percent recycling. Catchment covers the loss{' '}
+            <span className="num text-[var(--color-ink)]">
+              {fmt(mission.water.catchmentMargin)}
+            </span>{' '}
+            times over, and still covers it more than fifteen times at the most pessimistic end of
+            every assumption.
+          </p>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+            The vehicle is water <em>rich</em>. Ballast is free, electrolyzer feedstock is free, and
+            the hygiene allowance that looked like the largest lever in the life support budget is
+            not a lever at all. That makes water a <strong>station-choice</strong> question rather
+            than an equipment one: parked under a subtropical high instead of in the trade winds,
+            the catchment term collapses and the whole analysis changes.
+          </p>
+        </div>
+      </Section>
+
+      <Rule />
+
+      {/* ---------------------------------------------------------------- */}
+      <Section
+        n="07"
         title="Where the model is guessing"
         lede="Values nobody has published, with the range and what measurement would resolve each. A number without a source fails the build here, so anything genuinely unknown has to be declared rather than quietly invented. This list is the project's research queue."
       >
@@ -648,7 +739,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="07"
+        n="08"
         title="Build order"
         lede="Each phase has a validation gate. Nothing downstream of a failing gate is trustworthy, so a phase has to pass before the next opens."
       >
@@ -659,7 +750,7 @@ export default function Home() {
             ['3', 'Can it be built?', 'Structure, buckling, mass fraction versus size', 'active'],
             ['4', 'Does it fly?', 'Aerodynamics, propulsors, 6-DOF with added mass', 'active'],
             ['4b', 'The powertrain decision', 'Fuel choice, TBO consumables, dissimilar redundancy', 'active'],
-            ['5', 'Can it be lived in?', 'Habitat, life support, thermal, the year-long mission', 'todo'],
+            ['5', 'Can it be lived in?', 'Habitat, life support, thermal, the year-long mission', 'active'],
             ['6', 'Will it kill me?', 'Hydrogen safety, lightning, icing, failure injection, regulation', 'active'],
             ['7', 'The site', 'Design explorer, flight simulator, mission player', 'todo'],
             ['8', 'Build documentation', 'Frame drawings, laminate schedules, bill of materials', 'todo'],

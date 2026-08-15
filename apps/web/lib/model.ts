@@ -19,7 +19,7 @@ import {
   STANDARD_GAS_TEMPERATURE,
 } from '@airship/core'
 import { DESIGN_POINTS, BASELINE } from '@airship/model'
-import { energyBalance, maximumSustainableWind } from '@airship/solvers'
+import { energyBalance, integrateMission, maximumSustainableWind } from '@airship/solvers'
 import { m, m3, purity as asPurity } from '@airship/units'
 
 /**
@@ -207,5 +207,29 @@ export const fuelRanking = rankedByLiftCost().map(({ option, energyPerLift }) =>
   waterRecovery: option.waterRecoveryForNeutrality,
   note: option.note,
 }))
+
+/**
+ * THE PHASE 5 RESULT: which resource runs out first.
+ *
+ * The physical limit is food, which is a loading decision. The overall limit is
+ * a LEGAL interval. Water, which was expected to be the master ledger and a
+ * binding constraint, is the master ledger and does not bind at all.
+ */
+export const mission = (() => {
+  const stores = { food: BASELINE.loads.crew * 0.62 * 400, water: 3000, waterCapacity: 4000 }
+  const result = integrateMission(BASELINE, stores, 2200)
+  return {
+    stores,
+    physicalEnduranceDays: result.physicalEnduranceDays,
+    physicalLimit: result.physicalLimit,
+    enduranceDays: result.enduranceDays,
+    limitingResource: result.limitingResource,
+    explanation: result.explanation,
+    water: result.waterBalance,
+    exhaustion: Object.entries(result.resourceExhaustion)
+      .map(([resource, day]) => ({ resource, day }))
+      .sort((a, b) => a.day - b.day),
+  }
+})()
 
 export const sources = SOURCES

@@ -186,6 +186,12 @@ export const SOURCES: readonly Source[] = [
     note: 'PRIMARY. The paired hydrogen and methane figures throughout the safety module come from its Table II, which is why the comparison is like for like rather than assembled from different sources at different conditions. Also the source of the warning that ventilation does not produce mixing.',
   },
   {
+    id: 'nasa-bvad',
+    title: 'Life Support Baseline Values and Assumptions Document, NASA/TP-2015-218570',
+    author: 'NASA',
+    note: 'PRIMARY. The standard reference for crew metabolic rates, water and food. Its closed-loop atmosphere assumptions do NOT apply here: this vehicle is immersed in breathable air, so there is no CO2 scrubbing, no partial pressure management and no oxygen budget. Only the metabolic, water and food numbers transfer.',
+  },
+  {
     id: 'nasa-sp-8007',
     title: 'NASA SP-8007: Buckling of thin-walled circular cylinders',
     author: 'NASA',

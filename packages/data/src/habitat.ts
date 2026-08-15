@@ -1,0 +1,202 @@
+import { measured, uncertain, under } from './citation.js'
+
+/**
+ * Crew, life support, and consumables.
+ *
+ * ONE THING THIS IS NOT: a spacecraft life support model. The brief is explicit
+ * and correct that CO2 is not a problem here. The vehicle is immersed in
+ * breathable air and the habitat is ventilated with it, so there is no
+ * scrubbing, no partial pressure management, and no oxygen budget. Importing
+ * spacecraft closed-loop assumptions would add mass and complexity to solve a
+ * problem that does not exist.
+ *
+ * What DOES bind is water, food, and the fact that nothing can be resupplied.
+ */
+
+export const CREW = under('crew', () => ({
+  /**
+   * Metabolic energy per person per day.
+   *
+   * The upper end assumes real physical work: rigging, maintenance, handling
+   * the drogue. A sedentary figure would understate food mass on a vehicle
+   * where the crew are also the maintenance department.
+   */
+  metabolicEnergy: uncertain({
+    low: 2500 * 4184,
+    nominal: 3000 * 4184,
+    high: 3500 * 4184,
+    unit: 'J/day',
+    reason:
+      'Depends on body mass, ambient temperature and how much physical work the mission actually demands. A crew that spends a week rebuilding an engine is at the top of the band.',
+    resolvedBy: 'Not resolvable in advance. Size food against the high end and treat the surplus as margin.',
+    source: 'nasa-bvad',
+  }),
+
+  /** Drinking water, strictly metabolic. */
+  drinkingWater: measured(3.0, {
+    unit: 'kg/day',
+    source: 'nasa-bvad',
+    relativeUncertainty: 0.25,
+    note: 'Per person. Rises sharply in a hot cabin, and the tropics are the design station.',
+  }),
+
+  /** Total potable demand: drinking, food preparation, and hydration of dry stores. */
+  potableWater: measured(6.0, {
+    unit: 'kg/day',
+    source: 'nasa-bvad',
+    relativeUncertainty: 0.3,
+  }),
+
+  /**
+   * Hygiene water, which dwarfs everything else and is the term that actually
+   * decides whether the water loop closes.
+   */
+  hygieneWater: uncertain({
+    low: 12,
+    nominal: 25,
+    high: 60,
+    unit: 'kg/day',
+    reason:
+      'Entirely a behavioural and equipment choice. A submarine crew manages on 12; a household figure is over 100. The range spans a factor of five and it is the largest single lever on the water budget.',
+    resolvedBy:
+      'A decision, not a measurement. Choose the washing equipment and the standard of living, then this number follows.',
+    source: 'nasa-bvad',
+  }),
+
+  /**
+   * Dry food mass per person per day.
+   *
+   * Dry mass, because the water is added from the ship's own supply and would
+   * otherwise be double counted. This is the single largest non-renewable
+   * consumable aboard, and it is why the endurance question is ultimately a
+   * food question rather than an energy one.
+   */
+  dryFoodMass: measured(0.62, {
+    unit: 'kg/day',
+    source: 'nasa-bvad',
+    relativeUncertainty: 0.15,
+    note: 'Dehydrated and shelf-stable. Includes packaging, which is 15 to 25 percent of the total and is often left out of quick estimates.',
+  }),
+
+  /**
+   * Fraction of consumed water recoverable from greywater and humidity
+   * condensate.
+   *
+   * Greywater recycling is straightforward and high-yield; blackwater is not
+   * attempted, which is why this is well short of unity.
+   */
+  waterRecoveryFraction: uncertain({
+    low: 0.7,
+    nominal: 0.85,
+    high: 0.93,
+    unit: '1',
+    reason:
+      'Depends on the treatment train and on whether blackwater is processed. Spacecraft systems reach into the nineties with equipment nobody maintains in flight without a laboratory.',
+    resolvedBy: 'Select the treatment equipment and measure its recovery on a bench.',
+    source: 'nasa-bvad',
+  }),
+
+  /** Metabolic heat, which is a real term in the cabin thermal budget. */
+  metabolicHeat: measured(120, {
+    unit: 'W',
+    source: 'nasa-bvad',
+    relativeUncertainty: 0.3,
+    note: 'Per person, averaged over a day including sleep. Two people are a 240 W heater that never switches off.',
+  }),
+}))
+
+/**
+ * Food shelf life, which is what turns a mass budget into a duration limit.
+ *
+ * THE TERM THAT DECIDES THE STRETCH GOAL. A 365-day mission is a storage
+ * problem; a five-year mission is a shelf-life problem, and no amount of tank
+ * volume fixes it. Freeze-dried stores nominally keep for decades but lose
+ * vitamin content long before they lose calories, so the binding constraint is
+ * nutritional rather than caloric.
+ */
+export const FOOD_SHELF_LIFE = under('food', () => ({
+  freezeDried: uncertain({
+    low: 5,
+    nominal: 15,
+    high: 25,
+    unit: 'a',
+    reason:
+      'Calorie stability and nutritional stability diverge. Manufacturers quote the former. Vitamin C and thiamine degrade in a few years at room temperature and faster in a hot hull.',
+    resolvedBy:
+      'Assay a stored sample at intervals, or design around supplementation rather than around whole-food storage.',
+  }),
+
+  retortPouch: uncertain({
+    low: 2,
+    nominal: 4,
+    high: 7,
+    unit: 'a',
+    reason: 'Wet stores are heavier and shorter-lived but need no water to prepare.',
+    resolvedBy: 'Manufacturer data for the specific products chosen.',
+  }),
+
+  /**
+   * Hydroponics, evaluated honestly rather than assumed.
+   *
+   * For two people under about two years it is a MASS LOSS: the grow lights,
+   * pumps, media, nutrients and structure outweigh the food produced, and the
+   * power draw competes directly with propulsion. It becomes interesting only
+   * on the five-year mission, and even then mostly for the nutritional terms
+   * that storage cannot hold rather than for calories.
+   */
+  hydroponicsBreakEvenDuration: uncertain({
+    low: 2,
+    nominal: 3.5,
+    high: 6,
+    unit: 'a',
+    reason:
+      'Depends heavily on lighting efficiency and on whether the system produces staples or only fresh greens. Published closed-system figures assume spacecraft-grade equipment and continuous specialist attention.',
+    resolvedBy:
+      'Size a specific system against the actual power budget. The answer is probably "grow greens for the vitamins, store the calories".',
+  }),
+}))
+
+/**
+ * Rain catchment, the term that makes the water loop close in the tropics.
+ *
+ * A 90 m hull presents an enormous catchment area, and the design station is
+ * the trade wind belt where showers are frequent. This is the largest and least
+ * appreciated water source on the vehicle.
+ */
+export const CATCHMENT = under('catchment', () => ({
+  /**
+   * Fraction of rain falling on the hull that reaches a tank.
+   *
+   * Well short of unity: the hull is curved and mostly not pointed at the sky,
+   * runoff has to be channelled somewhere, and the first flush is discarded
+   * because it carries whatever was on the cover.
+   */
+  collectionEfficiency: uncertain({
+    low: 0.2,
+    nominal: 0.4,
+    high: 0.6,
+    unit: '1',
+    reason:
+      'Nobody has built a rain catchment system on an airship. The efficiency depends entirely on how the cover is channelled and how much of the upper surface drains to a gutter rather than off the side.',
+    resolvedBy:
+      'A design decision followed by a test on a section of cover. Cheap to establish and it swings the water balance by a factor of three.',
+  }),
+
+  /**
+   * Annual rainfall in the trade wind belt at the design station.
+   *
+   * Deliberately taken low. The ITCZ is far wetter and the subtropical highs
+   * far drier, and a vehicle that stations itself for solar is not stationing
+   * itself for rain.
+   */
+  tradeWindBeltAnnualRainfall: uncertain({
+    low: 0.5,
+    nominal: 1.0,
+    high: 2.0,
+    unit: 'm/a',
+    reason:
+      'Varies enormously across the band and with season. The low end is the eastern subtropical ocean, the high end approaches the ITCZ.',
+    resolvedBy:
+      'Reanalysis precipitation data for the specific station, which the mission module will ingest in phase 5.',
+  }),
+}))

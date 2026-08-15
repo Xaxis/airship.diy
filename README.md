@@ -25,8 +25,8 @@ before the next opens.
 | 3. Can it be built? | Structure, buckling, mass fraction vs size | **Undecided, and that is the finding** |
 | 4. Does it fly? | Aerodynamics, propulsors, 6-DOF with added mass | Added mass and Munk moment done |
 | 4b. The powertrain decision | Fuel choice, TBO consumables, dissimilar redundancy | |
-| 5. Can it be lived in? | Habitat, life support, thermal, the year-long mission | |
-| 6. Will it kill me? | Hydrogen safety, lightning, failure injection, icing, regulation | |
+| 5. Can it be lived in? | Habitat, life support, the mission integrator | **Food, and a legal limit** |
+| 6. Will it kill me? | Hydrogen safety, lightning, icing, failure injection, regulation | Safety and regulation done |
 | 7. The site | Design explorer, 3D hull, flight simulator, mission player | |
 | 8. Build documentation | Frame drawings, laminate schedules, BOM, fabrication sequence | |
 
@@ -142,6 +142,38 @@ Ministry requirement in the same year. Gas choice moves it by about 4.6.
 trade.** At the theoretical square-cube value the baseline ship cannot lift its
 own empty weight. A model that quietly picked the favourable end would report a
 comfortable design where the truth is a coin flip.
+
+## Phase 5: which resource runs out first?
+
+**Nothing physical, before the food does. And the food is a loading decision
+rather than a discovery.**
+
+```
+  PHYSICAL ENDURANCE       400 days   FOOD
+  INCLUDING LEGAL LIMITS   365 days   CONDITION INSPECTION
+
+  water balance, kg/day:
+    consumption  62.0   recovered  52.7   net loss  9.3
+    rain catchment 1277   NET 1268   catchment covers net loss 137x
+```
+
+**Water was expected to be the binding constraint. It is the master ledger and
+it does not bind at all.** A 90 m hull presents about 1,170 m2 of plan area to
+the rain. In the trade wind belt at a metre of annual rainfall, even a poor 40
+percent collection efficiency gathers well over a tonne a day against a net loss
+of nine kilograms for two people. Catchment covers the loss 137 times over, and
+still covers it more than fifteen times at the most pessimistic end of every
+assumption.
+
+The vehicle is water *rich*. Ballast is free, electrolyzer feedstock is free,
+and the hygiene allowance that looked like the largest lever in life support is
+not a lever at all. That makes water a **station-choice** question rather than
+an equipment one: under a subtropical high instead of in the trade winds, the
+catchment term collapses.
+
+The overall limit is the 12-month condition inspection, which is legal rather
+than physical, and which **may not require landing at all**. See
+[docs/REGULATORY.md](docs/REGULATORY.md).
 
 ## What this vehicle is
 
