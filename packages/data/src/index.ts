@@ -14,6 +14,13 @@ export { CONSTANTS, MOLAR_MASS } from './constants.js'
 export { HYDROGEN_ENERGY, FUEL_CELL, ELECTROLYZER, PHOTOVOLTAIC, BATTERY } from './power.js'
 export { WATER, WINDAGE, GALVANIC, SEA_STATE } from './marine.js'
 export { HYDROGEN_SAFETY, VENTILATION } from './safety/hydrogen.js'
+export {
+  SP8007,
+  END_FIXITY,
+  CRIPPLING,
+  AIRSHIP_LOAD_CASES,
+  GUST_BENDING_MOMENT_COEFFICIENT,
+} from './materials/buckling.js'
 export { ISA, ISA_TABLE } from './isa.js'
 export type { GasSpecies } from './gases.js'
 export {

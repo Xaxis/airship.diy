@@ -59,6 +59,17 @@ export {
   pendulumPeriod,
 } from './dynamics/added-mass.js'
 
+export type { BucklingMode, BucklingResult } from './structure/buckling.js'
+export {
+  eulerBucklingStress,
+  localShellBucklingStress,
+  johnsonParabolaStress,
+  localToEulerTransitionLength,
+  assessBuckling,
+  minimumPracticalThickness,
+  mayUseUniversalCompositeKnockdown,
+} from './structure/buckling.js'
+
 export type { MassFractionEstimate } from './structure/mass-fraction.js'
 export {
   scaledEmptyWeight,
