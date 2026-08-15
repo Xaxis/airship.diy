@@ -89,6 +89,13 @@ web-lint: ## ESLint the site workspace
 web-type-check: build ## TypeScript for the site
 	@npm run type-check --workspace @airship/web
 
+web-live-check: ## Load the DEPLOYED site in a real browser and assert it runs
+	# The only check that catches a dead hydration. Every other check can pass
+	# while the page is a corpse: correct HTML, a 200, a perfect screenshot, and
+	# React threw on mount so nothing works. It also caught a WebGL failure
+	# taking the whole page down rather than just one view.
+	@node tools/check-web-live.mjs
+
 web-check: web-lint web-type-check web-build ## Every website check
 
 deploy: check ## Build and ship to airship.diy

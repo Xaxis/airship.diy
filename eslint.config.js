@@ -109,7 +109,17 @@ export default tseslint.config(
     files: ['tools/**/*.mjs', 'eslint-rules/**/*.js', 'apps/web/*.mjs'],
     languageOptions: {
       parserOptions: { projectService: false, project: false },
-      globals: { console: 'readonly', process: 'readonly', URL: 'readonly' },
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        URL: 'readonly',
+        // Node 24 provides these as globals; the tool scripts are outside the
+        // TypeScript project so nothing else tells ESLint about them.
+        fetch: 'readonly',
+        WebSocket: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+      },
     },
   },
 

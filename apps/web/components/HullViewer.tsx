@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 /**
@@ -33,6 +33,7 @@ export function HullViewer({
   arrayAftStation,
 }: HullViewerProps) {
   const mount = useRef<HTMLDivElement>(null)
+  const [unsupported, setUnsupported] = useState(false)
 
   useEffect(() => {
     const container = mount.current
@@ -42,7 +43,18 @@ export function HullViewer({
     scene.background = null
 
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 2000)
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    // A WebGL context can fail: old hardware, a blocklisted driver, a browser
+    // with it disabled, or too many live contexts on one page. Letting the
+    // exception escape kills React's render and takes the WHOLE PAGE down, so a
+    // visitor without WebGL would see nothing at all rather than a page missing
+    // one picture. Caught here so the failure stays local.
+    let renderer: THREE.WebGLRenderer
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    } catch {
+      setUnsupported(true)
+      return
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     container.appendChild(renderer.domElement)
 
@@ -245,5 +257,32 @@ export function HullViewer({
     }
   }, [radii, length, cellCount, arrayHalfAngle, arrayForwardStation, arrayAftStation])
 
-  return <div ref={mount} className="w-full" aria-label="Parametric hull, generated from the model's own shape function" />
+  if (unsupported) return <WebGLUnavailable what="hull view" />
+
+  return (
+    <div
+      ref={mount}
+      className="w-full"
+      aria-label="Parametric hull, generated from the model's own shape function"
+    />
+  )
+}
+
+/**
+ * Shown when a WebGL context cannot be created.
+ *
+ * The failure has to stay local. An uncaught exception in a Three.js component
+ * kills React's render and takes the entire page down, so a visitor on old
+ * hardware or with WebGL disabled would see a blank site rather than a site
+ * missing one picture. A live browser check caught exactly that.
+ */
+export function WebGLUnavailable({ what }: { what: string }) {
+  return (
+    <div className="flex min-h-40 items-center justify-center border border-[var(--color-rule)] bg-[var(--color-panel)] p-8 text-center">
+      <p className="max-w-md text-sm leading-relaxed text-[var(--color-ink-dim)]">
+        The {what} needs WebGL, which this browser could not start. Every number on this page is
+        computed by the model and rendered as text, so nothing else here depends on it.
+      </p>
+    </div>
+  )
 }

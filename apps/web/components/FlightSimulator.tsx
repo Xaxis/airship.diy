@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { atmosphere, hullGeometry, hullRadiusAt, hullShapeForPrismatic } from '@airship/core'
+import { WebGLUnavailable } from './HullViewer'
 import { REST, minimumFinAreaForStability, step, yawStaticMargin } from '@airship/solvers'
 import type { Controls, VehicleConfig, VehicleState } from '@airship/solvers'
 
@@ -58,6 +59,7 @@ export function FlightSimulator({
   const mount = useRef<HTMLDivElement>(null)
   const [readout, setReadout] = useState<Readout | null>(null)
   const [running, setRunning] = useState(false)
+  const [unsupported, setUnsupported] = useState(false)
 
   /**
    * Mutable pilot input, in a ref so the animation loop reads it without
@@ -103,7 +105,15 @@ export function FlightSimulator({
     scene.fog = new THREE.Fog(0x0a0c0f, length * 2, length * 14)
 
     const camera = new THREE.PerspectiveCamera(50, 1, 1, length * 30)
-    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    // See the note in HullViewer: an uncaught WebGL failure takes the whole
+    // page down, not just this view.
+    let renderer: THREE.WebGLRenderer
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true })
+    } catch {
+      setUnsupported(true)
+      return
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     container.appendChild(renderer.domElement)
 
@@ -310,6 +320,8 @@ export function FlightSimulator({
       setRunning(false)
     }
   }, [length, finenessRatio, prismaticCoefficient, cellCount])
+
+  if (unsupported) return <WebGLUnavailable what="flight simulator" />
 
   return (
     <div>
