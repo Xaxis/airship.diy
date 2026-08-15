@@ -27,15 +27,29 @@ export {
   ringSectionModulus,
 } from './structure/beam.js'
 
-export type { FloatingState, RightingMoments, WindageState } from './marine/hydrostatics.js'
+export type { FloatingState, RightingMoments } from './marine/hydrostatics.js'
 export {
   floatingState,
   rightingMoments,
-  windage,
-  seaAnchorArea,
   ballastToLandOnWater,
   ballastVolume,
 } from './marine/hydrostatics.js'
+
+export type { Attitude, WindLoad } from './marine/windage.js'
+export {
+  windLoad,
+  beamToBowForceRatio,
+  beamOnForceEqualsLiftSpeed,
+  seaAnchorCanopyArea,
+  canopyDiameter,
+  leeway,
+  handlingToSurvivalRatio,
+  WIND_LIMITS,
+  SIDE_FORCE_COEFFICIENT_BEAM_ON,
+  DRAG_COEFFICIENT_BOW_ON,
+  YAW_MOMENT_COEFFICIENT_BEAM_ON,
+  WEATHERVANING_UNSTABLE_BELOW_YAW,
+} from './marine/windage.js'
 
 export type { InertiaCoefficients, AddedMassMatrix } from './dynamics/added-mass.js'
 export {

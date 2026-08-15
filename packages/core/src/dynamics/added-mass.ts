@@ -20,8 +20,17 @@ import type { KilogramsPerCubicMeter, CubicMeters } from '@airship/units'
  * spheroid, which is the classical result and is still the right source.
  *
  * @source Lamb, H. (1932), Hydrodynamics, 6th edition, articles 111-114 and
- *   122. The equivalent-spheroid approximation for a real airship hull is
- *   standard practice; see Khoury, Airship Technology, chapter on dynamics.
+ *   122, cross-checked against Imlay, F. H. (1961), "The complete expressions
+ *   for added mass of a rigid body moving in an ideal fluid", DTMB Report 1528.
+ *   The equivalent-spheroid approximation for a real airship hull is standard
+ *   practice; see Khoury, Airship Technology, chapter on dynamics.
+ *
+ * A CONSEQUENCE UNIQUE TO A FULLY BUOYANT VEHICLE. At neutral buoyancy the
+ * ship's mass equals the mass of air it displaces, identically, because that is
+ * what neutral buoyancy MEANS. So the effective-mass ratios are exact rather
+ * than approximate: sway and heave are exactly (1 + k2) = 1.894 times the ship
+ * mass, and surge exactly (1 + k1) = 1.059. A hybridLift vehicle or a heavy
+ * airship does not get this simplification, because for those m is not rho*V.
  */
 
 export interface InertiaCoefficients {
@@ -59,18 +68,18 @@ export interface InertiaCoefficients {
  *   k' = ((b^2-a^2)^2 (alpha0 - beta0)) /
  *        ((2(b^2-a^2) + (b^2+a^2)(beta0 - alpha0)) * (b^2+a^2))
  *
- * A DOCUMENTED DISAGREEMENT. This yields k' = 0.700 at fineness ratio 5, where
- * the project brief states "roughly 0.66". The form implemented here is kept
- * because it satisfies the one constraint that is not negotiable: k' must go to
- * ZERO in the sphere limit, since a sphere rotating in an ideal fluid carries no
- * added inertia at all. It does, to five decimals. An alternative arrangement of
- * the same terms that omits the trailing (a^2+b^2) fails that limit by orders of
- * magnitude, which is how this one was chosen.
+ * A DISAGREEMENT WITH THE BRIEF, NOW RESOLVED IN THE MODEL'S FAVOUR. This yields
+ * k' = 0.700 at fineness ratio 5 where the brief states "roughly 0.66". The
+ * implemented form was kept because it satisfies the one constraint that is not
+ * negotiable: k' must go to ZERO in the sphere limit, since a sphere rotating in
+ * an ideal fluid carries no added inertia at all. It does, to five decimals. An
+ * alternative arrangement of the same terms that omits the trailing (a^2+b^2)
+ * fails that limit by orders of magnitude, which is how this one was selected.
  *
- * The 6 percent gap against the brief is not resolved and is not tuned away. It
- * may be a different fineness ratio, a different definition of the reference
- * inertia, or an error in either source. TODO(uncertainty): resolve against
- * Lamb article 122 directly.
+ * Independent checking against Lamb's closed form and against Imlay DTMB 1528
+ * confirms 0.700. The brief's 0.66 is the value at fineness ratio 4.5, so it is
+ * almost certainly a row misread in Munk's NACA TR 184 Table I. k1 = 0.059 and
+ * k2 = 0.894 in the brief are both correct.
  */
 export const inertiaCoefficients = (finenessRatio: number): InertiaCoefficients => {
   if (finenessRatio <= 1) {
@@ -176,8 +185,16 @@ export const addedMassMatrix = (
  * instability grows with the SAME term that makes the vehicle sluggish in sway,
  * so the two cannot be traded independently.
  *
- * @source Munk, M. M. (1924), NACA Report 394, "The aerodynamic forces on
- *   airship hulls".
+ * @source Munk, M. M. (1924), NACA Report No. 184, "The aerodynamic forces on
+ *   airship hulls", eq. 19 p.11 and eq. 22 p.13. NOT Report 394, which the
+ *   project brief cites: 394 is a different paper. Report 405 is Upson and
+ *   Klikoff, "Application of practical hydrodynamics to airship design" (1933),
+ *   which is where the fin sizing stability criteria live.
+ *
+ * IN REAL FLOW the moment is about 70 percent of the potential-flow value,
+ * because the flow separates near the tail and the aft suction that would
+ * complete the couple never fully develops. `munkMoment` returns the ideal
+ * value; multiply by `MUNK_REAL_FLUID_FACTOR` for a flight dynamics model.
  *
  * @param angleOfAttack Radians. The moment peaks at 45 degrees and vanishes at
  *   0 and 90, which is the signature of the sin(2*alpha) form.
@@ -191,6 +208,42 @@ export const munkMoment = (
 ): number => {
   const { k1, k2 } = inertiaCoefficients(finenessRatio)
   return 0.5 * airDensity * volume * (k2 - k1) * speed * speed * Math.sin(2 * angleOfAttack)
+}
+
+/**
+ * Ratio of real-flow Munk moment to the ideal potential-flow value.
+ * @source Measured airship hull data; see Imlay DTMB 1528 and the NACA airship
+ *   force reports. The flow separates near the tail so the aft suction that
+ *   would complete the couple never fully develops.
+ */
+export const MUNK_REAL_FLUID_FACTOR = 0.7
+
+/**
+ * Speed above which the Munk moment overwhelms the pendulum in pitch.
+ *
+ * @derived The Munk moment grows as U^2 while the pendulum restoring moment is
+ * constant, so they cross at
+ *   U = sqrt( B * z_BG / (0.7 * rho * V * (k2 - k1)) )
+ *
+ * Below that speed the fins have no dynamic pressure to work with and the
+ * pendulum is the only thing holding the nose up. Above it the fins carry
+ * stability and the pendulum is irrelevant. For the baseline the crossover is
+ * around 8 m/s, which sits awkwardly close to cruise: this vehicle spends real
+ * time in both regimes, and a control law tuned for one will misbehave in the
+ * other.
+ */
+export const pendulumToFinCrossoverSpeed = (
+  grossLiftForce: number,
+  buoyancyToGravitySeparation: number,
+  airDensity: number,
+  volume: number,
+  finenessRatio: number,
+): number => {
+  const { k1, k2 } = inertiaCoefficients(finenessRatio)
+  return Math.sqrt(
+    (grossLiftForce * buoyancyToGravitySeparation) /
+      (MUNK_REAL_FLUID_FACTOR * airDensity * volume * (k2 - k1)),
+  )
 }
 
 /**

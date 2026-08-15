@@ -1,19 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { SEA_STATE } from '@airship/data'
-import { kg, m, m2, mps } from '@airship/units'
-import { atmosphere } from '../src/atmosphere.js'
+import { kg, m } from '@airship/units'
 import { hullGeometry } from '../src/geometry/hull.js'
 import {
   ballastToLandOnWater,
   ballastVolume,
   floatingState,
   rightingMoments,
-  seaAnchorArea,
-  windage,
 } from '../src/marine/hydrostatics.js'
 
 const hull = hullGeometry(m(90), 5)
-const seaLevel = atmosphere(m(0))
 
 // A trimmed baseline ship: 15,800 m3 of hydrogen lifts about 18 t, and the
 // vehicle is flown a few hundred kilograms heavy, which is the safe direction.
@@ -91,86 +87,6 @@ describe('stability afloat comes from the envelope, not the waterplane', () => {
     expect(() => rightingMoments(GROSS_LIFT, m(8), m(20), state.waterborneLoad, m(1.5))).toThrow(
       RangeError,
     )
-  })
-})
-
-/**
- * The actual problem with marine operation. The vehicle is an enormous sail
- * with almost no keel.
- */
-describe('windage is the binding constraint on water', () => {
-  it('presents on the order of a thousand square metres of lateral area', () => {
-    const w = windage(hull, seaLevel, mps(10), m2(20))
-    expect(w.lateralArea).toBeGreaterThan(1000)
-    expect(w.lateralArea).toBeLessThan(1400)
-  })
-
-  it('drifts at a large fraction of wind speed with nothing deployed', () => {
-    // Air is 840 times less dense than seawater, which sounds decisive. It is
-    // not: the area ratio runs the other way by two orders of magnitude.
-    const w = windage(hull, seaLevel, mps(10), m2(20))
-    expect(w.leewayRatio).toBeGreaterThan(0.1)
-    expect(w.leewayRatio).toBeLessThan(0.6)
-  })
-
-  it('leeway ratio is independent of wind speed, so drift scales linearly', () => {
-    // Both sides of the balance go as velocity squared, so the ratio cancels.
-    // That means a 20 m/s wind drives twice the drift of a 10 m/s wind, not
-    // four times, which is the one piece of good news in this section.
-    const slow = windage(hull, seaLevel, mps(5), m2(20))
-    const fast = windage(hull, seaLevel, mps(20), m2(20))
-    expect(fast.leewayRatio).toBeCloseTo(slow.leewayRatio, 6)
-    expect(fast.driftSpeed / slow.driftSpeed).toBeCloseTo(4, 3)
-  })
-
-  it('side force is large enough to matter structurally', () => {
-    // At 15 m/s this is a substantial load into whatever the drogue rode is
-    // attached to, and it acts at the bow.
-    const w = windage(hull, seaLevel, mps(15), m2(20))
-    expect(w.sideForce).toBeGreaterThan(50000)
-  })
-
-  /**
-   * THE FINDING for marine operation, and it is a negative one.
-   *
-   * Holding position on the water is not achievable. Cutting drift to a
-   * near-stationary 0.5 m/s in only a 10 m/s wind needs a canopy around 17 m
-   * across, which is not an object two people deploy and recover from a
-   * gondola. A sea anchor is still worth carrying, because it buys roughly a
-   * factor of two on drift and, more importantly, it makes the vehicle
-   * weathervane bow-on instead of lying beam-on. But the vehicle afloat is a
-   * DRIFTING habitat, not a moored one.
-   *
-   * That is acceptable in open ocean and disqualifying near a lee shore, which
-   * makes proximity to land the real constraint on where this vehicle may touch
-   * down.
-   */
-  it('cannot be held stationary by any sea anchor of practical size', () => {
-    const w = windage(hull, seaLevel, mps(10), m2(20))
-    const nearStationary = seaAnchorArea(w.sideForce, mps(0.5))
-    const canopyDiameter = Math.sqrt((4 * nearStationary) / Math.PI)
-
-    expect(canopyDiameter).toBeGreaterThan(12)
-  })
-
-  it('a practical sea anchor roughly halves drift without stopping it', () => {
-    // A 6 m parachute is about the largest a two-person crew can handle.
-    const practicalDiameter = 6
-    const practicalArea = (Math.PI * practicalDiameter ** 2) / 4
-
-    const w = windage(hull, seaLevel, mps(10), m2(20))
-    // Solve the same balance the anchor sizing inverts: V = sqrt(F / (0.5 rho A Cd)).
-    const anchored = Math.sqrt(w.sideForce / (0.5 * 1025 * practicalArea * 1.4))
-
-    expect(anchored).toBeLessThan(w.driftSpeed)
-    expect(anchored).toBeGreaterThan(0.5)
-    // Still a couple of knots of drift, which over a day is tens of miles.
-    expect(anchored * 1.94384).toBeGreaterThan(1.5)
-  })
-
-  it('refuses a zero drift target, because an anchor slows drift and does not stop it', () => {
-    const w = windage(hull, seaLevel, mps(10), m2(20))
-    expect(() => seaAnchorArea(w.sideForce, mps(0))).toThrow(RangeError)
   })
 })
 

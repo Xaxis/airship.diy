@@ -1,8 +1,6 @@
-import { CONSTANTS, WATER, WINDAGE, v } from '@airship/data'
-import type { Kilograms, Meters, MetersPerSecond, Newtons, SquareMeters } from '@airship/units'
-import { N, m3, mps } from '@airship/units'
-import type { AtmosphereState } from '../atmosphere.js'
-import type { HullGeometry } from '../geometry/hull.js'
+import { CONSTANTS, WATER, v } from '@airship/data'
+import type { Kilograms, Meters } from '@airship/units'
+import { m3 } from '@airship/units'
 
 /**
  * Marine mode: floating on water, and working as a boat.
@@ -31,13 +29,10 @@ import type { HullGeometry } from '../geometry/hull.js'
  * term. The vehicle is far more stable on the water than a boat of the same
  * draft, and the usual metacentric criterion does not govern.
  *
- * WINDAGE IS THE PROBLEM. A 90 m hull afloat presents on the order of 1,500 m2
- * of lateral area to the wind, resisted by a wetted hull of a few square metres.
- * The vehicle is an enormous sail with almost no keel, so it does not hold
- * position: it drifts, at a substantial fraction of wind speed, and it will lie
- * beam-on unless something makes it weathervane. Single-point mooring off a bow
- * drogue is not a refinement here, it is what makes water operation possible at
- * all.
+ * WINDAGE IS THE PROBLEM, and it lives in ./windage.ts. The short version: the
+ * ratio of beam-on to bow-on force on this hull is about 72 to 1, so held
+ * bow-on the vehicle rides out serious weather and held beam-on nothing helps.
+ * Weathervaning is the entire marine survival strategy.
  */
 
 const G0 = CONSTANTS.g0.value
@@ -130,89 +125,13 @@ export const rightingMoments = (
   }
 }
 
-export interface WindageState {
-  /** Lateral aerodynamic force on the hull, N. */
-  readonly sideForce: Newtons
-  /** Projected lateral area presented to the wind, m2. */
-  readonly lateralArea: SquareMeters
-  /**
-   * Steady drift speed with nothing deployed, m/s. Equilibrium between wind
-   * force on the hull and water drag on the wetted portion.
-   */
-  readonly driftSpeed: MetersPerSecond
-  /** Drift as a fraction of wind speed. */
-  readonly leewayRatio: number
-}
-
-/**
- * Windage and drift.
- *
- * @derived Drift settles where wind force equals water drag:
- *   0.5*rho_air*V_w^2*A_air*C_air = 0.5*rho_water*V_d^2*A_water*C_water
- * so
- *   V_d / V_w = sqrt( (rho_air*A_air*C_air) / (rho_water*A_water*C_water) )
- *
- * Air is about 840 times less dense than seawater, which sounds like it should
- * settle the matter. It does not, because the area ratio runs the other way by
- * two orders of magnitude: an airship afloat has a vast sail and a tiny wetted
- * hull. The two effects nearly cancel and the leeway ratio comes out
- * uncomfortably large.
- *
- * @param wettedArea Underwater area resisting drift, m2. Small unless a drogue
- *   is streamed, which is exactly why one is streamed.
- */
-export const windage = (
-  hull: HullGeometry,
-  air: AtmosphereState,
-  windSpeed: MetersPerSecond,
-  wettedArea: SquareMeters,
-  waterDragCoefficient = 1.0,
-  salt = true,
-): WindageState => {
-  // Projected lateral area of a body of revolution: the integral of diameter
-  // along the length. For this hull family that is closely 0.72*L*D, which is
-  // the ratio the shape function produces and the tests pin.
-  /** @derived Lateral area of a body of revolution, from its own profile. */
-  const lateralArea = 0.72 * hull.length * hull.maxDiameter
-
-  const crossFlow = v(WINDAGE.crossFlowDragCoefficient)
-  const sideForce = 0.5 * air.density * windSpeed * windSpeed * lateralArea * crossFlow
-
-  const waterDensity = salt ? v(WATER.seawaterDensity) : v(WATER.freshwaterDensity)
-  const resistance = 0.5 * waterDensity * wettedArea * waterDragCoefficient
-
-  const driftSpeed = resistance > 0 ? Math.sqrt(sideForce / resistance) : Infinity
-
-  return {
-    sideForce: N(sideForce),
-    lateralArea: lateralArea as SquareMeters,
-    driftSpeed: mps(driftSpeed),
-    leewayRatio: windSpeed > 0 ? driftSpeed / windSpeed : 0,
-  }
-}
-
-/**
- * Mouth area of the sea anchor needed to hold drift below a target speed.
- *
- * @derived Setting the anchor's water drag equal to the hull's wind force:
- *   A_anchor = rho_air*V_w^2*A_air*C_air / (rho_water*V_target^2*C_anchor)
- *
- * The result decides whether riding out weather on the water is practical or
- * whether the vehicle has to fly to avoid it, which is one of the real
- * operational questions the marine requirement raises.
- */
-export const seaAnchorArea = (
-  sideForce: Newtons,
-  targetDriftSpeed: MetersPerSecond,
-  salt = true,
-): number => {
-  if (targetDriftSpeed <= 0) {
-    throw new RangeError('A sea anchor slows drift, it does not stop it. Target must be positive.')
-  }
-  const waterDensity = salt ? v(WATER.seawaterDensity) : v(WATER.freshwaterDensity)
-  const anchorDrag = v(WINDAGE.seaAnchorDragCoefficient)
-  return sideForce / (0.5 * waterDensity * targetDriftSpeed * targetDriftSpeed * anchorDrag)
-}
+// Windage, drift and sea anchor sizing moved to ./windage.ts.
+//
+// The version that lived here sized the sea anchor against the BEAM-ON side
+// force and concluded that no practical canopy could hold the vehicle. That was
+// wrong: the anchor's job is to hold the vehicle BOW-ON, where the force is
+// about 72 times smaller. Sized correctly a 5.7 m canopy is sufficient. The
+// replacement keeps both attitudes explicit so the mistake cannot recur.
 
 /**
  * Ballast that must be taken aboard to sit on the water at a chosen heaviness.
