@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import {
   boatResistance,
-  cushionPressureFor,
+  cushionFeasibility,
+  effectiveHeaveInertia,
+  reliefPressureFor,
+  reliefVentArea,
   froudeNumber,
   frictionCoefficient,
   hullSpeed,
@@ -136,49 +139,99 @@ describe('making way against wind', () => {
 
 describe('seakeeping: the vehicle is picked up, not slammed', () => {
   const RIGID: FloatType = { kind: 'rigid', waterplaneArea: WATERPLANE }
+  const INERTIA = effectiveHeaveInertia(kg(24516), 31657)
+
+  it('counts the air the hull drags with it, which is more than half the inertia', () => {
+    // The wave does not have to accelerate the ship, it has to accelerate the
+    // ship AND 35 tonnes of air. Leaving the added mass out makes the vehicle
+    // look responsive in heave when it is the opposite.
+    expect(INERTIA).toBeGreaterThan(24516 * 2)
+    expect(INERTIA - 24516).toBeCloseTo(0.894 * 1.225 * 31657, -2)
+  })
 
   it('overloads a rigid hull in a 0.3 m sea', () => {
-    // Sea state 2 is "smooth". A rigid waterplane turns it into 85 kN against a
-    // 50 kN flight design load, and this is the finding that changed the
+    // Sea state 2 is "smooth". A rigid waterplane turns it into 124 kN against
+    // a 50 kN flight design load, and this is the finding that changed the
     // landing gear.
-    const k = seakeeping(2, RIGID, SUSPENSION_DESIGN)
+    const k = seakeeping(2, RIGID, SUSPENSION_DESIGN, INERTIA)
     expect(k.acceptable).toBe(false)
-    expect(k.utilisation).toBeGreaterThan(1.5)
+    expect(k.utilisation).toBeGreaterThan(2)
   })
 
   it('limits a rigid hull to a flat calm', () => {
-    expect(maximumSeaState(RIGID, SUSPENSION_DESIGN)).toBe(1)
+    expect(maximumSeaState(RIGID, SUSPENSION_DESIGN, INERTIA)).toBe(1)
   })
 
-  it('lets a pneumatic cushion sized to the suspension survive any tabulated sea', () => {
-    // A cushion cannot push harder than its gauge pressure times its contact
-    // area. Past that it squashes. The sea state stops being a structural
-    // question and becomes a regulator setting.
-    const pressure = cushionPressureFor(SUSPENSION_DESIGN, WATERPLANE)
-    const cushion: FloatType = {
-      kind: 'pneumatic',
+  it('finds the rigid hull resonant in the shortest sea, not the biggest', () => {
+    // A two second heave period on a two second chop. The load is amplified
+    // rather than quasi-static, and it is the calmest tabulated state that does
+    // it, which is not where anyone looks.
+    expect(seakeeping(1, RIGID, SUSPENSION_DESIGN, INERTIA).nearResonance).toBe(true)
+    expect(seakeeping(4, RIGID, SUSPENSION_DESIGN, INERTIA).nearResonance).toBe(false)
+  })
+
+  it('makes a SEALED pneumatic bag far WORSE than the hull it replaces', () => {
+    // THE CORRECTION THAT MATTERED. A sealed bag is a gas spring at ABSOLUTE
+    // pressure, so its stiffness is P_abs*A/t and not P_gauge*A/t. At 0.35 kPa
+    // gauge on 101 kPa absolute it is nearly sixty times stiffer than the
+    // waterplane. The force-limiter argument is not optimistic there, it is
+    // inverted, and the first version of this module had it inverted.
+    const sealed: FloatType = {
+      kind: 'sealed-pneumatic',
       contactArea: WATERPLANE,
-      gaugePressure: pressure,
+      gaugePressure: reliefPressureFor(SUSPENSION_DESIGN, WATERPLANE),
+      thickness: 0.5,
     }
-    expect(maximumSeaState(cushion, SUSPENSION_DESIGN)).toBe(6)
-    expect(seakeeping(6, cushion, SUSPENSION_DESIGN).forceLimited).toBe(true)
+    const rigidLoad = seakeeping(2, RIGID, SUSPENSION_DESIGN, INERTIA).suspensionLoad
+    const sealedLoad = seakeeping(2, sealed, SUSPENSION_DESIGN, INERTIA).suspensionLoad
+    expect(sealedLoad).toBeGreaterThan(rigidLoad * 5)
+    expect(maximumSeaState(sealed, SUSPENSION_DESIGN, INERTIA)).toBeNull()
   })
 
-  it('needs an absurdly low cushion pressure, which is the point', () => {
-    // Under a kilopascal. A fifth of a car tyre would be ten times too stiff.
-    const pressure = cushionPressureFor(SUSPENSION_DESIGN, WATERPLANE)
-    expect(pressure).toBeLessThan(2000)
-    expect(pressure).toBeGreaterThan(100)
-  })
-
-  it('is not force limited in a calm, so the cushion is not always saturated', () => {
-    const pressure = cushionPressureFor(SUSPENSION_DESIGN, WATERPLANE)
-    const cushion: FloatType = {
-      kind: 'pneumatic',
+  it('makes a VENTED bag work, and only because it vents', () => {
+    const vented: FloatType = {
+      kind: 'vented-pneumatic',
       contactArea: WATERPLANE,
-      gaugePressure: pressure,
+      reliefPressure: reliefPressureFor(SUSPENSION_DESIGN, WATERPLANE),
     }
-    expect(seakeeping(1, cushion, SUSPENSION_DESIGN).forceLimited).toBe(false)
+    expect(maximumSeaState(vented, SUSPENSION_DESIGN, INERTIA)).toBe(6)
+    expect(seakeeping(4, vented, SUSPENSION_DESIGN, INERTIA).forceLimited).toBe(true)
+  })
+
+  it('sizes the relief setting for the measured overshoot, not the nominal', () => {
+    // The XC-8A pulled 2.2 to 3.3 times its nominal pressure on every water
+    // landing it made. A relief valve does not dump air instantly.
+    const naive = SUSPENSION_DESIGN / WATERPLANE
+    expect(reliefPressureFor(SUSPENSION_DESIGN, WATERPLANE)).toBeLessThan(naive / 2)
+  })
+
+  it('demands a relief vent big enough to be a design feature', () => {
+    // A third of a square metre. Undersize it and the bag reverts to the sealed
+    // case, which is worse than no bag at all.
+    const area = reliefVentArea(2, 0.4, reliefPressureFor(SUSPENSION_DESIGN, WATERPLANE))
+    expect(area).toBeGreaterThan(0.1)
+  })
+})
+
+describe('an air cushion cannot make a cushion here', () => {
+  it('reproduces the XC-8A depression depth from its published cushion pressure', () => {
+    // 8,140 Pa over seawater is 0.81 m, and NASA CR-159002 publishes 0.82.
+    // The relation is validated before it is used to kill anything.
+    const xc8a = cushionFeasibility(kg(17735), 21.4, 19.8, 1.5)
+    expect(xc8a.depressionDepth).toBeCloseTo(0.82, 1)
+  })
+
+  it('gives a buoyant airship a twelve millimetre cushion', () => {
+    // Cushion pressure is weight over area, and a buoyant vehicle has almost no
+    // weight. An ACLS is a HEAVY vehicle's device.
+    const airship = cushionFeasibility(kg(800), 80, 48, 0.3)
+    expect(airship.depressionDepth).toBeLessThan(0.02)
+    expect(airship.viable).toBe(false)
+    expect(airship.waveHead / airship.cushionPressure).toBeGreaterThan(20)
+  })
+
+  it('still charges kilowatts for the privilege', () => {
+    expect(cushionFeasibility(kg(800), 80, 48, 0.3).fanPower).toBeGreaterThan(1000)
   })
 })
 

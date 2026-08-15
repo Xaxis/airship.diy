@@ -38,6 +38,9 @@ import { DRAG_COEFFICIENT_BOW_ON } from './windage.js'
 
 const G0 = CONSTANTS.g0.value
 
+/** @source ISA sea level air density, 1.225 kg/m3. */
+const SEA_LEVEL_AIR_DENSITY = 1.225
+
 // --------------------------------------------------------------------------
 // Displacement and speed
 // --------------------------------------------------------------------------
@@ -345,104 +348,236 @@ export const windwardSpeed = (
 /**
  * How the vehicle meets the water.
  *
- * The distinction is not cosmetic. A rigid hull is a SPRING: the force it feeds
- * into the suspension is rho * g * A * dz and it grows without limit as the
- * wave lifts it. A pneumatic float is a FORCE LIMITER: it cannot push harder
- * than its gauge pressure times its contact area, because past that it simply
- * squashes. That is the engineering reason the Airlander uses pneumatic skids
- * rather than a boat hull, and it is the single most important thing the marine
- * research changed about this design.
+ * THE DISTINCTION THAT MATTERS, AND THE ONE THIS MODULE FIRST GOT BACKWARDS.
+ *
+ * A rigid hull is a hydrostatic spring: rho*g*A per metre of immersion, with no
+ * ceiling. That much was right.
+ *
+ * A SEALED pneumatic bag is NOT a force limiter. It is a gas spring, and its
+ * stiffness is P_ABSOLUTE * A / t, not P_gauge * A / t, because compressing a
+ * bag works against the whole atmosphere inside it and not just the 0.24
+ * percent of it that is gauge. For an 80 m2 bag 0.5 m thick at 245 Pa gauge
+ * that is 16.3 MN/m, against 281 kN/m for the waterplane it replaced. A sealed
+ * bag is FIFTY-EIGHT TIMES STIFFER THAN THE WATER. The force-limiter argument
+ * is not merely optimistic there, it is inverted.
+ *
+ * A VENTED bag is a force limiter, and only because it vents. Air leaves
+ * through a relief area when the gauge pressure reaches its setting, so the
+ * force cannot climb past p_relief * A no matter how far the wave pushes. The
+ * vent has to be big: roughly 0.42 m2 to hold 245 Pa while 2 m3 is swept in 0.4
+ * seconds. That is a design requirement, not a detail, and it is the difference
+ * between the concept working and inverting.
+ *
+ * An AIR CUSHION is a vented bag that is continuously fed, and at this
+ * vehicle's weight it cannot make a cushion at all. Cushion depression depth is
+ * Pc/(rho_w*g), a relation that reproduces the XC-8A's published 0.82 m to
+ * within 2 percent. At 1,000 kg of heaviness over 80 m2 the cushion pressure is
+ * 123 Pa and the depression is 12 mm, while a sea state 2 wave is a 1,500 Pa
+ * head. The wave goes straight through. An ACLS is a HEAVY vehicle's device and
+ * a buoyant airship has, by definition, almost no weight to pressurise one
+ * with.
+ *
+ * @source NASA TN D-7295 (Thompson, 1973) for the XC-8A air cushion landing
+ * system, and NASA CR-159002 (Bell/de Havilland, 1979) for the design study
+ * comparisons. The XC-8A ran 8,200 Pa cushion and 16,400 Pa trunk on a 17,735
+ * kg aeroplane.
  */
 export type FloatType =
-  /** A boat hull. Hydrostatically stiff, and the stiffness is the problem. */
+  /** A boat hull. Hydrostatically stiff, and at 35 mm of draft it also slams. */
   | { readonly kind: 'rigid'; readonly waterplaneArea: number }
   /**
-   * An inflated cushion. Compliant, and its force ceiling is a design choice
-   * made with a pressure regulator rather than with structure.
+   * An inflated bag with no relief path. A gas spring at absolute pressure, and
+   * stiffer than the water it replaces. Modelled so the drawing can show why it
+   * does not work.
    */
   | {
-      readonly kind: 'pneumatic'
+      readonly kind: 'sealed-pneumatic'
       readonly contactArea: number
-      /** Cushion gauge pressure, Pa. */
       readonly gaugePressure: number
+      /** Uncompressed thickness, m. The spring rate goes as 1/t. */
+      readonly thickness: number
     }
+  /**
+   * An inflated bag with a relief valve. The only one of the three that limits
+   * force, and it limits it to the relief setting times the area, times a real
+   * overshoot.
+   */
+  | {
+      readonly kind: 'vented-pneumatic'
+      readonly contactArea: number
+      /** Relief valve setting, Pa gauge. */
+      readonly reliefPressure: number
+    }
+
+/**
+ * Peak-to-nominal pressure overshoot of a vented cushion on water impact.
+ *
+ * @source NASA TN D-7295, XC-8A model tests. Trunk pressure went from a nominal
+ * 1.5 kPa to maxima of 3.2, 3.3 and 3.7 kPa on calm-water landings at 0, 3 and
+ * 6 degrees of roll, and to 3.9 kPa in 1.5 m waves. Cushion pressure went from
+ * 0.82 kPa nominal to 2.7 kPa. That is 2.2 to 3.3 times.
+ *
+ * So "capped at gauge pressure times contact area" is wrong by a factor of about
+ * two and a half, and it is wrong in the flattering direction. The relief valve
+ * cannot dump air instantly, and the flow it has to pass grows with the wave.
+ */
+const VENT_OVERSHOOT = 2.5
+
+/**
+ * Added mass coefficient in heave for a fineness 5 hull.
+ *
+ * @source Lamb (1932) Hydrodynamics 6th ed. arts. 111-114, k2 for a prolate
+ * spheroid, as implemented in the added-mass module.
+ *
+ * It belongs here because the vehicle's resistance to being lifted by a wave is
+ * NOT its mass: it is its mass plus the air it must accelerate with it. For the
+ * baseline that is 24,516 kg plus 0.894 * 1.225 * 32,968 = 36,105 kg of air, or
+ * 60,621 kg of effective heave inertia against a 10 kN load. Sixty to one. The
+ * vehicle is nearly fixed in heave while the sea moves a metre under it, and
+ * that is precisely why the relative motion all lands in the suspension.
+ */
+const HEAVE_ADDED_MASS_COEFFICIENT = 0.894
 
 export interface SeakeepingVerdict {
   readonly seaState: number
   readonly significantWaveHeight: number
-  /** Peak force into the gondola suspension from wave lift, N. */
+  /** Peak force into the gondola suspension, N. */
   readonly suspensionLoad: Newtons
   /** That load as a fraction of the suspension's flight design load. */
   readonly utilisation: number
   readonly acceptable: boolean
-  /** True when the float reached its pressure ceiling and stopped transmitting. */
+  /** True when the float reached its relief setting and stopped transmitting. */
   readonly forceLimited: boolean
+  /** Heave natural period on this float, s. */
+  readonly heavePeriod: number
+  /** True when the heave period is within a quarter of the wave period. */
+  readonly nearResonance: boolean
   readonly reason: string
 }
 
 /**
  * What the sea does to a vehicle that is held up by air.
  *
- * NOT A SLAMMING CALCULATION, and this is the whole point. A floatplane is
- * limited to about 0.3 m of wave because it is heavy: the water has to stop
- * several tonnes in a hull length, and the deceleration breaks things. This
- * vehicle puts a few hundred kilograms on the water. It does not slam.
- *
- * What happens instead is that a passing crest tries to LIFT the float. The
- * envelope above it is effectively fixed in altitude — it is buoyant, it has an
- * enormous added mass, and it cannot respond at wave frequency — so the whole
- * relative motion is taken by the suspension between them. For a rigid hull the
- * buoyant force from immersing by the wave amplitude is an order of magnitude
- * larger than anything the suspension was designed for, and it has nowhere to
- * go except into the cables and their hull fittings.
- *
- * A pneumatic float cannot do that. Its force ceiling is pressure times contact
- * area, and past that it deflates into the wave instead of pushing back.
+ * NOT A SLAMMING CALCULATION IN THE FLOATPLANE SENSE, but not free of slam
+ * either. A floatplane is limited to about 0.3 m of wave because several tonnes
+ * have to be stopped in a hull length. This vehicle puts a few hundred
+ * kilograms on the water, so at 1,000 kg on a 28 m2 waterplane its draft is
+ * 35 mm and it leaves the water in every trough. What it does is get PICKED UP
+ * and then dropped, and the envelope above cannot follow at wave frequency
+ * because its effective heave inertia is sixty times the load.
  *
  * @param suspensionDesignLoad Flight design load of the gondola suspension, N.
  *   Referenced to the gondola weight and its gust factor, NOT to the static
  *   heaviness: the suspension is sized by flight, and the sea has to fit inside
  *   what flight already bought.
+ * @param effectiveHeaveInertia Vehicle mass plus its heave added mass, kg.
  */
 export const seakeeping = (
   seaStateCode: number,
   float: FloatType,
   suspensionDesignLoad: Newtons,
+  effectiveHeaveInertia: Kilograms,
   salt = true,
 ): SeakeepingVerdict => {
   const state = SEA_STATE.find((s) => s.code === seaStateCode) ?? SEA_STATE[0]
   if (!state) throw new RangeError(`No sea state ${seaStateCode}.`)
 
   const density = salt ? v(WATER.seawaterDensity) : v(WATER.freshwaterDensity)
+  /** @derived Newtons per metre to meganewtons per metre, for the message. */
+  const MEGA = 1e6
 
   /**
    * @derived A crest passing under the float immerses it by up to half the
    * significant wave height before the vehicle can respond. Half rather than
-   * the full height because the float does partially follow the sea: it is
-   * light enough to be lifted rather than punched through. This is the
-   * optimistic end and it is stated as such.
+   * the full height because the float does partially follow the sea. This is
+   * the optimistic end and it is stated as such.
    */
   const immersion = state.significantWaveHeight / 2
 
   let suspensionLoad: number
+  let stiffness: number
   let forceLimited = false
   let mechanism: string
 
-  if (float.kind === 'rigid') {
-    suspensionLoad = density * G0 * float.waterplaneArea * immersion
-    mechanism = `${float.waterplaneArea.toFixed(0)} m² of rigid waterplane immersed ${immersion.toFixed(2)} m`
-  } else {
-    const hydrostatic = density * G0 * float.contactArea * immersion
-    const ceiling = float.gaugePressure * float.contactArea
-    forceLimited = hydrostatic > ceiling
-    suspensionLoad = Math.min(hydrostatic, ceiling)
-    mechanism = forceLimited
-      ? `${float.contactArea.toFixed(0)} m² of cushion at ${(float.gaugePressure / 1000).toFixed(1)} kPa, which squashes at ${(ceiling / 1000).toFixed(0)} kN rather than pushing harder`
-      : `${float.contactArea.toFixed(0)} m² of cushion immersed ${immersion.toFixed(2)} m, still below its ${(ceiling / 1000).toFixed(0)} kN pressure ceiling`
+  switch (float.kind) {
+    case 'rigid': {
+      stiffness = density * G0 * float.waterplaneArea
+      suspensionLoad = stiffness * immersion
+      mechanism = `${float.waterplaneArea.toFixed(0)} m² of rigid waterplane immersed ${immersion.toFixed(2)} m against a ${(stiffness / 1000).toFixed(0)} kN/m hydrostatic spring`
+      break
+    }
+    case 'sealed-pneumatic': {
+      /**
+       * @derived Isothermal gas spring: k = P_absolute * A / t. The absolute
+       * pressure, not the gauge, because compressing the bag works against
+       * every molecule in it.
+       */
+      const ATMOSPHERIC = 101325
+      stiffness = ((ATMOSPHERIC + float.gaugePressure) * float.contactArea) / float.thickness
+      suspensionLoad = stiffness * immersion
+      mechanism =
+        `${float.contactArea.toFixed(0)} m² of SEALED bag ${(float.thickness * 1000).toFixed(0)} mm thick, ` +
+        `which is a ${(stiffness / MEGA).toFixed(1)} MN/m gas spring because the stiffness goes with ABSOLUTE ` +
+        `pressure and the gauge is only ${((float.gaugePressure / ATMOSPHERIC) * 100).toFixed(2)} percent of it`
+      break
+    }
+    case 'vented-pneumatic': {
+      const ceiling = float.reliefPressure * float.contactArea * VENT_OVERSHOOT
+      const hydrostatic = density * G0 * float.contactArea * immersion
+      stiffness = density * G0 * float.contactArea
+      forceLimited = hydrostatic > ceiling
+      suspensionLoad = Math.min(hydrostatic, ceiling)
+      mechanism = forceLimited
+        ? `${float.contactArea.toFixed(0)} m² venting at ${(float.reliefPressure / 1000).toFixed(2)} kPa, which caps at ${(ceiling / 1000).toFixed(0)} kN once the measured ${VENT_OVERSHOOT} times overshoot is allowed for`
+        : `${float.contactArea.toFixed(0)} m² immersed ${immersion.toFixed(2)} m, still below the ${(ceiling / 1000).toFixed(0)} kN its relief valve would cap at`
+      break
+    }
+  }
+
+  /**
+   * @derived Heave natural period, 2*pi*sqrt(m_effective/k), and the dynamic
+   * amplification a wave at that period produces:
+   *
+   *   Q = 1 / sqrt((1 - r^2)^2 + (2 * zeta * r)^2),  r = T_natural / T_wave
+   *
+   * It matters because the quasi-static load above assumes the wave lifts the
+   * float slowly. It does not: a lightly loaded float on a stiff spring has a
+   * heave period of a couple of seconds, which is inside the band of ordinary
+   * sea states, and near resonance the load is several times the static figure.
+   *
+   * @source Damping ratio 0.15. A float this lightly loaded has almost no
+   * viscous damping and radiates very little wave energy, because radiated wave
+   * amplitude scales with the waterplane it drives. It is the softest number
+   * here, and it only ever makes the answer worse than the static one.
+   */
+  const DAMPING_RATIO = 0.15
+  const heavePeriod = 2 * Math.PI * Math.sqrt(effectiveHeaveInertia / stiffness)
+  const r = heavePeriod / state.meanPeriod
+  const amplification = 1 / Math.sqrt((1 - r * r) ** 2 + (2 * DAMPING_RATIO * r) ** 2)
+  /** @derived Within 25 percent of the wave period is close enough to call it. */
+  const RESONANCE_BAND = 0.25
+  const nearResonance = Math.abs(r - 1) < RESONANCE_BAND
+  /** @derived Below 20 percent of amplification it is not worth a sentence. */
+  const AMPLIFICATION_WORTH_MENTIONING = 1.2
+
+  // The amplification acts on the DISPLACEMENT, so it acts on the hydrostatic
+  // force. It does not defeat a relief valve: a force ceiling is a force
+  // ceiling however fast the wave arrives, which is the whole argument for one.
+  suspensionLoad *= amplification
+  if (float.kind === 'vented-pneumatic') {
+    const ceiling = float.reliefPressure * float.contactArea * VENT_OVERSHOOT
+    forceLimited = suspensionLoad > ceiling
+    suspensionLoad = Math.min(suspensionLoad, ceiling)
   }
 
   const utilisation = suspensionDesignLoad === 0 ? Infinity : suspensionLoad / suspensionDesignLoad
   const acceptable = utilisation <= 1
+
+  const resonanceNote = nearResonance
+    ? ` The heave period on this float is ${heavePeriod.toFixed(1)} s against a ${state.meanPeriod} s wave, so it is at resonance and the load is amplified ${amplification.toFixed(1)} times. A lightly loaded float has almost no damping, and this is the sea state that hurts it rather than the biggest one.`
+    : amplification > AMPLIFICATION_WORTH_MENTIONING
+      ? ` Amplified ${amplification.toFixed(1)} times by the ${heavePeriod.toFixed(1)} s heave period against a ${state.meanPeriod} s wave.`
+      : ''
 
   return {
     seaState: state.code,
@@ -451,24 +586,106 @@ export const seakeeping = (
     utilisation,
     acceptable,
     forceLimited,
-    reason: acceptable
-      ? `Sea state ${state.code}, ${state.description}, ${state.significantWaveHeight} m significant: ${mechanism} puts ${(suspensionLoad / 1000).toFixed(0)} kN into the suspension, ${(utilisation * 100).toFixed(0)} percent of its ${(suspensionDesignLoad / 1000).toFixed(0)} kN flight design load.`
-      : `Sea state ${state.code}, ${state.description}, ${state.significantWaveHeight} m significant: ${mechanism} puts ${(suspensionLoad / 1000).toFixed(0)} kN into the suspension against a ${(suspensionDesignLoad / 1000).toFixed(0)} kN flight design load, ${(utilisation * 100).toFixed(0)} percent. The vehicle does not slam like a floatplane, because it is not heavy enough to slam. It gets PICKED UP, and the suspension is what breaks.`,
+    heavePeriod,
+    nearResonance,
+    reason:
+      utilisation <= 1 && !nearResonance
+        ? `Sea state ${state.code}, ${state.description}, ${state.significantWaveHeight} m significant: ${mechanism} puts ${(suspensionLoad / 1000).toFixed(0)} kN into the suspension, ${(utilisation * 100).toFixed(0)} percent of its ${(suspensionDesignLoad / 1000).toFixed(0)} kN flight design load.${resonanceNote}`
+        : `Sea state ${state.code}, ${state.description}, ${state.significantWaveHeight} m significant: ${mechanism} puts ${(suspensionLoad / 1000).toFixed(0)} kN into the suspension against a ${(suspensionDesignLoad / 1000).toFixed(0)} kN flight design load, ${(utilisation * 100).toFixed(0)} percent. The vehicle does not slam like a floatplane, because it is not heavy enough to slam. It gets PICKED UP, and the suspension is what breaks.${resonanceNote}`,
+  }
+}
+
+export interface CushionFeasibility {
+  /** Cushion pressure the vehicle's own weight can generate, Pa gauge. */
+  readonly cushionPressure: number
+  /** Depth the cushion can push the water down, m. */
+  readonly depressionDepth: number
+  /** Pressure head of the design wave, Pa. */
+  readonly waveHead: number
+  readonly viable: boolean
+  /** Continuous fan power to hold the cushion, W. */
+  readonly fanPower: number
+  readonly reason: string
+}
+
+/**
+ * Whether an air cushion landing system can make a cushion at all here.
+ *
+ * @derived Cushion depression depth is Pc/(rho_w * g): the cushion pushes the
+ * water down until the hydrostatic head balances it. The relation reproduces
+ * the XC-8A's published 0.82 m displacement to within 2 percent from its 8,140
+ * Pa cushion pressure, and the notional Large Multi-Mission Amphibian's 1.19 m
+ * from its 11,731 Pa, so it is validated on both ends of the published range.
+ *
+ * The trouble is that Pc = W/A, and a buoyant airship's W on the water is its
+ * static heaviness, which is a few hundred kilograms. Every benefit an ACLS
+ * offers (air lubrication, wave smoothing, obstacle clearance) needs a cushion
+ * pressure comparable to the disturbance it is supposed to overcome, and this
+ * one has two orders of magnitude less.
+ *
+ * @source NASA TN D-7295 and NASA CR-159002 for the XC-8A and the design study
+ * amphibians. Fan power scales as perimeter times Pc^(3/2), also from CR-159002.
+ */
+export const cushionFeasibility = (
+  heaviness: Kilograms,
+  footprintArea: number,
+  perimeter: number,
+  significantWaveHeight: number,
+  salt = true,
+): CushionFeasibility => {
+  const density = salt ? v(WATER.seawaterDensity) : v(WATER.freshwaterDensity)
+  const cushionPressure = (heaviness * G0) / footprintArea
+  const depressionDepth = cushionPressure / (density * G0)
+  const waveHead = density * G0 * significantWaveHeight
+  const viable = depressionDepth >= significantWaveHeight / 2
+
+  /**
+   * @derived Q = perimeter * gap * sqrt(2 Pc / rho_air) at the 18 mm effective
+   * gap the XC-8A design study implies, delivered by a fan at twice cushion
+   * pressure and 70 percent efficiency.
+   */
+  const EFFECTIVE_GAP = 0.018
+  /** @source ISA sea level air density. */
+  const AIR_DENSITY = 1.225
+  /** @source A well-matched centrifugal fan at its design point. */
+  const FAN_EFFICIENCY = 0.7
+  /** @source NASA CR-159002: the XC-8A ran 16,375 Pa trunk on 8,140 Pa cushion. */
+  const TRUNK_TO_CUSHION = 2
+  const flow = perimeter * EFFECTIVE_GAP * Math.sqrt((2 * cushionPressure) / AIR_DENSITY)
+  const fanPower = (flow * cushionPressure * TRUNK_TO_CUSHION) / FAN_EFFICIENCY
+
+  return {
+    cushionPressure,
+    depressionDepth,
+    waveHead,
+    viable,
+    fanPower,
+    reason: viable
+      ? `${heaviness.toFixed(0)} kg over ${footprintArea.toFixed(0)} m² is ${cushionPressure.toFixed(0)} Pa of cushion, which pushes the water down ${(depressionDepth * 1000).toFixed(0)} mm against a ${significantWaveHeight} m wave. It holds, and it costs ${(fanPower / 1000).toFixed(1)} kW continuously.`
+      : `${heaviness.toFixed(0)} kg over ${footprintArea.toFixed(0)} m² is only ${cushionPressure.toFixed(0)} Pa of cushion, which pushes the water down ${(depressionDepth * 1000).toFixed(0)} mm. A ${significantWaveHeight} m wave is a ${(waveHead / 1000).toFixed(1)} kPa head, ${(waveHead / cushionPressure).toFixed(0)} times the cushion. The wave passes straight through and what is left is a wet flapping bag. An air cushion is a HEAVY vehicle's device: the XC-8A ran 8.2 kPa under 17.7 tonnes, and a buoyant airship has by definition almost no weight to pressurise one with. It would still cost ${(fanPower / 1000).toFixed(1)} kW to run.`,
   }
 }
 
 /**
- * Cushion pressure that keeps the sea inside the suspension's flight design
- * load, Pa gauge.
+ * Relief vent area a pneumatic float needs to actually limit force.
  *
- * The design rule that falls out of all of this: choose the pressure, and the
- * sea state stops being a structural question. It is set by a regulator rather
- * than by a laminate, which is the cheapest safety margin in the whole vehicle.
+ * @derived The vent must pass the volume the wave sweeps, in the time it sweeps
+ * it, without the gauge pressure rising: A = Q / (Cd * sqrt(2 p / rho_air)).
+ * Roughly 0.42 m2 for 2 m3 in 0.4 s at 245 Pa. Undersize it and the bag reverts
+ * to the sealed case, which is stiffer than the water.
  */
-export const cushionPressureFor = (
-  suspensionDesignLoad: Newtons,
-  contactArea: number,
-): number => suspensionDesignLoad / contactArea
+export const reliefVentArea = (
+  sweptVolume: number,
+  sweepTime: number,
+  reliefPressure: number,
+  /** @source Sharp-edged orifice discharge coefficient. */
+  dischargeCoefficient = 0.6,
+): number => {
+  /** @source Air density at sea level. */
+  const AIR_DENSITY = 1.225
+  const jetVelocity = Math.sqrt((2 * reliefPressure) / AIR_DENSITY)
+  return sweptVolume / sweepTime / (dischargeCoefficient * jetVelocity)
+}
 
 /**
  * The largest sea the vehicle can sit in, as a sea state code.
@@ -476,17 +693,50 @@ export const cushionPressureFor = (
  * Returns null when even the calmest tabulated state exceeds the design load,
  * which is a real answer and not an error.
  */
+/**
+ * Relief setting that keeps the sea inside the suspension's flight design load,
+ * Pa gauge.
+ *
+ * The design rule, with the correction that took two attempts to get right: the
+ * setting is the design load divided by the area AND by the measured overshoot,
+ * because a relief valve does not dump air instantly and the XC-8A pulled 2.2
+ * to 3.3 times its nominal pressure on every water landing it made.
+ */
+export const reliefPressureFor = (
+  suspensionDesignLoad: Newtons,
+  contactArea: number,
+): number => suspensionDesignLoad / contactArea / VENT_OVERSHOOT
+
 export const maximumSeaState = (
   float: FloatType,
   suspensionDesignLoad: Newtons,
+  effectiveHeaveInertia: Kilograms,
   salt = true,
 ): number | null => {
   let best: number | null = null
   for (const state of SEA_STATE) {
-    if (seakeeping(state.code, float, suspensionDesignLoad, salt).acceptable) best = state.code
+    if (seakeeping(state.code, float, suspensionDesignLoad, effectiveHeaveInertia, salt).acceptable) {
+      best = state.code
+    }
   }
   return best
 }
+
+/**
+ * Effective heave inertia: what the wave actually has to accelerate.
+ *
+ * @derived Vehicle mass plus the added mass of the air the hull drags with it,
+ * k2 * rho_air * V. For the baseline that is 24,516 kg of ship plus 36,105 kg of
+ * air. The air is more than half of it, and leaving it out makes the vehicle
+ * look responsive in heave when it is the opposite.
+ */
+export const effectiveHeaveInertia = (
+  vehicleMass: Kilograms,
+  hullVolume: number,
+  /** @source ISA sea level air density, the condition a water landing happens at. */
+  airDensity = SEA_LEVEL_AIR_DENSITY,
+): Kilograms =>
+  (vehicleMass + HEAVE_ADDED_MASS_COEFFICIENT * airDensity * hullVolume) as Kilograms
 
 // --------------------------------------------------------------------------
 // Touching down

@@ -27,7 +27,10 @@ import {
   porpoisingSpeed,
   seakeeping,
   maximumSeaState,
-  cushionPressureFor,
+  reliefPressureFor,
+  reliefVentArea,
+  cushionFeasibility,
+  effectiveHeaveInertia,
   windwardSpeed,
   waterTouchdown,
   STANDARD_GAS_TEMPERATURE,
@@ -455,6 +458,48 @@ export const arrangement = (() => {
       detail: f.detail,
     })),
 
+    /**
+     * The same arrangement drawn on each architecture's own hull.
+     *
+     * The compartments do not move: a galley is a galley whatever the envelope
+     * is made of. What changes is the shape it hangs under, whether there are
+     * independent cells or one volume with ballonets, and whether there is a
+     * frame at all. Being able to LOOK at that is most of what makes the
+     * comparison land.
+     */
+    variants: ARCHITECTURES.map((a) => {
+      const c = compareArchitecture(
+        a,
+        BASELINE.hull.length,
+        BASELINE.hull.finenessRatio,
+        BASELINE.hull.prismaticCoefficient,
+        statement.total,
+        BASELINE.hull.cellCount,
+        v(barrierFilm(BASELINE.hull.filmId).arealDensity),
+        hullBendingMoment(BASELINE, BASELINE_ARRANGEMENT).designMoment,
+      )
+      const lobed = a.hullForm === 'multi-lobe'
+      return {
+        id: a.id,
+        name: a.name,
+        hullForm: a.hullForm,
+        lobes: a.lobes,
+        /** Beam and height as fractions of length, from the Airlander calibration. */
+        beam: lobed ? length * 0.5 : length / BASELINE.hull.finenessRatio,
+        height: lobed ? length * 0.25 : length / BASELINE.hull.finenessRatio,
+        cellCount: a.containment === 'independent-cells' ? BASELINE.hull.cellCount : 1,
+        ballonetFraction: a.ballonetFraction,
+        showFrame: a.id === 'rigid' || a.id === 'variable-buoyancy',
+        showKeelTruss: a.id === 'semi-rigid',
+        structureMass: c.structure.total,
+        gasVolume: c.gasVolume,
+        canHover: c.canHover,
+        minimumFlyingSpeed: c.minimumFlyingSpeed,
+        verdict: c.verdict,
+        damageTolerance: c.damageTolerance,
+      }
+    }),
+
     /** What the hull length had to be, and what it would have been without the margin. */
     sizing: {
       closesExactly: smallestClosingLength(BASELINE, BASELINE_ARRANGEMENT, 0),
@@ -486,7 +531,9 @@ export const marine = (() => {
   const gondolaMass = statement.byDeck.gondola
   /** @source Gondola weight times a gust factor: what the suspension is sized by. */
   const suspensionDesignLoad = gondolaMass * 9.80665 * 2.5
-  const cushionPressure = cushionPressureFor(N(suspensionDesignLoad), waterplaneArea)
+  const reliefPressure = reliefPressureFor(N(suspensionDesignLoad), waterplaneArea)
+  const ventArea = reliefVentArea(2, 0.4, reliefPressure)
+  const heaveInertia = effectiveHeaveInertia(kg(statement.total), statement.gasVolume)
 
   /**
    * Static thrust of the four propulsors by momentum theory.
@@ -504,11 +551,25 @@ export const marine = (() => {
   const landingHeaviness = 800
 
   const rigid = { kind: 'rigid' as const, waterplaneArea }
-  const cushion = {
-    kind: 'pneumatic' as const,
+  const sealed = {
+    kind: 'sealed-pneumatic' as const,
     contactArea: waterplaneArea,
-    gaugePressure: cushionPressure,
+    gaugePressure: reliefPressure,
+    thickness: 0.5,
   }
+  const vented = {
+    kind: 'vented-pneumatic' as const,
+    contactArea: waterplaneArea,
+    reliefPressure,
+  }
+
+  /** Can an air cushion even make a cushion at this weight? It cannot. */
+  const cushion = cushionFeasibility(
+    kg(landingHeaviness),
+    waterplaneArea * 1.4,
+    2 * (waterlineLength + gondola.width),
+    0.3,
+  )
 
   return {
     waterlineLength,
@@ -517,8 +578,18 @@ export const marine = (() => {
     gondolaLength: gondola.extent,
     gondolaMass,
     suspensionDesignLoad,
-    cushionPressure,
+    reliefPressure,
+    ventArea,
+    heaveInertia,
     staticThrust,
+    cushion: {
+      pressure: cushion.cushionPressure,
+      depressionDepth: cushion.depressionDepth,
+      waveHead: cushion.waveHead,
+      viable: cushion.viable,
+      fanPower: cushion.fanPower,
+      reason: cushion.reason,
+    },
     landingHeaviness,
     totalMass: statement.total,
     envelopeVolume: statement.gasVolume,
@@ -531,11 +602,20 @@ export const marine = (() => {
       description: state.description,
       significantWaveHeight: state.significantWaveHeight,
       rigid: (() => {
-        const k = seakeeping(state.code, rigid, N(suspensionDesignLoad))
+        const k = seakeeping(state.code, rigid, N(suspensionDesignLoad), heaveInertia)
+        return {
+          load: k.suspensionLoad as number,
+          utilisation: k.utilisation,
+          ok: k.acceptable,
+          nearResonance: k.nearResonance,
+        }
+      })(),
+      sealed: (() => {
+        const k = seakeeping(state.code, sealed, N(suspensionDesignLoad), heaveInertia)
         return { load: k.suspensionLoad as number, utilisation: k.utilisation, ok: k.acceptable }
       })(),
-      cushion: (() => {
-        const k = seakeeping(state.code, cushion, N(suspensionDesignLoad))
+      vented: (() => {
+        const k = seakeeping(state.code, vented, N(suspensionDesignLoad), heaveInertia)
         return {
           load: k.suspensionLoad as number,
           utilisation: k.utilisation,
@@ -544,8 +624,9 @@ export const marine = (() => {
         }
       })(),
     })),
-    maximumSeaStateRigid: maximumSeaState(rigid, N(suspensionDesignLoad)),
-    maximumSeaStateCushion: maximumSeaState(cushion, N(suspensionDesignLoad)),
+    maximumSeaStateRigid: maximumSeaState(rigid, N(suspensionDesignLoad), heaveInertia),
+    maximumSeaStateSealed: maximumSeaState(sealed, N(suspensionDesignLoad), heaveInertia),
+    maximumSeaStateVented: maximumSeaState(vented, N(suspensionDesignLoad), heaveInertia),
 
     /** Speed made good against wind, which decides whether marine mode is an escape. */
     windward: [0, 3, 5, 8, 10, 12, 15, 18, 20].map((wind) => {

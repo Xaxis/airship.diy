@@ -40,6 +40,7 @@ export type {
   BoatResistance,
   WindwardPerformance,
   SeakeepingVerdict,
+  CushionFeasibility,
   TouchdownVerdict,
 } from './marine/boat.js'
 export {
@@ -49,7 +50,10 @@ export {
   boatResistance,
   windwardSpeed,
   seakeeping,
-  cushionPressureFor,
+  cushionFeasibility,
+  reliefPressureFor,
+  reliefVentArea,
+  effectiveHeaveInertia,
   maximumSeaState,
   porpoisingSpeed,
   PORPOISING_FROUDE_LIMIT,
@@ -188,6 +192,7 @@ export {
   grossLiftForce,
   staticHeaviness,
   superheatResponse,
+  superheatHeavinessExcursion,
   updatedPurity,
   pure,
   STANDARD_GAS_TEMPERATURE,

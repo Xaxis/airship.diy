@@ -16,6 +16,7 @@ import {
   pure,
   solveBeam,
   specificLift,
+  superheatHeavinessExcursion,
 } from '@airship/core'
 import { barrierFilm, EMPTY_WEIGHT_PER_GAS_VOLUME, v } from '@airship/data'
 import { m, m3, K, rad, kgPerM3 } from '@airship/units'
@@ -882,6 +883,26 @@ export const validateArrangement = (
           : 'fail',
     rule: `At least ${HABITABLE_VOLUME_PER_PERSON.optimal} m3 of habitable volume per person for a mission past the Celentano asymptote.`,
     detail: `${statement.habitableVolume.toFixed(0)} m3 across ${design.loads.crew} crew, ${perPerson.toFixed(0)} m3 each. Tolerable is ${HABITABLE_VOLUME_PER_PERSON.tolerable}, the performance limit is ${HABITABLE_VOLUME_PER_PERSON.performance}, and ${HABITABLE_VOLUME_PER_PERSON.optimal} is where more volume stops helping. For a year, designing to tolerable is how you get a crew that stops maintaining the ship.`,
+  })
+
+  // ---- the diurnal swing, against everything that rests on the water -----
+  /**
+   * @source A dark envelope in tropical sun runs 15 to 25 K above ambient. Taken
+   * at 20 K, which is the middle of the band and the figure the superheat module
+   * uses for its worked example.
+   */
+  const DESIGN_SUPERHEAT = 20
+  /** @source The trim a vehicle lands on water at: heavy enough to stay put. */
+  const LANDING_HEAVINESS = 800
+  const excursion = superheatHeavinessExcursion(statement.grossLift, DESIGN_SUPERHEAT)
+  findings.push({
+    id: 'superheat-against-landing-trim',
+    severity: excursion <= LANDING_HEAVINESS ? 'pass' : 'fail',
+    rule: `The daily superheat lift excursion is smaller than the trim the vehicle rests on water at.`,
+    detail:
+      excursion <= LANDING_HEAVINESS
+        ? `${DESIGN_SUPERHEAT} K of superheat moves lift by ${excursion.toFixed(0)} kg against a ${LANDING_HEAVINESS} kg landing trim, so a passive float can be sized for it.`
+        : `${DESIGN_SUPERHEAT} K of superheat moves lift by ${excursion.toFixed(0)} kg, which is ${(excursion / LANDING_HEAVINESS).toFixed(1)} times the ${LANDING_HEAVINESS} kg the vehicle rests on water at. The ship floats off its float in the afternoon and presses ${(excursion / 1000).toFixed(1)} tonnes onto it before dawn, every day. NO PASSIVE WATER-CONTACT DEVICE CAN BE SIZED FOR A LOAD THAT SWINGS BY THAT FACTOR TWICE A DAY: a relief valve set for the trim is bypassed at the night load and useless at the day load. Either the marine architecture carries an active ballast loop that tracks the superheat, or the vehicle does not rest on the surface at all. This is the largest single unresolved item in the marine case.`,
   })
 
   // ---- propulsion --------------------------------------------------------

@@ -253,3 +253,34 @@ export const pure = (species: LiftingGasName): CellContents =>
 
 /** Sea level standard temperature, for quoting reference lift figures. */
 export const STANDARD_GAS_TEMPERATURE: Kelvin = K(ISA.seaLevelTemperature.value)
+
+
+/**
+ * How far the daily superheat cycle moves static heaviness, kg.
+ *
+ * THE NUMBER THAT GOVERNS EVERY WATER-CONTACT DESIGN, and it is not obvious
+ * until you put it next to one. A partially full cell expands freely at ambient
+ * pressure, so a superheat of dT changes lift by dT/T of the gross lift. Twenty
+ * kelvin on a 288 K day is 6.9 percent, and on a 29,600 kg gross lift that is
+ * 2,057 kg.
+ *
+ * Set that against a static heaviness of 500 to 1,000 kg, which is what a
+ * vehicle trims to before it touches water. THE DIURNAL SWING IS TWO TO FOUR
+ * TIMES THE DESIGN LOAD ITSELF. The ship floats off its float in the afternoon
+ * and presses two tonnes onto it before dawn, every day.
+ *
+ * No passive water-contact device can be sized for that: a relief valve set for
+ * 1,000 kg is bypassed at 3,000 and useless at 300. Either the marine
+ * architecture carries an active ballast loop that tracks the superheat, or the
+ * vehicle does not rest on the surface at all.
+ *
+ * @param grossLift Gross aerostatic lift at the condition, kg.
+ * @param superheat Cell gas temperature above ambient, K.
+ * @param ambientTemperature K.
+ */
+export const superheatHeavinessExcursion = (
+  grossLift: number,
+  superheat: number,
+  /** @source ISA sea level temperature, 288.15 K. */
+  ambientTemperature = ISA.seaLevelTemperature.value,
+): number => (superheat / ambientTemperature) * grossLift

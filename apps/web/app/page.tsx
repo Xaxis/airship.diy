@@ -324,7 +324,8 @@ export default function Home() {
                   <th className="p-2.5 font-normal">Sea state</th>
                   <th className="p-2.5 text-right font-normal">Hs</th>
                   <th className="p-2.5 text-right font-normal">Rigid hull</th>
-                  <th className="p-2.5 text-right font-normal">Cushion</th>
+                  <th className="p-2.5 text-right font-normal">Sealed bag</th>
+                  <th className="p-2.5 text-right font-normal">Vented bag</th>
                 </tr>
               </thead>
               <tbody>
@@ -342,22 +343,33 @@ export default function Home() {
                       {pct(s.rigid.utilisation, 0)}
                     </td>
                     <td
-                      className={`p-2.5 text-right ${s.cushion.ok ? 'text-[var(--color-pass)]' : 'text-[var(--color-fail)]'}`}
+                      className={`p-2.5 text-right ${s.sealed.ok ? 'text-[var(--color-pass)]' : 'text-[var(--color-fail)]'}`}
                     >
-                      {pct(s.cushion.utilisation, 0)}
-                      {s.cushion.forceLimited ? ' *' : ''}
+                      {pct(s.sealed.utilisation, 0)}
+                    </td>
+                    <td
+                      className={`p-2.5 text-right ${s.vented.ok ? 'text-[var(--color-pass)]' : 'text-[var(--color-fail)]'}`}
+                    >
+                      {pct(s.vented.utilisation, 0)}
+                      {s.vented.forceLimited ? ' *' : ''}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <p className="mt-2 text-xs leading-relaxed text-[var(--color-ink-faint)]">
-              Suspension load as a fraction of its flight design load. A rigid hull is limited to
-              sea state {marine.maximumSeaStateRigid}; a pneumatic cushion at{' '}
-              {(marine.cushionPressure / 1000).toFixed(2)} kPa gauge, which is{' '}
-              {(marine.cushionPressure / 6895).toFixed(2)} psi, reaches sea state{' '}
-              {marine.maximumSeaStateCushion}. An asterisk marks where the cushion has reached its
-              pressure ceiling and is squashing rather than transmitting.
+              Suspension load as a fraction of its flight design load, with the dynamic
+              amplification from the {' '}
+              {marine.heaveInertia.toLocaleString('en-US', { maximumFractionDigits: 0 })} kg
+              effective heave inertia included: the wave has to accelerate the ship AND the air it
+              drags with it. A rigid hull is limited to sea state{' '}
+              {marine.maximumSeaStateRigid}. A SEALED bag reaches sea state{' '}
+              {marine.maximumSeaStateSealed ?? 'none at all'}, because it is a gas spring at
+              absolute pressure and nearly sixty times stiffer than the water. Only the VENTED bag,
+              relieving at {(marine.reliefPressure / 1000).toFixed(2)} kPa through{' '}
+              {marine.ventArea.toFixed(2)} m² of vent, reaches sea state{' '}
+              {marine.maximumSeaStateVented}. An asterisk marks where it is venting rather than
+              transmitting.
             </p>
           </div>
         </div>

@@ -5,13 +5,17 @@
 // ticks: none of those are visible from the code or from a passing test. The
 // only way to catch them is to render the thing and look.
 //
-//   node tools/screenshot.mjs <url> <css-selector> <output.png>
+//   node tools/screenshot.mjs <url> <css-selector> <output.png> [click-text ...]
+//
+// Trailing arguments are button labels to click before the shot, in order, so a
+// view that only appears after an interaction can still be looked at. Clicking
+// is how you check the state a static build never renders.
 import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const [url, selector, output] = process.argv.slice(2)
+const [url, selector, output, ...clicks] = process.argv.slice(2)
 if (!url || !output) {
   console.error('usage: node tools/screenshot.mjs <url> [selector] <output.png>')
   process.exit(1)
@@ -95,6 +99,22 @@ const main = async () => {
   })
   await send('Page.navigate', { url })
   await new Promise((r) => setTimeout(r, 6000))
+
+  for (const label of clicks) {
+    await send('Runtime.evaluate', {
+      expression: `(() => {
+        const wanted = ${JSON.stringify(label)}.toLowerCase()
+        const el = Array.from(document.querySelectorAll('button')).find(
+          (b) => (b.textContent ?? '').trim().toLowerCase() === wanted,
+        )
+        if (!el) return 'not found: ' + wanted
+        el.click()
+        return 'clicked ' + wanted
+      })()`,
+      returnByValue: true,
+    }).then((r) => console.log(r?.result?.value))
+    await new Promise((r) => setTimeout(r, 1200))
+  }
 
   let clip
   if (selector && selector !== '-') {

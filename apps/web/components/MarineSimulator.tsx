@@ -31,8 +31,18 @@ export interface MarineData {
   readonly gondolaLength: number
   readonly gondolaMass: number
   readonly suspensionDesignLoad: number
-  readonly cushionPressure: number
+  readonly reliefPressure: number
+  readonly ventArea: number
+  readonly heaveInertia: number
   readonly staticThrust: number
+  readonly cushion: {
+    readonly pressure: number
+    readonly depressionDepth: number
+    readonly waveHead: number
+    readonly viable: boolean
+    readonly fanPower: number
+    readonly reason: string
+  }
   readonly landingHeaviness: number
   readonly totalMass: number
   readonly envelopeVolume: number
@@ -42,8 +52,14 @@ export interface MarineData {
     readonly code: number
     readonly description: string
     readonly significantWaveHeight: number
-    readonly rigid: { readonly load: number; readonly utilisation: number; readonly ok: boolean }
-    readonly cushion: {
+    readonly rigid: {
+      readonly load: number
+      readonly utilisation: number
+      readonly ok: boolean
+      readonly nearResonance: boolean
+    }
+    readonly sealed: { readonly load: number; readonly utilisation: number; readonly ok: boolean }
+    readonly vented: {
       readonly load: number
       readonly utilisation: number
       readonly ok: boolean
@@ -51,7 +67,8 @@ export interface MarineData {
     }
   }>
   readonly maximumSeaStateRigid: number | null
-  readonly maximumSeaStateCushion: number | null
+  readonly maximumSeaStateSealed: number | null
+  readonly maximumSeaStateVented: number | null
   readonly windward: ReadonlyArray<{
     readonly wind: number
     readonly speed: number
@@ -75,7 +92,7 @@ export interface MarineSimulatorProps {
   readonly length: number
 }
 
-type FloatKind = 'rigid' | 'cushion'
+type FloatKind = 'rigid' | 'sealed' | 'vented'
 type Phase = 'aloft' | 'descending' | 'afloat'
 
 /** @source Seawater at 35 practical salinity units and 15 C. */
@@ -101,7 +118,7 @@ export function MarineSimulator({ data, radii, length }: MarineSimulatorProps) {
   const mount = useRef<HTMLDivElement>(null)
   const [unsupported, setUnsupported] = useState(false)
 
-  const [floatKind, setFloatKind] = useState<FloatKind>('cushion')
+  const [floatKind, setFloatKind] = useState<FloatKind>('vented')
   const [seaState, setSeaState] = useState(3)
   const [wind, setWind] = useState(8)
   const [throttle, setThrottle] = useState(0.6)
@@ -312,12 +329,28 @@ export function MarineSimulator({ data, radii, length }: MarineSimulatorProps) {
         const immersedBy = Math.max(0, surface - keel)
         immersion = immersedBy
 
-        let buoyancy = SEAWATER_DENSITY * G * data.waterplaneArea * immersedBy
-        if (c.floatKind === 'cushion') {
-          const ceiling = data.cushionPressure * data.waterplaneArea
-          if (buoyancy > ceiling) {
-            buoyancy = ceiling
-            forceLimited = true
+        // A rigid hull is a hydrostatic spring. A SEALED bag is a gas spring at
+        // ABSOLUTE pressure, which is nearly sixty times stiffer than the water
+        // it replaced. Only a VENTED bag limits force, and only because it
+        // vents. Getting this backwards is the mistake this simulator was
+        // rebuilt to show.
+        let buoyancy: number
+        if (c.floatKind === 'sealed') {
+          /** @derived Isothermal gas spring: k = P_absolute * A / t. */
+          const ATMOSPHERIC = 101325
+          const THICKNESS = 0.5
+          buoyancy =
+            ((ATMOSPHERIC + data.reliefPressure) * data.waterplaneArea * immersedBy) / THICKNESS
+        } else {
+          buoyancy = SEAWATER_DENSITY * G * data.waterplaneArea * immersedBy
+          if (c.floatKind === 'vented') {
+            /** @source XC-8A measured relief overshoot, NASA TN D-7295. */
+            const OVERSHOOT = 2.5
+            const ceiling = data.reliefPressure * data.waterplaneArea * OVERSHOOT
+            if (buoyancy > ceiling) {
+              buoyancy = ceiling
+              forceLimited = true
+            }
           }
         }
         suspensionLoad = buoyancy
@@ -575,7 +608,8 @@ export function MarineSimulator({ data, radii, length }: MarineSimulatorProps) {
               {(
                 [
                   { id: 'rigid', label: 'Rigid boat hull' },
-                  { id: 'cushion', label: 'Pneumatic cushion' },
+                  { id: 'sealed', label: 'Sealed bag' },
+                  { id: 'vented', label: 'Vented bag' },
                 ] as const
               ).map((f) => (
                 <button
@@ -594,9 +628,11 @@ export function MarineSimulator({ data, radii, length }: MarineSimulatorProps) {
               ))}
             </div>
             <p className="mt-2 text-xs leading-relaxed text-[var(--color-ink-faint)]">
-              {floatKind === 'cushion'
-                ? `A cushion at ${(data.cushionPressure / 1000).toFixed(2)} kPa gauge, which is ${(data.cushionPressure / 6895).toFixed(2)} psi. It cannot push harder than that times its ${data.waterplaneArea.toFixed(0)} m² of contact, so it squashes instead of transmitting.`
-                : `A hydrostatic spring: ${data.waterplaneArea.toFixed(0)} m² of waterplane feeding rho g A dz up the cables, with no ceiling at all.`}
+              {floatKind === 'vented'
+                ? `Relieving at ${(data.reliefPressure / 1000).toFixed(2)} kPa gauge through ${data.ventArea.toFixed(2)} m² of vent. It cannot push harder than that times its ${data.waterplaneArea.toFixed(0)} m² of contact, times the 2.5 overshoot the XC-8A actually measured, because a relief valve does not dump air instantly.`
+                : floatKind === 'sealed'
+                  ? 'A gas spring at ABSOLUTE pressure. Compressing a bag works against all 101 kPa inside it, not the 0.35 kPa of gauge, so it is nearly sixty times stiffer than the water it replaced. The force-limiter argument is not optimistic here, it is inverted.'
+                  : `A hydrostatic spring: ${data.waterplaneArea.toFixed(0)} m² of waterplane feeding rho g A dz up the cables, with no ceiling at all.`}
             </p>
           </div>
 
@@ -669,8 +705,9 @@ export function MarineSimulator({ data, radii, length }: MarineSimulatorProps) {
         {overloaded ? (
           <p className="text-sm leading-relaxed text-[var(--color-fail)]">
             The suspension is at {(readout.utilisation * 100).toFixed(0)} percent of its flight
-            design load. The vehicle is not slamming: it is being picked up. Switch to the
-            pneumatic cushion and watch the trace clip instead of spiking.
+            design load. The vehicle is not slamming: it is being picked up. Switch to the vented
+            bag and watch the trace clip instead of spiking. Switch to the sealed bag to see the
+            mistake: a bag with no relief path is stiffer than the water it replaced.
           </p>
         ) : readout.blownBackwards ? (
           <p className="text-sm leading-relaxed text-[var(--color-fail)]">
@@ -681,7 +718,7 @@ export function MarineSimulator({ data, radii, length }: MarineSimulatorProps) {
         ) : (
           <p className="text-sm leading-relaxed text-[var(--color-ink-dim)]">
             {readout.forceLimited
-              ? 'The cushion is at its pressure ceiling and squashing rather than pushing. That flat top on the trace is the whole seakeeping argument.'
+              ? 'The bag is venting rather than pushing. That flat top on the trace is the whole seakeeping argument, and it exists only because there is a relief valve: seal the same bag and it becomes the stiffest thing on the vehicle.'
               : `Hull speed is ${data.hullSpeed.toFixed(1)} m/s and the porpoising limit is ${data.porpoisingSpeed.toFixed(1)} m/s. The hull carries so little weight that it walks through the wave-making hump and runs into dynamic instability instead.`}
           </p>
         )}

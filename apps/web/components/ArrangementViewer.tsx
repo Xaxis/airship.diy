@@ -54,6 +54,25 @@ export interface ArrangementPropulsor {
   readonly note: string | null
 }
 
+export interface ArrangementVariant {
+  readonly id: string
+  readonly name: string
+  readonly hullForm: 'body-of-revolution' | 'multi-lobe'
+  readonly lobes: number
+  readonly beam: number
+  readonly height: number
+  readonly cellCount: number
+  readonly ballonetFraction: number
+  readonly showFrame: boolean
+  readonly showKeelTruss: boolean
+  readonly structureMass: number
+  readonly gasVolume: number
+  readonly canHover: boolean
+  readonly minimumFlyingSpeed: number
+  readonly verdict: string
+  readonly damageTolerance: string
+}
+
 export interface ArrangementData {
   readonly length: number
   readonly maxRadius: number
@@ -83,6 +102,7 @@ export interface ArrangementData {
     readonly centreOfGravity: { readonly x: number; readonly z: number }
     readonly centreOfBuoyancy: { readonly x: number; readonly z: number }
   }
+  readonly variants: readonly ArrangementVariant[]
 }
 
 /**
@@ -149,6 +169,9 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
   const mount = useRef<HTMLDivElement>(null)
   const [unsupported, setUnsupported] = useState(false)
   const [mode, setMode] = useState<ViewMode>('cutaway')
+  const [variantId, setVariantId] = useState(data.variants[0]?.id ?? 'rigid')
+  const variant =
+    data.variants.find((v) => v.id === variantId) ?? data.variants[0] ?? null
   const [hovered, setHovered] = useState<Hovered | null>(null)
 
   // The scene is rebuilt only when the arrangement changes. Mode changes are
@@ -163,7 +186,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
 
   useEffect(() => {
     const container = mount.current
-    if (!container) return
+    if (!container || !variant) return
 
     const { length, maxRadius, radii } = data
 
@@ -230,41 +253,66 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     root.add(skin, cells, frame, keel, gondola, tail, power)
 
     // ---- the hull surface -------------------------------------------------
+    // A multi-lobe hull is built as what it physically is: a row of bodies of
+    // revolution sharing diaphragms. Drawing it as one flattened blob would
+    // hide the diaphragms, and the diaphragms are most of what it costs.
     const profile = radii.map((r, i) => {
       const x = (i / (radii.length - 1)) * length
       return new THREE.Vector2(Math.max(r, 1e-4), x - length / 2)
     })
-    const hullGeometry = track(new THREE.LatheGeometry(profile, 128))
 
-    const hullSkin = new THREE.Mesh(
-      hullGeometry,
-      track(
-        new THREE.MeshStandardMaterial({
-          color: 0x2c3742,
-          metalness: 0.12,
-          roughness: 0.78,
-          transparent: true,
-          opacity: 0.3,
-          side: THREE.DoubleSide,
-          clippingPlanes: [cutPlane],
-        }),
-      ),
-    )
-    skin.add(hullSkin)
+    const lobeOffsets: number[] =
+      variant.hullForm === 'multi-lobe'
+        ? Array.from({ length: variant.lobes }, (_, i) => {
+            const lobeDiameter = variant.beam / variant.lobes
+            return (i - (variant.lobes - 1) / 2) * lobeDiameter
+          })
+        : [0]
+    const lobeScale =
+      variant.hullForm === 'multi-lobe'
+        ? variant.beam / variant.lobes / (2 * maxRadius)
+        : 1
 
-    const hullWire = new THREE.Mesh(
-      hullGeometry,
-      track(
-        new THREE.MeshBasicMaterial({
-          color: 0x4a5b6d,
-          wireframe: true,
-          transparent: true,
-          opacity: 0.16,
-          clippingPlanes: [cutPlane],
-        }),
-      ),
+    const hullGeometry = track(new THREE.LatheGeometry(profile, 96))
+
+    const skinMaterial = track(
+      new THREE.MeshStandardMaterial({
+        color: 0x2c3742,
+        metalness: 0.12,
+        roughness: 0.78,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide,
+        clippingPlanes: [cutPlane],
+      }),
     )
-    skin.add(hullWire)
+    const wireMaterial = track(
+      new THREE.MeshBasicMaterial({
+        color: 0x4a5b6d,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.16,
+        clippingPlanes: [cutPlane],
+      }),
+    )
+
+    const hullSkins: THREE.Mesh[] = []
+    const hullWires: THREE.Mesh[] = []
+    for (const offset of lobeOffsets) {
+      const s1 = new THREE.Mesh(hullGeometry, skinMaterial)
+      s1.scale.set(lobeScale, 1, lobeScale)
+      s1.position.x = offset
+      skin.add(s1)
+      hullSkins.push(s1)
+
+      const w1 = new THREE.Mesh(hullGeometry, wireMaterial)
+      w1.scale.set(lobeScale, 1, lobeScale)
+      w1.position.x = offset
+      skin.add(w1)
+      hullWires.push(w1)
+    }
+    const hullSkin = hullSkins[0]!
+    const hullWire = hullWires[0]!
 
     // ---- the photovoltaic band -------------------------------------------
     // On the actual covered stations, at the actual half-angle, so the area on
@@ -319,9 +367,10 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
       new THREE.LineBasicMaterial({ color: 0x6ba8e5, transparent: true, opacity: 0.55 }),
     )
     const bulkheadStations: number[] = []
-    for (let c = 0; c <= data.cellCount; c += 1) {
+    const ringCount = variant.showFrame ? data.cellCount : variant.showKeelTruss ? 4 : 0
+    for (let c = 0; c <= ringCount; c += 1) {
       const station =
-        data.cellBlockForward + (c / data.cellCount) * (data.cellBlockAft - data.cellBlockForward)
+        data.cellBlockForward + (c / Math.max(ringCount, 1)) * (data.cellBlockAft - data.cellBlockForward)
       bulkheadStations.push(station)
       const r = radiusAt(station)
       if (r < 0.05) continue
@@ -336,7 +385,9 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     const longitudinalMaterial = track(
       new THREE.LineBasicMaterial({ color: 0x3d4b5a, transparent: true, opacity: 0.85 }),
     )
-    const longitudinals = 16
+    // Longitudinals only on a rigid. A semi-rigid has a keel truss and nothing
+    // else; a non-rigid has neither, and that is the whole distinction.
+    const longitudinals = variant.showFrame ? 16 : variant.showKeelTruss ? 3 : 0
     for (let l = 0; l < longitudinals; l += 1) {
       const theta = (l / longitudinals) * Math.PI * 2
       const points: THREE.Vector3[] = []
@@ -355,9 +406,13 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     // One lobe per cell, filling the hull between its bulkheads and stopping at
     // the top of the keel corridor. This is the volume the lift came from.
     const keelTop = -0.54 // fraction of local radius; the cells sit above this
-    for (let c = 0; c < data.cellCount; c += 1) {
-      const s0 = bulkheadStations[c] ?? 0
-      const s1 = bulkheadStations[c + 1] ?? 1
+    const drawnCells = variant.cellCount
+    for (let c = 0; c < drawnCells; c += 1) {
+      const s0 =
+        data.cellBlockForward + (c / drawnCells) * (data.cellBlockAft - data.cellBlockForward)
+      const s1 =
+        data.cellBlockForward +
+        ((c + 1) / drawnCells) * (data.cellBlockAft - data.cellBlockForward)
       const steps = 10
       const lobeProfile: THREE.Vector2[] = []
       for (let i = 0; i <= steps; i += 1) {
@@ -402,9 +457,13 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
       mesh.position.z = -keelTop * maxRadius * 0.12
       register(
         mesh,
-        `Gas cell ${c + 1} of ${data.cellCount}`,
+        drawnCells === 1
+          ? 'The single gas volume'
+          : `Gas cell ${c + 1} of ${drawnCells}`,
         `Stations ${s0.toFixed(2)} to ${s1.toFixed(2)}`,
-        'Cells are pinched at every bulkhead. Cell count buys damage tolerance and trim control, and costs film area on both faces of every bulkhead.',
+        drawnCells === 1
+          ? variant.damageTolerance
+          : 'Cells are pinched at every bulkhead. Cell count buys damage tolerance and trim control, and costs film area on both faces of every bulkhead.',
       )
       cells.add(mesh)
     }
@@ -820,8 +879,10 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
       // the interior rather than making the whole ship translucent.
       cutPlane.constant = m === 'exterior' ? maxRadius * 4 : 0
 
-      hullSkin.material.opacity = m === 'exterior' ? 0.94 : 0.3
-      hullWire.material.opacity = m === 'exterior' ? 0.08 : 0.16
+      skinMaterial.opacity = m === 'exterior' ? 0.94 : 0.3
+      wireMaterial.opacity = m === 'exterior' ? 0.08 : 0.16
+      void hullSkin
+      void hullWire
       cells.visible = m !== 'exterior'
       keel.visible = m !== 'exterior'
       gondola.visible = true
@@ -846,9 +907,17 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     applyMode.current = setSceneMode
 
     // ---- camera and interaction -------------------------------------------
+    // Frame from the variant's own bounding span. A three-lobe hull is 57 m
+    // across where a body of revolution is 23, and a camera distance tuned for
+    // one crops the other in half.
+    // The bounding diagonal, not the length: seen from three-quarters on, a
+    // 115 by 57 m lobed hull projects wider than a 115 m body of revolution
+    // does, and a distance tuned for one crops the other in half.
+    const span = Math.hypot(length, variant.beam) * 1.05
+
     let azimuth = 0.62
     let elevation = 0.3
-    let distance = length * 0.92
+    let distance = span * 0.92
     let dragging = false
     let panning = false
     let lastX = 0
@@ -939,7 +1008,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
       target.copy(home)
       azimuth = 0.62
       elevation = 0.3
-      distance = length * 0.92
+      distance = span * 0.92
       placeCamera()
     }
     resetRef.current = resetView
@@ -949,7 +1018,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     }
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      distance = Math.max(length * 0.55, Math.min(length * 3, distance * (1 + e.deltaY * 0.0012)))
+      distance = Math.max(span * 0.4, Math.min(span * 3, distance * (1 + e.deltaY * 0.0012)))
       placeCamera()
     }
 
@@ -1064,7 +1133,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
       if (canvas.parentNode === container) container.removeChild(canvas)
       void currentMode
     }
-  }, [data])
+  }, [data, variant])
 
   if (unsupported) return <WebGLUnavailable what="arrangement view" />
 
@@ -1072,6 +1141,52 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
 
   return (
     <div>
+      {/* the variant switcher: the same arrangement on each architecture's own
+          hull, because a galley is a galley whatever the envelope is made of
+          and what changes is the shape it hangs under */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-rule)] p-3">
+        <span className="text-[11px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+          Architecture
+        </span>
+        {data.variants.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => setVariantId(v.id)}
+            aria-pressed={variantId === v.id}
+            className={`px-3 py-1.5 text-xs tracking-wide transition-colors ${
+              variantId === v.id
+                ? 'bg-[var(--color-ink)] text-[#0b0e12]'
+                : 'border border-[var(--color-rule)] text-[var(--color-ink-dim)] hover:text-[var(--color-ink)]'
+            }`}
+          >
+            {v.name}
+          </button>
+        ))}
+      </div>
+
+      {variant ? (
+        <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 border-b border-[var(--color-rule)] bg-[var(--color-panel-raised)] px-3 py-2 text-xs">
+          <span className="num text-[var(--color-ink-dim)]">
+            {variant.structureMass.toLocaleString('en-US', { maximumFractionDigits: 0 })} kg of
+            structure
+          </span>
+          <span className="num text-[var(--color-ink-dim)]">
+            {variant.gasVolume.toLocaleString('en-US', { maximumFractionDigits: 0 })} m³ of gas
+          </span>
+          <span className="num text-[var(--color-ink-dim)]">
+            {variant.cellCount === 1 ? 'one gas volume' : `${variant.cellCount} independent cells`}
+          </span>
+          <span
+            className={`num ${variant.canHover ? 'text-[var(--color-pass)]' : 'text-[var(--color-fail)]'}`}
+          >
+            {variant.canHover
+              ? 'can hover'
+              : `must hold ${variant.minimumFlyingSpeed.toFixed(1)} m/s`}
+          </span>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-rule)] p-3">
         {MODES.map((m) => (
           <button
@@ -1123,6 +1238,11 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
 
       <div className="border-t border-[var(--color-rule)] p-3">
         <p className="text-xs text-[var(--color-ink-dim)]">{activeMode?.hint}</p>
+        {variant && variant.id !== 'rigid' ? (
+          <p className="mt-1.5 text-xs leading-relaxed text-[var(--color-ink-faint)]">
+            {variant.damageTolerance}
+          </p>
+        ) : null}
         <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5">
           {CATEGORY_SWATCH.map((s) => (
             <span key={s.key} className="flex items-center gap-1.5 text-xs">
