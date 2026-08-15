@@ -35,15 +35,41 @@ export const HYDROGEN_SAFETY = under('hydrogenSafety', () => ({
   }),
 
   // --- detonation ----------------------------------------------------------
-  lowerDetonabilityLimit: measured(0.183, {
+  //
+  // THE DETONABILITY LIMITS ARE NOT MATERIAL PROPERTIES. The familiar 18.3 to
+  // 59 percent was measured in a 1.4 CM TUBE, and detonability widens with
+  // confinement scale because the limit is set by whether the detonation cell
+  // fits in the passage. In a 43 cm tube the same mixture detonates from 13.6
+  // percent to above 70 percent, and an airship bay is metre-scale.
+  //
+  // Quoting the tube figures for a metre-scale volume is non-conservative by
+  // about five percentage points at the lower end, which matters because the
+  // metre-scale lower limit of 13.6 percent sits almost on top of the 12
+  // percent deflagration-to-detonation threshold. The two hazards are not as
+  // separated as the small-tube numbers suggest.
+  lowerDetonabilityLimitSmallTube: measured(0.183, {
     unit: '1',
-    source: 'nasa-nss-1740-16',
+    source: 'nureg-cr-4961',
     relativeUncertainty: 0.02,
+    note: 'A 1.4 cm tube result. Valid only at that scale.',
   }),
-  upperDetonabilityLimit: measured(0.59, {
+  upperDetonabilityLimitSmallTube: measured(0.59, {
     unit: '1',
-    source: 'nasa-nss-1740-16',
+    source: 'nureg-cr-4961',
     relativeUncertainty: 0.02,
+    note: 'A 1.4 cm tube result. Valid only at that scale.',
+  }),
+  /** Use THESE for any volume larger than a pipe. */
+  lowerDetonabilityLimitMetreScale: measured(0.136, {
+    unit: '1',
+    source: 'nureg-cr-4961',
+    relativeUncertainty: 0.1,
+    note: '43 cm tube. Widens further with bay dimension, so this is still an upper bound on the true limit for a large volume.',
+  }),
+  upperDetonabilityLimitMetreScale: measured(0.7, {
+    unit: '1',
+    source: 'nureg-cr-4961',
+    relativeUncertainty: 0.1,
   }),
 
   /**
@@ -62,7 +88,10 @@ export const HYDROGEN_SAFETY = under('hydrogenSafety', () => ({
     relativeUncertainty: 0.15,
   }),
 
-  /** Ratio of critical tube diameter to detonation cell size. */
+  /**
+   * Ratio of critical passage size to detonation cell size, for a CIRCULAR
+   * tube.
+   */
   criticalTubeDiameterRatio: measured(13, {
     unit: '1',
     source: 'knystautas-1984',
@@ -70,19 +99,49 @@ export const HYDROGEN_SAFETY = under('hydrogenSafety', () => ({
   }),
 
   /**
-   * Energy needed to initiate a detonation DIRECTLY, without a deflagration
-   * phase. 4.16 MJ.
+   * The same ratio for a SQUARE OR RECTANGULAR passage, which is what a cable
+   * trunk, a keel walkway and a ventilation duct actually are.
    *
-   * The reassuring number in the set, and it is genuinely reassuring. Nothing
-   * aboard this vehicle can deliver 4 MJ into a gas cloud in microseconds
-   * except a lightning strike. Direct detonation is therefore not a credible
-   * initiating event, and the real threat is deflagration-to-detonation
-   * transition, which needs confinement and a run-up distance.
+   * Ten, not thirteen. Using the circular figure for a rectangular duct is
+   * non-conservative by 30 percent, and almost every confined run on this
+   * vehicle is rectangular.
    */
-  directDetonationIgnitionEnergy: measured(4.16e6, {
+  criticalRectangularPassageRatio: measured(10, {
+    unit: '1',
+    source: 'nureg-cr-4961',
+    relativeUncertainty: 0.15,
+    note: 'Mitrofanov and Soloukhin, confirmed in NUREG/CR-4961 section 3.',
+  }),
+
+  /**
+   * Energy needed to initiate a detonation DIRECTLY, without a deflagration
+   * phase.
+   *
+   * 4.3 kJ. NOT the 4.16 MJ this file first carried, which was wrong by a
+   * factor of about a thousand and was the load-bearing number in the whole
+   * detonation safety case.
+   *
+   * THE CORRECTION REVERSES THE CONCLUSION. At 4.16 MJ the argument was that
+   * nothing aboard could deliver that energy into a cloud in microseconds
+   * except a lightning strike, so direct detonation was not a credible
+   * initiating event and only deflagration-to-detonation transition mattered.
+   *
+   * At 4.3 kJ that argument collapses. Four kilojoules is not exotic: a modest
+   * capacitor bank, a high-energy electrical fault, an arcing contactor on a
+   * traction bus, or any pyrotechnic device can reach it. Direct detonation IS
+   * a credible initiating event on a vehicle carrying hundreds of kilowatts of
+   * DC distribution, and the mitigation is no longer only geometric.
+   *
+   * What this changes in the design: bus fault energy has to be bounded, not
+   * merely interrupted. Arc-fault detection and current-limiting on the DC bus
+   * become safety items rather than reliability items, and any stored-energy
+   * device near a credible leak path has to be sized against this number.
+   */
+  directDetonationIgnitionEnergy: measured(4270, {
     unit: 'J',
-    source: 'matsui-lee-1979',
+    source: 'nureg-cr-4961',
     relativeUncertainty: 0.3,
+    note: 'At stoichiometric 29.6 vol% in NTP air, unconfined spherical initiation. The 4.16 MJ figure that circulates appears to be a unit slip somewhere upstream and it flatters the safety case by three orders of magnitude.',
   }),
 
   /** Below this concentration, deflagration cannot transition to detonation. */
@@ -192,7 +251,7 @@ export const HYDROGEN_SAFETY = under('hydrogenSafety', () => ({
     unit: '1',
     source: 'sandia-2016',
     relativeUncertainty: 0.02,
-    note: 'Air density over hydrogen density at NTP. Methane is 1.85, which is why methane pools and hydrogen does not.',
+    note: 'Air density over hydrogen density at NTP. Methane is 1.80 using the correct 0.668 kg/m3 methane density; the 0.65119 figure that appears in some tables is internally impossible at the stated NTP and inflates the comparison slightly.',
   }),
 
   buoyantRiseVelocity: measured(5, {

@@ -13,18 +13,26 @@ import type { CubicMeters, Meters } from '@airship/units'
  * quarter of the lower flammability limit, which for hydrogen is 1 percent by
  * volume.
  *
- * SECOND, AND MORE INTERESTING, THE DUCT DIAMETER. A confined detonation
- * survives into an unconfined space only if the confining passage is wider than
- * about 13 detonation cell widths. For hydrogen that is 0.195 m. For methane it
- * is 4.3 m. Any cable trunk, ventilation duct, keel walkway or mast tube wider
- * than roughly 200 mm that can fill with hydrogen is a detonation launcher, and
- * methane-derived intuition about "small pipes are fine" is off by more than an
- * order of magnitude in the wrong direction.
+ * SECOND, THE DUCT SIZE. A confined detonation survives into an unconfined
+ * space only if the passage is wider than about 13 detonation cell widths for a
+ * CIRCULAR tube, or 10 for a SQUARE OR RECTANGULAR one. For hydrogen that is
+ * 195 mm circular and 150 mm rectangular. For methane the same rule gives 4.3 m.
+ * Almost every confined run on an airship is rectangular, so 150 mm is the
+ * number that actually applies and using the circular figure is
+ * non-conservative by 30 percent.
  *
- * That gives a geometric design rule that costs nothing to obey at the drawing
- * stage and is close to impossible to retrofit: keep every confined run either
- * under 200 mm across, or under the 10 m deflagration run-up length, or open at
- * both ends to the free stream.
+ * That gives a geometric design rule that costs nothing at the drawing stage
+ * and is close to impossible to retrofit: keep every confined run either under
+ * 150 mm across, or under the 10 m deflagration run-up length, or open at both
+ * ends to the free stream.
+ *
+ * WHAT GEOMETRY NO LONGER BUYS YOU. An earlier version of this module argued
+ * that direct detonation was not a credible initiating event, because it needs
+ * 4.16 MJ and nothing aboard can deliver that. The figure was wrong by three
+ * orders of magnitude: it is 4.3 kJ. A capacitor bank, a high-energy DC bus
+ * fault or an arcing contactor reaches that, so direct initiation IS credible
+ * and the geometric rules above are necessary rather than sufficient. Bounding
+ * bus fault energy is now a safety item, not a reliability one.
  */
 
 /** @source ISA sea level temperature and pressure, the default interstitial condition. */
@@ -70,19 +78,24 @@ export const airChangesPerHour = (ventilationFlow: number, volume: CubicMeters):
   /** @derived Volumetric flow over volume, converted from per-second to per-hour. */
   (ventilationFlow / volume) * SECONDS_PER_HOUR
 
+export type CrossSection = 'circular' | 'rectangular'
+
 /**
- * Largest confined passage diameter that cannot launch an unconfined
- * detonation.
+ * Largest confined passage that cannot launch an unconfined detonation.
  *
- * @derived critical diameter = 13 * detonation cell size. Below it, a
+ * @derived critical size = ratio * detonation cell size, where the ratio is 13
+ * for a circular tube and 10 for a square or rectangular passage. Below it, a
  * detonation running down the passage decays on exit instead of transitioning
- * to a spherical unconfined detonation.
+ * to a spherical unconfined one.
  *
- * About 195 mm for hydrogen. Every duct, trunk and walkway on the vehicle is
- * checked against this.
+ * 195 mm circular, 150 mm rectangular. Rectangular is the default because
+ * cable trunks, keel walkways and ventilation ducts are rectangular, and taking
+ * the circular figure for them is non-conservative by 30 percent.
  */
-export const criticalDuctDiameter = (): number =>
-  v(HYDROGEN_SAFETY.criticalTubeDiameterRatio) * v(HYDROGEN_SAFETY.detonationCellSize)
+export const criticalDuctDiameter = (crossSection: CrossSection = 'rectangular'): number =>
+  (crossSection === 'circular'
+    ? v(HYDROGEN_SAFETY.criticalTubeDiameterRatio)
+    : v(HYDROGEN_SAFETY.criticalRectangularPassageRatio)) * v(HYDROGEN_SAFETY.detonationCellSize)
 
 export interface ConfinementVerdict {
   readonly safe: boolean
@@ -104,6 +117,7 @@ export const assessConfinement = (
   diameter: Meters,
   length: Meters,
   openToFreeStream: boolean,
+  crossSection: CrossSection = 'rectangular',
 ): ConfinementVerdict => {
   if (openToFreeStream) {
     return {
@@ -113,7 +127,7 @@ export const assessConfinement = (
     }
   }
 
-  const critical = criticalDuctDiameter()
+  const critical = criticalDuctDiameter(crossSection)
   if (diameter < critical) {
     return {
       safe: true,

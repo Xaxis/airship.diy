@@ -8,13 +8,14 @@ import type { HullGeometry } from '../geometry/hull.js'
  * Windage on a floating airship, and why weathervaning is the whole strategy.
  *
  * THE NUMBER THAT DECIDES EVERYTHING: the ratio of beam-on to bow-on force on
- * an airship hull is about 72 to 1.
+ * an airship afloat is about 40 to 1.
  *
- * Bow-on, the hull is one of the most slippery shapes there is, with a
- * volumetric drag coefficient around 0.025. Beam-on, it is a bluff body with a
- * side force coefficient of 1.80 on the same reference area. At 15.9 m/s the
- * beam-on side force equals the ENTIRE GROSS LIFT of the vehicle. At 20 m/s it
- * is 1.6 times gross lift.
+ * Bow-on, the hull is a slippery shape, though not as slippery as the bare-hull
+ * figure of 0.025 that gets quoted: a complete vehicle afloat, with fins,
+ * gondola, mooring gear and a partly immersed hull, is nearer 0.045. Beam-on it
+ * is a bluff body with a side force coefficient around 1.8 on the same
+ * reference area. At about 16 m/s the beam-on side force equals the ENTIRE
+ * GROSS LIFT of the vehicle.
  *
  * Everything about marine operation follows from that ratio.
  *
@@ -47,10 +48,16 @@ import type { HullGeometry } from '../geometry/hull.js'
 export const SIDE_FORCE_COEFFICIENT_BEAM_ON = 1.8
 
 /**
- * Volumetric drag coefficient of the bare hull at zero yaw.
- * @source NACA TR-432, USS Akron bare hull, and NASA-CR-166253.
+ * Volumetric drag coefficient bow-on, for the COMPLETE VEHICLE AFLOAT.
+ *
+ * NOT the 0.020 to 0.025 bare-hull figure. That is a smooth body of revolution
+ * in free air; this is a vehicle with fins, a gondola, mooring gear and a hull
+ * partly in the water. Using the bare-hull number inflates the beam-to-bow
+ * ratio from 40 to 72 and understates the load on the drogue rode.
+ * @source NASA-CR-166253 with an appendage build-up; the bare-hull component is
+ *   NACA TR-432's Akron measurement.
  */
-export const DRAG_COEFFICIENT_BOW_ON = 0.025
+export const DRAG_COEFFICIENT_BOW_ON = 0.045
 
 /**
  * Yaw moment coefficient at 90 degrees yaw, referenced to VOLUME, not
@@ -95,7 +102,8 @@ export const windLoad = (
 }
 
 /**
- * The ratio that governs marine operation. About 72 to 1 for a fineness-5 hull.
+ * The ratio that governs marine operation. About 40 to 1 for a complete vehicle
+ * afloat, and 72 to 1 if you wrongly use a bare-hull bow-on coefficient.
  * @derived Ratio of the two force coefficients; the reference area cancels.
  */
 export const beamToBowForceRatio = (): number =>
@@ -129,10 +137,9 @@ export const beamOnForceEqualsLiftSpeed = (
  * THE CORRECTION THAT MATTERS. An earlier version of this model sized the anchor
  * against the BEAM-ON force and concluded that no practical canopy could hold
  * the vehicle. That was wrong, and wrong in an instructive way: the anchor's
- * job is to hold the vehicle BOW-ON, where the force is 72 times smaller. Sized
- * correctly, a 5.7 m canopy holds bow-on drift below 0.5 m/s in a 20 m/s wind,
- * and rode tension at 60 knots is only about 9 kN, which a 12 mm Dyneema line
- * carries with margin.
+ * job is to hold the vehicle BOW-ON, where the force is about 40 times smaller.
+ * Sized correctly the canopy is a handleable object rather than an impossible
+ * one, and the rode tension is a load a Dyneema line carries with margin.
  *
  * Both standard sizing rules are useless here and they fail in opposite
  * directions. The 0.35-times-length-overall rule demands a 31.5 m canopy, five

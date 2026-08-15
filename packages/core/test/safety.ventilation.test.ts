@@ -21,11 +21,14 @@ const seaLevel = atmosphere(m(0))
  * THE DESIGN RULE THAT COSTS NOTHING AT THE DRAWING STAGE AND IS IMPOSSIBLE TO
  * RETROFIT.
  */
-describe('confinement: a 200 mm duct is a detonation launcher', () => {
-  it('the critical tube diameter for hydrogen is about 195 mm', () => {
-    const critical = criticalDuctDiameter()
-    expect(critical).toBeGreaterThan(0.15)
-    expect(critical).toBeLessThan(0.25)
+describe('confinement: a 150 mm duct is a detonation launcher', () => {
+  it('the critical size is 150 mm rectangular and 195 mm circular', () => {
+    // The default is RECTANGULAR, because cable trunks, keel walkways and
+    // ventilation ducts are rectangular. Using the circular figure for them is
+    // non-conservative by 30 percent.
+    expect(criticalDuctDiameter('rectangular')).toBeCloseTo(0.15, 2)
+    expect(criticalDuctDiameter('circular')).toBeCloseTo(0.195, 2)
+    expect(criticalDuctDiameter()).toBe(criticalDuctDiameter('rectangular'))
   })
 
   it('methane intuition is off by more than an order of magnitude', () => {
@@ -185,20 +188,45 @@ describe('inerting is not free', () => {
 })
 
 /**
- * Direct detonation is not a credible initiating event, and it is worth
- * recording why, because it is the one piece of genuinely good news.
+ * A REVERSED CONCLUSION, pinned so it cannot revert.
+ *
+ * This module first argued that direct detonation was not a credible initiating
+ * event because it needs 4.16 MJ and nothing aboard can deliver that. The
+ * figure was wrong by three orders of magnitude. It is 4.3 kJ.
  */
-describe('direct detonation needs energy nothing aboard can deliver', () => {
-  it('four megajoules, against a spark of seventeen microjoules to merely ignite', () => {
-    const ratio =
-      v(HYDROGEN_SAFETY.directDetonationIgnitionEnergy) / v(HYDROGEN_SAFETY.minimumIgnitionEnergy)
-    expect(ratio).toBeGreaterThan(1e10)
+describe('direct detonation IS credible, which reverses an earlier conclusion', () => {
+  it('needs about four kilojoules, not four megajoules', () => {
+    const energy = v(HYDROGEN_SAFETY.directDetonationIgnitionEnergy)
+    expect(energy).toBeGreaterThan(3000)
+    expect(energy).toBeLessThan(6000)
+    // The old figure was a thousand times larger. Pin the gap so a future edit
+    // that reintroduces it fails here.
+    expect(energy).toBeLessThan(4.16e6 / 100)
   })
 
-  it('so the real threat is transition from a deflagration, which needs confinement', () => {
-    // Which is why the geometric rules above are the whole mitigation.
-    expect(v(HYDROGEN_SAFETY.ddtConcentrationThreshold)).toBeGreaterThan(
-      v(HYDROGEN_SAFETY.lowerFlammabilityLimit) * 2,
+  it('which is reachable by a DC bus fault, so geometry is necessary and not sufficient', () => {
+    // Four kilojoules is a modest capacitor bank or an arcing contactor on a
+    // traction bus. Bounding bus fault energy becomes a safety item.
+    const energy = v(HYDROGEN_SAFETY.directDetonationIgnitionEnergy)
+    /** Energy in a 1 mF capacitor charged to 400 V, a plausible DC link. */
+    const dcLinkEnergy = 0.5 * 1e-3 * 400 ** 2
+    expect(dcLinkEnergy * 60).toBeGreaterThan(energy)
+  })
+
+  it('and the detonability limits are scale-dependent, not material properties', () => {
+    // The familiar 18.3 to 59 percent is a 1.4 cm TUBE result. At metre scale
+    // it widens to 13.6 to over 70, and 13.6 sits almost on top of the 12
+    // percent DDT threshold: the two hazards are not as separated as the
+    // small-tube numbers suggest.
+    expect(v(HYDROGEN_SAFETY.lowerDetonabilityLimitMetreScale)).toBeLessThan(
+      v(HYDROGEN_SAFETY.lowerDetonabilityLimitSmallTube),
     )
+    expect(v(HYDROGEN_SAFETY.upperDetonabilityLimitMetreScale)).toBeGreaterThan(
+      v(HYDROGEN_SAFETY.upperDetonabilityLimitSmallTube),
+    )
+    const gap =
+      v(HYDROGEN_SAFETY.lowerDetonabilityLimitMetreScale) -
+      v(HYDROGEN_SAFETY.ddtConcentrationThreshold)
+    expect(gap).toBeLessThan(0.03)
   })
 })

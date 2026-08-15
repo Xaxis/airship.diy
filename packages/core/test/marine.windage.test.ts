@@ -22,15 +22,19 @@ const GROSS_LIFT_FORCE = 18015 * 9.80665
 /**
  * THE NUMBER THAT DECIDES MARINE OPERATION.
  */
-describe('beam-on versus bow-on is a factor of seventy-two', () => {
-  it('the force ratio between the two attitudes is about 72 to 1', () => {
-    expect(beamToBowForceRatio()).toBeCloseTo(72, 0)
+describe('beam-on versus bow-on is a factor of forty', () => {
+  it('the force ratio between the two attitudes is about 40 to 1', () => {
+    // Not the 72 first published here. That used a BARE HULL bow-on drag
+    // coefficient of 0.025 for a complete vehicle afloat, which has fins, a
+    // gondola, mooring gear and a partly immersed hull, and runs nearer 0.045.
+    // The error understated the load on the drogue rode.
+    expect(beamToBowForceRatio()).toBeCloseTo(40, 0)
   })
 
-  it('bow-on the hull is one of the most slippery shapes there is', () => {
+  it('bow-on the hull is still a slippery shape, just not a bare-hull one', () => {
     const bow = windLoad(hull, seaLevel, mps(10), 'bow-on', GROSS_LIFT_FORCE)
-    expect(bow.force).toBeLessThan(1500)
-    expect(bow.asFractionOfGrossLift).toBeLessThan(0.01)
+    expect(bow.force).toBeLessThan(3000)
+    expect(bow.asFractionOfGrossLift).toBeLessThan(0.02)
   })
 
   it('beam-on the side force reaches gross lift at about 16 m/s', () => {
@@ -50,7 +54,8 @@ describe('beam-on versus bow-on is a factor of seventy-two', () => {
 /**
  * THE CORRECTION. An earlier version of this model sized the sea anchor against
  * the BEAM-ON force and concluded no practical canopy could hold the vehicle.
- * The anchor's job is to hold it BOW-ON, where the force is 72 times smaller.
+ * The anchor's job is to hold it BOW-ON, where the force is about 40 times
+ * smaller.
  */
 describe('the sea anchor works, once it is sized against the right force', () => {
   it('a canopy of about six metres holds bow-on drift at 20 m/s of wind', () => {
@@ -59,7 +64,7 @@ describe('the sea anchor works, once it is sized against the right force', () =>
     const diameter = canopyDiameter(area)
 
     expect(diameter).toBeGreaterThan(3)
-    expect(diameter).toBeLessThan(9)
+    expect(diameter).toBeLessThan(12)
   })
 
   it('and no canopy of any size does it beam-on', () => {
@@ -71,14 +76,14 @@ describe('the sea anchor works, once it is sized against the right force', () =>
 
   it('so the anchor is a weathervaning device first and a brake second', () => {
     // The design conclusion, stated as a ratio: the same target drift costs
-    // more than seventy times the canopy area if the vehicle is allowed to lie
-    // beam-on. Reliability at holding the bow into the wind matters far more
-    // than the drag coefficient of the canopy.
+    // forty times the canopy area if the vehicle is allowed to lie beam-on.
+    // Reliability at holding the bow into the wind matters far more than the
+    // drag coefficient of the canopy.
     const bow = windLoad(hull, seaLevel, mps(20), 'bow-on', GROSS_LIFT_FORCE)
     const beam = windLoad(hull, seaLevel, mps(20), 'beam-on', GROSS_LIFT_FORCE)
     const ratio =
       seaAnchorCanopyArea(beam.force, mps(0.5)) / seaAnchorCanopyArea(bow.force, mps(0.5))
-    expect(ratio).toBeCloseTo(72, 0)
+    expect(ratio).toBeCloseTo(40, 0)
   })
 
   it('refuses a zero drift target', () => {

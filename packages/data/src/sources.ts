@@ -186,6 +186,12 @@ export const SOURCES: readonly Source[] = [
     note: 'PRIMARY. The paired hydrogen and methane figures throughout the safety module come from its Table II, which is why the comparison is like for like rather than assembled from different sources at different conditions. Also the source of the warning that ventilation does not produce mixing.',
   },
   {
+    id: 'nureg-cr-4961',
+    title: 'A summary of hydrogen-air detonation experiments, NUREG/CR-4961 (SAND87-7128)',
+    author: 'Sandia National Laboratories for the US NRC',
+    note: 'PRIMARY, and it corrects two things the secondary literature gets wrong. The famous 18.3 to 59 percent detonability limits are a 1.4 cm TUBE result and widen to 13.6 to over 70 percent at 43 cm; they are not material properties. And direct-detonation initiation energy is 4.3 kJ, not the 4.16 MJ that circulates, which is wrong by three orders of magnitude in the direction that flatters the safety case.',
+  },
+  {
     id: 'knystautas-1984',
     title: 'Measurements of cell size in hydrocarbon-air mixtures and predictions of critical tube diameter',
     author: 'R. Knystautas, C. Guirao, J. H. Lee and A. Sulmistras',
