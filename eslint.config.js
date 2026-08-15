@@ -94,6 +94,7 @@ export default tseslint.config(
       'packages/model/src/designs.ts',
       'packages/model/src/configuration.ts',
       'packages/model/src/architectures.ts',
+      'packages/model/src/fitout.ts',
     ],
     rules: {
       'airship/no-uncited-constant': 'off',

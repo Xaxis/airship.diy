@@ -1,16 +1,20 @@
 import { ArrangementViewer } from '../../components/ArrangementViewer'
 import { InboardProfile } from '../../components/InboardProfile'
+import { InteriorPlan } from '../../components/InteriorPlan'
 import {
   Rule,
   Section,
   Stat,
   fmt,
   pct,
+  Callout,
+  StatGrid,
 } from '../../components/site/primitives'
 import { Shell } from '../../components/site/Shell'
 import {
   arrangement,
   hullProfile,
+  habitat,
 } from '../../lib/model'
 
 export const metadata = { title: 'The ship' }
@@ -145,6 +149,47 @@ export default function Page() {
               ))}
             </ul>
           </div>
+        </div>
+      </Section>
+
+      <Rule />
+
+      <Section
+        title="Living in it"
+        lede="The arrangement gives each room a size and a mass. That is enough to check whether the vehicle flies and not nearly enough to check whether a person can live in it. A galley with 18 cubic metres and 260 kilograms is a number; a galley with a two-zone induction hob, a 120 litre fridge and 1.4 metres of worktop is a room."
+      >
+        <InteriorPlan rooms={habitat.rooms} />
+
+        <div className="mt-8 grid gap-4 lg:grid-cols-2">
+          <div>
+            <StatGrid columns={2}>
+              <Stat
+                label="Floor area"
+                value={fmt(habitat.totalFloorArea)}
+                unit="m²"
+                note="for two people"
+              />
+              <Stat label="Stowage" value={habitat.totalStowage.toFixed(1)} unit="m³" />
+              <Stat
+                label="Headroom"
+                value={fmt(habitat.rooms[0] ? habitat.rooms[0].headroom * 1000 : 0)}
+                unit="mm"
+                note="1,900 to stand up in"
+                tone={habitat.rooms[0] && habitat.rooms[0].headroom >= 1.9 ? 'pass' : 'fail'}
+              />
+              <Stat
+                label="Fitout"
+                value={fmt(habitat.totalFitoutMass)}
+                unit="kg"
+                note={`${fmt(habitat.arrangementMass)} kg carried`}
+              />
+            </StatGrid>
+          </div>
+          <Callout title="What the volume figure does not tell you">
+            {habitat.findings.map((f) => (
+              <p key={f}>{f}</p>
+            ))}
+          </Callout>
         </div>
       </Section>
     </Shell>

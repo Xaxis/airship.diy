@@ -55,6 +55,8 @@ import {
   waterSchematic,
   redundancyCheck,
   waterLoopCheck,
+  assessHabitat,
+  FITOUT,
 } from '@airship/model'
 import { energyBalance, integrateMission, maximumSustainableWind } from '@airship/solvers'
 import { m, m3, kg, N, purity as asPurity } from '@airship/units'
@@ -945,5 +947,50 @@ export const systems = (() => {
       rule: f.rule,
       detail: f.detail,
     })),
+  }
+})()
+
+/** The inside of the rooms: what is in them, and whether a person can live there. */
+export const habitat = (() => {
+  /** @source A year of dry stores, packaging, spares and consumables for two. */
+  const STORES_VOLUME = 5
+  const assessment = assessHabitat(BASELINE_ARRANGEMENT, STORES_VOLUME)
+
+  return {
+    rooms: assessment.rooms.map((r) => {
+      const compartment = BASELINE_ARRANGEMENT.compartments.find((c) => c.id === r.compartmentId)
+      const room = FITOUT.find((f) => f.compartmentId === r.compartmentId)
+      return {
+        id: r.compartmentId,
+        name: r.name,
+        station: compartment?.station ?? 0,
+        width: compartment?.width ?? 0,
+        length: compartment?.extent ?? 0,
+        floorArea: r.floorArea,
+        occupied: r.occupied,
+        freeFraction: r.freeFraction,
+        stowage: r.stowage,
+        fitoutMass: r.fitoutMass,
+        headroom: r.headroom,
+        sleeps: r.sleeps,
+        exits: r.exits,
+        findings: [...r.findings],
+        fittings: (room?.fittings ?? []).map((f) => ({
+          id: f.id,
+          name: f.name,
+          kind: f.kind,
+          sleeps: f.sleeps ?? 0,
+          footprint: f.footprint,
+          volume: f.volume,
+          mass: f.mass,
+          note: f.note ?? null,
+        })),
+      }
+    }),
+    totalFloorArea: assessment.totalFloorArea,
+    totalStowage: assessment.totalStowage,
+    totalFitoutMass: assessment.totalFitoutMass,
+    arrangementMass: assessment.arrangementMass,
+    findings: [...assessment.findings],
   }
 })()

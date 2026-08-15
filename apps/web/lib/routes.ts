@@ -28,9 +28,9 @@ export const ROUTES: readonly Route[] = [
     href: '/ship',
     label: 'The ship',
     title: 'The ship',
-    question: 'What is it, and where is everything?',
+    question: 'What is it, where is everything, and could you live in it?',
     summary:
-      'The arrangement: a cutaway, an inboard profile and four sections, all drawn from the same stations and masses the budget integrated. Five rooms, a keel corridor, twelve gas cells and the rules the layout has to obey.',
+      'The arrangement and the interior: a cutaway, an inboard profile, four sections and a plan of every room with what is in it. All drawn from the same stations, footprints and masses the budget integrated.',
   },
   {
     href: '/architecture',

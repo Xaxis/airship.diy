@@ -75,3 +75,8 @@ export {
   redundancyCheck,
   waterLoopCheck,
 } from './systems.js'
+
+export type { FittingKind, Fitting, Room } from './fitout.js'
+export { FITOUT } from './fitout.js'
+export type { RoomAssessment, HabitatAssessment } from './habitat.js'
+export { assessRoom, assessHabitat } from './habitat.js'
