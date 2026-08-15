@@ -1,4 +1,5 @@
 import { BASELINE } from '@airship/model'
+import { DesignExplorer } from '../components/DesignExplorer'
 import { FlightSimulator } from '../components/FlightSimulator'
 import { HullViewer } from '../components/HullViewer'
 import {
@@ -185,6 +186,17 @@ export default function Home() {
       {/* ---------------------------------------------------------------- */}
       <Section
         n="03"
+        title="Move a parameter and watch what breaks"
+        lede="Every figure here is recomputed by the same solvers the tests and the reports use. Infeasible regions are shown as infeasible rather than as a small number: a hull that cannot lift its own structure says so, and a wind the vehicle cannot hold against turns the verdict red."
+      >
+        <DesignExplorer />
+      </Section>
+
+      <Rule />
+
+      {/* ---------------------------------------------------------------- */}
+      <Section
+        n="04"
         title="Does it hold up against ships that actually flew?"
         lede="Unit tests catch regressions. These catch being wrong. The model is fed published geometry for every rigid airship in the reference set and has to reproduce published gross lift within a stated tolerance. Where a source contradicts itself, the fixture records the contradiction rather than resolving it quietly."
       >
@@ -292,7 +304,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="04"
+        n="05"
         title="Does the loop close?"
         lede="Regime A is the project's thesis: sunlight in, electrolysis to store, fuel cell to convert back, engines cold, endurance bounded by component life rather than by energy. The balance is run day by day through a year, because an annual average hides the ship that banks a surplus in June and runs a deficit in December."
       >
@@ -447,7 +459,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="05"
+        n="06"
         title="Can it be built?"
         lede="Empty weight scaled from the Hindenburg, across the range of structural scaling exponents the historical record cannot distinguish between. This is deliberately a family of curves: one curve would be a claim the evidence does not support, and the two ends disagree about whether bigger ships are better or worse."
       >
@@ -585,7 +597,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="06"
+        n="07"
         title="What should the engine burn?"
         lede="Comparing fuels by energy per kilogram is the habit of every other vehicle and it is the wrong metric here. On an airship the scarce resource is not mass, it is lift: every kilogram of fuel aboard is a kilogram of payload that is not, and every cubic metre inside the hull is a cubic metre that is not lifting. Ranked by energy stored per kilogram of lift given up, the order inverts."
       >
@@ -654,7 +666,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="07"
+        n="08"
         title="Which resource runs out first?"
         lede="The energy balance said energy does not bind. This steps a day at a time through a multi-year mission tracking gas mass and purity, water, food and consumables, to find out what does. The answer is a legal interval, and the thing everyone expects to bind turns out not to."
       >
@@ -744,7 +756,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="08"
+        n="09"
         title="Where the model is guessing"
         lede="Values nobody has published, with the range and what measurement would resolve each. A number without a source fails the build here, so anything genuinely unknown has to be declared rather than quietly invented. This list is the project's research queue."
       >
@@ -774,7 +786,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="09"
+        n="10"
         title="Build order"
         lede="Each phase has a validation gate. Nothing downstream of a failing gate is trustworthy, so a phase has to pass before the next opens."
       >

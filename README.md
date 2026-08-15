@@ -23,11 +23,11 @@ before the next opens.
 | 1. Foundation | Units, atmosphere, gas properties, buoyancy | **Gates pass** |
 | 2. Does it close? | Permeation, electrolysis, fuel cell, solar, water balance | **Yes, by a lot** |
 | 3. Can it be built? | Structure, buckling, mass fraction vs size | **Undecided, and that is the finding** |
-| 4. Does it fly? | Aerodynamics, propulsors, 6-DOF with added mass | Added mass and Munk moment done |
-| 4b. The powertrain decision | Fuel choice, TBO consumables, dissimilar redundancy | |
+| 4. Does it fly? | Aerodynamics, propulsors, 6-DOF with added mass | **Gates pass** |
+| 4b. The powertrain decision | Fuel choice, TBO consumables, dissimilar redundancy | **Decided** |
 | 5. Can it be lived in? | Habitat, life support, the mission integrator | **Food, and a legal limit** |
 | 6. Will it kill me? | Hydrogen safety, lightning, icing, failure injection, regulation | Safety and regulation done |
-| 7. The site | Design explorer, 3D hull, flight simulator, mission player | |
+| 7. The site | Design explorer, 3D hull, flight simulator | **Live** |
 | 8. Build documentation | Frame drawings, laminate schedules, BOM, fabrication sequence | |
 
 Marine mode (water landing and boat operation) runs alongside phases 3 through 6.
@@ -229,7 +229,8 @@ reading the model uses and why.
 ## Commands
 
 ```bash
-make check       # everything CI runs
+make check           # everything CI runs
+make web-live-check  # load the DEPLOYED site in a real browser and assert it runs
 make check-fast  # the same without the slow suites
 make validate    # the model against every rigid airship that ever flew
 make report      # headless run of the physics, no browser, no test runner

@@ -132,7 +132,7 @@ const main = async () => {
 
   // React actually mounted and rendered the tree.
   const sectionCount = await evaluate('document.querySelectorAll("section").length')
-  check('sections rendered', sectionCount >= 8, `${sectionCount} sections`)
+  check('sections rendered', sectionCount >= 10, `${sectionCount} sections`)
 
   // The two Three.js views both created a WebGL context. A canvas that never
   // appears is the signature of a client component that threw on mount.
@@ -145,6 +145,13 @@ const main = async () => {
     `Array.from(document.querySelectorAll('.num')).map(e => e.textContent).filter(t => t && t.includes('m/s')).join('|')`,
   )
   check('simulator instruments are live', Boolean(readouts && !readouts.includes('—')), readouts)
+
+  // The explorer runs the solvers client-side. Missing sliders means the
+  // component threw on mount and the section is a hollow shell.
+  const sliderCount = await evaluate(
+    "document.querySelectorAll('input[type=range]').length",
+  )
+  check('design explorer sliders present', sliderCount >= 8, `${sliderCount} sliders`)
 
   check('no uncaught exceptions', pageErrors.length === 0, pageErrors.join(' | '))
   check('no console errors', consoleErrors.length === 0, consoleErrors.join(' | '))
