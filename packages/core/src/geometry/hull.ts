@@ -204,13 +204,31 @@ export const prismaticCoefficientOf = (shape: HullShape): number => {
 }
 
 /**
+ * Cache of solved shapes, keyed by target prismatic coefficient.
+ *
+ * The solve is 60 bisections, each of which runs a 4,000 panel integration and
+ * a peak search, and callers ask for the SAME target over and over: once per
+ * compartment, once per station, once per bisection step of an outer loop. An
+ * earlier version told the caller to cache it, and the caller reasonably did
+ * not, which turned an arrangement mass statement into a two-second call.
+ */
+const shapeCache = new Map<number, HullShape>()
+
+/**
  * Solve the fullness blend for a target prismatic coefficient.
  *
  * Bisection, because the mapping is monotonic in the blend parameter but has no
- * closed form. Converges to 1e-6 in about twenty iterations, and the result is
- * cached by the caller rather than recomputed inside the sizing loop.
+ * closed form. Memoised on the target, because it is expensive and pure.
  */
 export const hullShapeForPrismatic = (target: number): HullShape => {
+  const cached = shapeCache.get(target)
+  if (cached) return cached
+  const solved = solveShapeForPrismatic(target)
+  shapeCache.set(target, solved)
+  return solved
+}
+
+const solveShapeForPrismatic = (target: number): HullShape => {
   const lowest = prismaticCoefficientOf(blend(0))
   const highest = prismaticCoefficientOf(blend(1))
 

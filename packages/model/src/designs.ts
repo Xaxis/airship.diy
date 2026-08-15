@@ -22,9 +22,9 @@ export const BASELINE: DesignPoint = {
   id: 'baseline',
   name: 'Baseline',
   description:
-    'The working design. 90 m at fineness ratio 5, stationed in the trade wind belt at 2,000 m, holding station against 8 m/s for two thirds of the day and drifting the rest.',
+    'The working design. 115 m at fineness ratio 5, stationed in the trade wind belt at 2,000 m, holding station against 8 m/s for two thirds of the day and drifting the rest. It was 90 m until the arrangement was drawn: once the compartments, the machinery and the array had real masses and real positions, 90 m came out 4.5 tonnes heavy and the smallest hull that closes with room for the mass growth every preliminary estimate suffers is 114 m.',
   hull: {
-    length: 90,
+    length: 115,
     finenessRatio: 5,
     prismaticCoefficient: 0.69,
     cellCount: 12,
@@ -38,8 +38,15 @@ export const BASELINE: DesignPoint = {
   },
   power: {
     arrayCoverageHalfAngle: deg(75),
-    arrayForwardStation: 0.1,
-    arrayAftStation: 0.85,
+    // The band was 0.10 to 0.85 until the arrangement was drawn. Sliding it
+    // forward to sit over the centre of buoyancy costs 56 m2, about 2.4 percent
+    // of array area, and takes the standing trim offset from 0.84 percent of
+    // length to 0.21 at the baseline — and from a failure to a pass at 125 m and
+    // beyond, where the array is heavy enough to drag the centre of gravity aft
+    // on its own. The array turns out to be a trim decision as much as an energy
+    // one, which is not visible until the masses have positions.
+    arrayForwardStation: 0.06,
+    arrayAftStation: 0.78,
     moduleEfficiency: 0.17,
     moduleArealMass: 1.2,
     fuelCellRating: 30000,
@@ -80,7 +87,7 @@ export const STRETCH: DesignPoint = {
   name: 'Stretch',
   description:
     'The five-year ship. Larger hull for a better mass fraction, more array, a bigger battery buffer, and enough margin to hold station against 12 m/s continuously rather than drifting.',
-  hull: { ...BASELINE.hull, length: 120, cellCount: 14 },
+  hull: { ...BASELINE.hull, length: 125, cellCount: 14 },
   power: {
     ...BASELINE.power,
     fuelCellRating: 60000,

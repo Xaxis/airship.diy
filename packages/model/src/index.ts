@@ -7,3 +7,14 @@ export type {
   MissionParameters,
 } from './design-point.js'
 export { BASELINE, MINIMUM_VIABLE, STRETCH, DESIGN_POINTS, designPoint } from './designs.js'
+
+export type { Deck, Category, Compartment, Propulsor, Configuration } from './configuration.js'
+export { BASELINE_ARRANGEMENT } from './configuration.js'
+
+export type { MassItem, MassStatement, Severity, Finding } from './arrangement.js'
+export {
+  compartmentVolume,
+  massStatement,
+  validateArrangement,
+  smallestClosingLength,
+} from './arrangement.js'

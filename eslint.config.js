@@ -77,16 +77,20 @@ export default tseslint.config(
     },
   },
 
-  // The named design points are the one place numbers are CHOICES rather than
-  // measurements. "90 m hull" is not a fact about the world that could have a
-  // source; it is a decision, and the sizing sweep exists to move it. Demanding
-  // a citation for it would mean inventing one, which is the exact failure the
-  // rule was written to prevent.
+  // The named design points and the arrangement are the two places numbers are
+  // CHOICES rather than measurements. "90 m hull" is not a fact about the world
+  // that could have a source; it is a decision, and the sizing sweep exists to
+  // move it. "The galley is at station 0.32" is the same kind of thing.
+  // Demanding a citation for either would mean inventing one, which is the exact
+  // failure the rule was written to prevent.
   //
-  // The exemption is one file wide on purpose. Everything in packages/model
-  // that is not a design point still has to cite.
+  // The exemption is enumerated file by file rather than given as a glob, so
+  // that adding a third exempt file is a visible decision. Everything else in
+  // packages/model still has to cite — including arrangement.ts, which turns
+  // these choices into masses and volumes and therefore makes claims about the
+  // world that DO need sources.
   {
-    files: ['packages/model/src/designs.ts'],
+    files: ['packages/model/src/designs.ts', 'packages/model/src/configuration.ts'],
     rules: {
       'airship/no-uncited-constant': 'off',
     },
