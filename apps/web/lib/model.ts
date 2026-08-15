@@ -764,13 +764,22 @@ export const frame = (() => {
   const material = laminate()
   const radius = BASELINE.hull.length / BASELINE.hull.finenessRatio / 2
 
-  /** @source Historical rigid practice: 12 to 36 longitudinals, 5 to 15 m bays. */
+  /**
+   * @source Chosen to sit inside the 1.31 to 1.81 panel aspect ratio band that
+   * every rigid airship which did not break occupied. The ratio is ring spacing
+   * over longitudinal spacing, and it is the invariant R38 violated at 4.59.
+   *
+   * Longitudinal spacing is 2*pi*R/N, so more longitudinals demand SHORTER bays
+   * to stay in band, which is why the ring count climbs so fast down this list
+   * and why the rings, which outweigh the longitudinals by more than two to one,
+   * dominate the mass.
+   */
   const CONFIGURATIONS = [
-    { longitudinals: 16, spacing: 10 },
+    { longitudinals: 16, spacing: 6 },
     { longitudinals: 16, spacing: 8 },
-    { longitudinals: 24, spacing: 8 },
-    { longitudinals: 24, spacing: 6 },
-    { longitudinals: 32, spacing: 6 },
+    { longitudinals: 24, spacing: 4 },
+    { longitudinals: 24, spacing: 5.4 },
+    { longitudinals: 32, spacing: 4 },
   ]
 
   const scalingEstimate = statement.items.find((i) => i.id === 'frame')?.mass ?? 0
@@ -789,6 +798,7 @@ export const frame = (() => {
       longitudinals: c.longitudinals,
       spacing: c.spacing,
       rings: s.ringCount,
+      panelAspectRatio: s.panelAspectRatio,
       diameter: s.longitudinal.radius * 2,
       wall: s.longitudinal.thickness,
       plies: s.longitudinal.plies,

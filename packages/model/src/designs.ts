@@ -22,7 +22,7 @@ export const BASELINE: DesignPoint = {
   id: 'baseline',
   name: 'Baseline',
   description:
-    'The working design. 115 m at fineness ratio 5, stationed in the trade wind belt at 2,000 m, holding station against 8 m/s for two thirds of the day and drifting the rest. It was 90 m until the arrangement was drawn: once the compartments, the machinery and the array had real masses and real positions, 90 m came out 4.5 tonnes heavy and the smallest hull that closes with room for the mass growth every preliminary estimate suffers is 114 m.',
+    'The working design. 115 m at fineness ratio 5, stationed in the trade wind belt at 2,000 m, holding station against 8 m/s for two thirds of the day and drifting the rest. It grew from 90 m when the arrangement was drawn and the compartments, machinery and array acquired real masses and real positions. It nearly grew again when the array was priced and the 1.2 kg/m2 module it assumed turned out not to exist, the lightest anybody sells being 2.6 once the adhesive is counted. Instead the array shrank: it had been carrying 574 percent of the energy the mission needed, and cutting its coverage from 75 degrees to 32 paid for the heavier modules twice over.',
   hull: {
     length: 115,
     finenessRatio: 5,
@@ -37,7 +37,28 @@ export const BASELINE: DesignPoint = {
     seaLevelFillFraction: 0.85,
   },
   power: {
-    arrayCoverageHalfAngle: deg(75),
+    /**
+     * 32 degrees either side of the crown, not the 75 this design point carried
+     * until the array acquired its real mass.
+     *
+     * THE ARRAY WAS CARRYING 574 PERCENT OF THE ENERGY IT NEEDED. Coverage had
+     * never been optimised: 75 degrees was chosen as "most of the upper hull"
+     * and left there, and while the module was assumed to weigh 1.2 kg/m2 it
+     * cost little enough that nobody looked. At the real 2.6 it costs 6,682 kg,
+     * it is the only large mass ABOVE the hull axis, and it dragged the pendulum
+     * lever from 2.84 m down to 1.33, which is below anything airship practice
+     * would fly.
+     *
+     * Cutting to 32 degrees takes the array to 2,851 kg, restores the lever to
+     * 2.54 m, raises the lift margin from 15.8 to 22.0 percent, and STILL leaves
+     * 164 percent of margin on the worst day of the year. The energy that buys
+     * is energy the mission never needed.
+     *
+     * It also makes the array easier to build: a strip along the crown rather
+     * than a wrap reaching almost to the equator, where the modules are most
+     * oblique to the sun and contribute least per unit of mass.
+     */
+    arrayCoverageHalfAngle: deg(32),
     // The band was 0.10 to 0.85 until the arrangement was drawn. Sliding it
     // forward to sit over the centre of buoyancy costs 56 m2, about 2.4 percent
     // of array area, and takes the standing trim offset from 0.84 percent of
@@ -48,7 +69,23 @@ export const BASELINE: DesignPoint = {
     arrayForwardStation: 0.06,
     arrayAftStation: 0.78,
     moduleEfficiency: 0.17,
-    moduleArealMass: 1.2,
+    /**
+     * 2.6 kg/m2, not the 1.2 this design point carried until the bill of
+     * materials was priced.
+     *
+     * THE ARRAY AT 1.2 kg/m2 DOES NOT EXIST AS A PRODUCT. The lightest flexible
+     * module with a published datasheet is the MiaSole FLEX-03N at 1.9 kg/m2
+     * bare and 2.6 kg/m2 with the adhesive that actually attaches it (part
+     * 302-191943-00_B). Sunman eArc is 2.89. Everything below 1.9 is a
+     * laboratory tandem cell rather than something anyone can buy.
+     *
+     * The bonded figure is the one used, because a module that is not attached
+     * to the hull is not on the vehicle. On 2,321 m2 of array that is 6,036 kg
+     * against 2,786, and it took the lift margin from 20.9 percent to 6.8 at
+     * 115 m. It is a MASS failure before it is a cost one, and it is the second
+     * time this project has grown the hull because a number got honest.
+     */
+    moduleArealMass: 2.6,
     fuelCellRating: 30000,
     electrolyzerRating: 40000,
     batteryEnergy: 150e3 * 3600,
@@ -90,6 +127,23 @@ export const STRETCH: DesignPoint = {
   hull: { ...BASELINE.hull, length: 125, cellCount: 14 },
   power: {
     ...BASELINE.power,
+    /**
+     * The stretch mission needs the array the baseline gave up, and then some.
+     *
+     * Holding station against 12 m/s for 90 percent of the day rather than 8
+     * m/s for 65 is roughly four times the propulsive energy, because power goes
+     * as the cube of speed. At the baseline's 32 degrees of coverage this design
+     * misses its annual energy by 47 percent; it needs 70 degrees to reach
+     * break-even and 75 to have any margin at all.
+     *
+     * AND THAT IS WHAT LIMITS THE STRETCH GOAL, not the energy. At 75 degrees
+     * the array is the only large mass above the hull axis and it takes the
+     * pendulum lever down to 0.093 of the hull radius, against the 0.2 the
+     * baseline holds and the 0.16 that airship practice treats as a floor. The
+     * five-year ship is not energy-limited. It is PENDULUM-limited, and that is
+     * a constraint no amount of array area or battery capacity relieves.
+     */
+    arrayCoverageHalfAngle: deg(75),
     fuelCellRating: 60000,
     electrolyzerRating: 80000,
     batteryEnergy: 300e3 * 3600,

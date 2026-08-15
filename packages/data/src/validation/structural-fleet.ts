@@ -326,3 +326,74 @@ export const SEMI_RIGID_ADVANTAGE = {
   spread: 0.7278 / 0.4555,
   note: 'Two data points 1.6 to 1 apart, straddling zero advantage against the rigid fleet. There is no defensible number for the semi-rigid mass saving at 33,000 m3.',
 } as const
+
+/**
+ * Panel aspect ratio, and the invariant that R38 violated.
+ *
+ * THE DESIGN RULE IS NOT PANEL LENGTH IN METRES. Across every rigid airship
+ * that did not break, the ratio of ring spacing to longitudinal spacing sits
+ * between 1.31 and 1.81, a spread of only 1.38 to 1. Bay length over hull
+ * diameter, which is the ratio usually quoted, varies by 2.9 to 1 across the
+ * same ships and therefore cannot be the thing that matters.
+ *
+ * R38 was at 4.59, and it broke in half on acceptance trials in 1921, killing
+ * 44.
+ *
+ * The ratio is physically motivated. Ebner (NACA TM 872) says the intermediate
+ * rings exist both to shorten the longitudinal column AND to give the shear
+ * wires a favourable angle of inclination. An aspect ratio of 1.5 puts the panel
+ * diagonal at 34 degrees, which is in the efficient band; at 4.59 the diagonal
+ * is at 12 degrees and the wire is nearly parallel to the load it is meant to
+ * carry.
+ *
+ * R38 compounded it. Its main-ring bracing was changed from RADIAL to
+ * TANGENTIAL as part of the same weight reduction, and a tangential net gives
+ * no real radial restraint unless it is very highly pretensioned. The
+ * intermediate rings stopped being effective supports, so the longitudinal's
+ * effective column length jumped from the intermediate spacing to the 15 m
+ * main-ring spacing. That is general instability rather than local column
+ * buckling, which is why Herrera's contemporary account (NACA TM 105) records
+ * the free length going from 11 m to 15 m even though secondary rings were
+ * fitted.
+ */
+export const PANEL_ASPECT_RATIO = {
+  /** Ships that did not break. */
+  sound: [
+    { id: 'lz127', name: 'LZ-127 Graf Zeppelin', ratio: 1.46 },
+    { id: 'lz129', name: 'LZ-129 Hindenburg', ratio: 1.46, range: [1.39, 1.53] },
+    { id: 'zrs4-akron', name: 'USS Akron', ratio: 1.52, range: [1.43, 1.61] },
+    { id: 'r101', name: 'R101', ratio: 1.43, range: [1.31, 1.55] },
+    { id: 'r100', name: 'R100', ratio: 1.81 },
+  ],
+  low: 1.31,
+  high: 1.81,
+  /** R38, which broke in half on acceptance trials killing 44. */
+  r38: 4.59,
+  note: 'Ring spacing over longitudinal spacing. Varies by only 1.38 to 1 across sound ships, against 2.9 to 1 for bay over diameter, which is why this is the invariant and that is not.',
+} as const
+
+/**
+ * Component weight breakdown of USS Akron.
+ *
+ * THE ONE REAL COMPONENT-LEVEL STRUCTURAL WEIGHT STATEMENT for a rigid airship,
+ * recovered from Burgess via NASA CR-137691 Volume III Table 9. Everywhere else
+ * in the literature the published figure is an empty weight with no breakdown,
+ * which is why so much airship structural reasoning is done on guessed shares.
+ *
+ * Two of its numbers correct guesses this project had made:
+ *
+ *   The bare girder framework is 33.0 percent of empty weight, not the 47 this
+ *   repository assumed. The items that are NOT girder are a larger share of a
+ *   real airship than intuition allows.
+ *
+ *   THE TRANSVERSE FRAMES OUTWEIGH THE LONGITUDINALS BY 2.17 TO 1, where this
+ *   repository had assumed the rings were 0.35 of the longitudinals. The guess
+ *   was not merely wrong, it was inverted. A main ring is a deep braced girder
+ *   carrying the radial lift of two gas cells and reacting the suspension of
+ *   everything hung below it, and there are many intermediate frames besides.
+ */
+export const AKRON_STRUCTURE = {
+  frameworkShareOfEmptyWeight: 0.33,
+  transverseToLongitudinalMass: 2.17,
+  source: 'Burgess, via NASA CR-137691 Volume III Table 9',
+} as const

@@ -18,7 +18,7 @@ import {
   specificLift,
   superheatHeavinessExcursion,
 } from '@airship/core'
-import { barrierFilm, EMPTY_WEIGHT_PER_GAS_VOLUME, v } from '@airship/data'
+import { AKRON_STRUCTURE, barrierFilm, EMPTY_WEIGHT_PER_GAS_VOLUME, v } from '@airship/data'
 import { m, m3, K, rad, kgPerM3 } from '@airship/units'
 
 import type { Category, Compartment, Configuration, Deck } from './configuration.js'
@@ -57,14 +57,15 @@ import type { DesignPoint } from './design-point.js'
  * Fraction of a historical rigid's empty weight that was the bare girder
  * framework.
  *
- * @source The fleet table records empty weight, not framework weight, and no
- * verifiable published breakdown separates the two for any ship in it. Zeppelin
- * practice puts the girder and wiring structure at roughly half of fixed
- * weight, with cover, cells, cars, engines, keels and systems making up the
- * rest. Taken as 0.47 with the understanding that it is the single softest
- * number in this module.
+ * @source Burgess's component weight statement for USS Akron, recovered via
+ * NASA CR-137691 Volume III Table 9. It is the one real component-level
+ * structural breakdown for a rigid airship in the literature, and it puts the
+ * bare girder framework at 33.0 percent of empty weight.
+ *
+ * This module said 0.47 and called it the single softest number here. It was,
+ * and it was 42 percent high.
  */
-const FRAMEWORK_SHARE_OF_EMPTY_WEIGHT = 0.47
+const FRAMEWORK_SHARE_OF_EMPTY_WEIGHT = AKRON_STRUCTURE.frameworkShareOfEmptyWeight
 
 /**
  * Framework mass saving from carbon fibre over duralumin, as a multiplier.

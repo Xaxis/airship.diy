@@ -6,7 +6,7 @@ import {
   liftingBodyGeometry,
   minimumFlyingSpeed,
 } from '@airship/core'
-import { EMPTY_WEIGHT_PER_GAS_VOLUME, SEMI_RIGID_ADVANTAGE } from '@airship/data'
+import { AKRON_STRUCTURE, EMPTY_WEIGHT_PER_GAS_VOLUME, SEMI_RIGID_ADVANTAGE } from '@airship/data'
 import { m, m2 } from '@airship/units'
 
 /**
@@ -107,14 +107,21 @@ export interface Architecture {
 /**
  * Rigid framework mass per cubic metre of gas, kg/m3.
  *
- * @derived The Hindenburg empty weight per gas volume of 0.59 kg/m3, times the
- * 0.47 framework share of empty weight, times the 0.62 carbon correction on a
- * specific-MODULUS basis because the frame is buckling critical. 0.172 kg/m3.
- * The same figure `arrangement.ts` uses, and it lives here so the architectures
- * can be compared on one basis.
+ * @derived The Hindenburg empty weight per gas volume of 0.59 kg/m3, times
+ * Akron's MEASURED 0.33 framework share of empty weight, times the 0.62 carbon
+ * correction on a specific-MODULUS basis because the frame is buckling
+ * critical. 0.121 kg/m3.
+ *
+ * The share was 0.47 until the girder research recovered Burgess's actual
+ * component weight statement for Akron via NASA CR-137691. The guess was 42
+ * percent high, because the items that are NOT girder — cover, cells, cars,
+ * engines, keels, controls, fuel and ballast systems — are a larger share of a
+ * real airship than intuition allows.
  */
 const RIGID_FRAME_PER_VOLUME =
-  EMPTY_WEIGHT_PER_GAS_VOLUME.hindenburg * 0.47 * 0.62
+  EMPTY_WEIGHT_PER_GAS_VOLUME.hindenburg *
+  AKRON_STRUCTURE.frameworkShareOfEmptyWeight *
+  0.62
 
 /**
  * Semi-rigid keel truss mass per cubic metre of envelope, kg/m3.

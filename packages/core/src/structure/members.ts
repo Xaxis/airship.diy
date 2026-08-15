@@ -1,3 +1,4 @@
+import { AKRON_STRUCTURE, PANEL_ASPECT_RATIO } from '@airship/data'
 import type { Meters, NewtonMeters, Pascals } from '@airship/units'
 import { m } from '@airship/units'
 
@@ -197,6 +198,8 @@ export interface FrameSchedule {
   /** True when the members are at minimum laminate rather than sized by load. */
   readonly minimumGauge: boolean
   readonly bayLength: Meters
+  /** Ring spacing over longitudinal spacing. The R38 invariant. */
+  readonly panelAspectRatio: number
   readonly longitudinal: MemberSection
   /** Mass of all longitudinals over the hull, kg. */
   readonly longitudinalMass: number
@@ -270,15 +273,21 @@ export const frameSchedule = (
     (1 + LATTICE_MASS_FRACTION)
 
   /**
-   * Ring mass.
+   * Ring mass, and the ratio is the opposite of what intuition says.
    *
-   * @derived A transverse frame carries the radial component of the gas cell
-   * lift into the longitudinals and stabilises them against the panel length
-   * above. Its own bending is modest, so on a rigid airship the rings come out
-   * far lighter than the longitudinals: historical practice ran roughly 0.35 of
-   * the longitudinal mass across main and intermediate frames combined.
+   * @source Burgess's component weight statement for USS Akron, via NASA
+   * CR-137691 Volume III Table 9: the TRANSVERSE FRAMES OUTWEIGH THE
+   * LONGITUDINALS BY 2.17 TO 1.
+   *
+   * THIS CORRECTS A GUESS THAT WAS BACKWARDS. The first version of this module
+   * said 0.35, reasoning that a ring's own bending is modest so the rings must
+   * be lighter. They are not. A main ring is a deep braced girder that carries
+   * the whole radial lift of two gas cells into the hull and reacts the
+   * suspension of everything hung below it, and there are many intermediate
+   * frames besides. Guessing 0.35 when the measurement is 2.17 understated the
+   * frame by a factor of 1.8 on its second largest item.
    */
-  const RING_TO_LONGITUDINAL_MASS = 0.35
+  const RING_TO_LONGITUDINAL_MASS = AKRON_STRUCTURE.transverseToLongitudinalMass
   const ringCount = Math.max(2, Math.round(hullLength / ringSpacing) + 1)
   const ringMass = longitudinalMass * RING_TO_LONGITUDINAL_MASS
 
@@ -294,18 +303,47 @@ export const frameSchedule = (
     )
   }
   /**
-   * @source R38 broke in half on acceptance trials after its unsupported
-   * longitudinal panel length was stretched from 11 m to 15 m as part of a
-   * weight reduction. Panel length is the single parameter that killed a real
-   * airship, and it is the one a mass-driven optimiser will always want to
-   * increase.
+   * THE R38 RULE IS AN ASPECT RATIO, NOT A LENGTH, and this module had the
+   * wrong invariant until the girder research corrected it.
+   *
+   * @source Across every rigid airship that did not break, the panel aspect
+   * ratio a/s — ring spacing over longitudinal spacing — sits between 1.31 and
+   * 1.81: LZ-127 at 1.46, LZ-129 at 1.39 to 1.53, Akron at 1.43 to 1.61, R101
+   * at 1.31 to 1.55, R100 at 1.81. R38, which broke in half on acceptance
+   * trials killing 44, was at 4.59.
+   *
+   * Bay length in metres, which is what an earlier version of this warned on,
+   * and bay over diameter, which is the ratio usually quoted, both vary by 2.9
+   * to 1 across the same sound ships and therefore cannot be the invariant. The
+   * aspect ratio varies by only 1.38 to 1.
+   *
+   * It is physically motivated. Ebner (NACA TM 872) says the intermediate rings
+   * exist both to shorten the longitudinal column AND to give the shear wires a
+   * favourable angle: a/s of 1.5 puts the panel diagonal at 34 degrees, in the
+   * efficient band. At R38's 4.59 the diagonal is at 12 degrees and the wire is
+   * nearly parallel to the load it is meant to carry.
+   *
+   * R38's second failure compounded it. Its main-ring bracing went from RADIAL
+   * to TANGENTIAL, and a tangential net gives no real radial restraint unless it
+   * is very highly pretensioned, so the intermediate rings stopped being
+   * effective supports and the longitudinal's effective column length jumped
+   * from the intermediate spacing to the 15 m main-ring spacing. That is general
+   * instability rather than local column buckling, and it is why the free length
+   * is quoted as 11 m to 15 m even though secondary rings were fitted.
    */
-  const R38_PANEL_LENGTH = 15
-  /** @derived Newton metres to meganewton metres, for the messages. */
-  void 0
-  if (ringSpacing > R38_PANEL_LENGTH) {
+  const longitudinalSpacing = (2 * Math.PI * hullRadius) / longitudinalCount
+  const panelAspectRatio = ringSpacing / longitudinalSpacing
+  const SOUND_ASPECT_RATIO_LOW = PANEL_ASPECT_RATIO.low
+  const SOUND_ASPECT_RATIO_HIGH = PANEL_ASPECT_RATIO.high
+  const R38_ASPECT_RATIO = PANEL_ASPECT_RATIO.r38
+
+  if (panelAspectRatio > SOUND_ASPECT_RATIO_HIGH) {
     warnings.push(
-      `A ${ringSpacing.toFixed(1)} m unsupported panel exceeds the ${R38_PANEL_LENGTH} m that R38 was stretched to before it broke in half on acceptance trials, killing 44. Panel length is the one parameter that has actually destroyed a rigid airship, and a mass-driven optimiser will always want to increase it.`,
+      `Panel aspect ratio a/s is ${panelAspectRatio.toFixed(2)}, outside the ${SOUND_ASPECT_RATIO_LOW} to ${SOUND_ASPECT_RATIO_HIGH} band that every rigid airship which did not break sat inside. R38 was at ${R38_ASPECT_RATIO} and broke in half on acceptance trials, killing 44.`,
+    )
+  } else if (panelAspectRatio < SOUND_ASPECT_RATIO_LOW) {
+    warnings.push(
+      `Panel aspect ratio a/s is ${panelAspectRatio.toFixed(2)}, below the ${SOUND_ASPECT_RATIO_LOW} floor of historical practice. Structurally that is the safe direction and it is an expensive one: it means more rings than the shear wires need, and the rings outweigh the longitudinals by more than two to one.`,
     )
   }
 
@@ -314,6 +352,7 @@ export const frameSchedule = (
     ringCount,
     minimumGauge: longitudinal.minimumGauge,
     bayLength: ringSpacing,
+    panelAspectRatio,
     longitudinal,
     longitudinalMass,
     ringMass,
@@ -379,6 +418,10 @@ export const scheduleAgreement = (
       ? `Sizing the members from the gust moment gives ${bottomUp.toFixed(0)} kg; scaling the Hindenburg's framework share gives ${scalingEstimate.toFixed(0)} kg. A ratio of ${ratio.toFixed(2)}, from two routes that share no assumptions. That is not proof either is right, but it is the only cross-check available and they pass it.`
       : ratio < 1
         ? `Sizing the members from the gust moment gives ${bottomUp.toFixed(0)} kg; scaling the Hindenburg's framework share gives ${scalingEstimate.toFixed(0)} kg. The bottom-up figure is ${(1 / ratio).toFixed(1)} times LIGHTER, and that is the expected direction rather than a contradiction: the members come out at minimum gauge, so the sizing is a floor, and the factor of ${(1 / ratio).toFixed(1)} is everything an idealised tube sizing leaves out. Local loads at every cell attachment and cover fitting. Wire bracing and its terminations. The fact that a real airship longitudinal is a LATTICE of small tubes rather than one large one, because a 151 mm single tube at four plies cannot be handled, drilled or joined. Handling and assembly loads, which for a structure this light are frequently larger than the flight loads. The model keeps BOTH numbers and uses the heavier one.`
-        : `Sizing the members from the gust moment gives ${bottomUp.toFixed(0)} kg; scaling the Hindenburg's framework share gives ${scalingEstimate.toFixed(0)} kg. A ratio of ${ratio.toFixed(2)}, and the bottom-up figure is HEAVIER, which is the wrong direction: an idealised sizing should be a floor. Either the moment is too large, the allowable is too low, or the scaling estimate is optimistic. This needs resolving before the frame mass is used for anything.`,
+        : `Sizing the members from the gust moment gives ${bottomUp.toFixed(0)} kg; scaling Akron's measured framework share gives ${scalingEstimate.toFixed(0)} kg. A ratio of ${ratio.toFixed(2)}, and the bottom-up figure is HEAVIER, which is the wrong direction for an idealised sizing.
+
+THE LIKELY CAUSE IS THE SECTION, and it is the one thing this sizing cannot model. A real airship longitudinal is a LATTICE GIRDER: a triangular or square arrangement of small chords with diagonal bracing between them, and its depth comes from the lattice geometry rather than from a tube wall. This calculation models it as ONE LARGE TUBE, and at the four ply minimum practical laminate a single 151 mm tube carries far more material than four 30 mm chords of the same overall depth. Ebner (NACA TM 872) describes the lattice arrangement and it is what every rigid airship used.
+
+So the honest reading is that the bottom-up figure is an over-estimate of a structure nobody would build that way, and the historical share is the better number until somebody builds a bay and weighs it. The model uses the historical share, and carries the difference as margin rather than banking it.`,
   }
 }

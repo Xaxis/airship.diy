@@ -223,6 +223,7 @@ export default function Page() {
               <>
                 <Th>Longitudinals</Th>
                 <Th align="right">Bay</Th>
+                <Th align="right">a/s</Th>
                 <Th align="right">Section</Th>
                 <Th align="right">Plies</Th>
                 <Th align="right">Allowable</Th>
@@ -230,7 +231,7 @@ export default function Page() {
                 <Th align="right">Frame mass</Th>
               </>
             }
-            caption={`Every configuration lands on the four ply minimum practical laminate, with reserve factors of ${frame.chosen ? frame.chosen.reserveFactor.toFixed(0) : ''} and above. THE HULL GIRDER MOMENT DOES NOT SIZE THIS FRAME: what you can lay up does. So each of these masses is a floor rather than an estimate, and doubling the longitudinal count doubles the mass while buying nothing.`}
+            caption={`Every configuration lands on the four ply minimum practical laminate. THE HULL GIRDER MOMENT DOES NOT SIZE THIS FRAME: what you can lay up does, so each of these masses is a floor rather than an estimate. a/s is the panel aspect ratio, ring spacing over longitudinal spacing, and it is the invariant R38 violated: every rigid airship that did not break sat between 1.31 and 1.81, and R38 was at 4.59 when it broke in half on acceptance trials killing 44. More longitudinals demand SHORTER bays to stay in band, which is why the mass climbs so fast: the rings outweigh the longitudinals by more than two to one.`}
           >
             {frame.schedules.map((s) => (
               <Tr key={`${s.longitudinals}-${s.spacing}`}>
@@ -241,6 +242,14 @@ export default function Page() {
                   ) : null}
                 </Td>
                 <Td align="right">{s.spacing} m</Td>
+                <Td
+                  align="right"
+                  tone={
+                    s.panelAspectRatio >= 1.31 && s.panelAspectRatio <= 1.81 ? 'pass' : 'fail'
+                  }
+                >
+                  {s.panelAspectRatio.toFixed(2)}
+                </Td>
                 <Td align="right">
                   {(s.diameter * 1000).toFixed(0)} × {(s.wall * 1000).toFixed(1)} mm
                 </Td>

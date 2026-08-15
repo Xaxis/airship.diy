@@ -80,3 +80,6 @@ export type { FittingKind, Fitting, Room } from './fitout.js'
 export { FITOUT } from './fitout.js'
 export type { RoomAssessment, HabitatAssessment } from './habitat.js'
 export { assessRoom, assessHabitat } from './habitat.js'
+
+export type { Severity as FailureSeverity, FailureMode, FailureSummary } from './failure.js'
+export { failureModes, failureSummary } from './failure.js'
