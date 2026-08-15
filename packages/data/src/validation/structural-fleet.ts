@@ -245,3 +245,84 @@ export const STRUCTURAL_SCALING = {
   /** The theoretical area law, if structure were purely a surface problem. */
   theoreticalAreaLaw: 2 / 3,
 } as const
+
+/**
+ * The pressure-stabilised ships, kept separate from the rigid fleet above
+ * because they are a different architecture and mixing them is how the
+ * semi-rigid mass advantage gets asserted without evidence.
+ *
+ * THE POINT OF THIS TABLE IS THAT IT DOES NOT SETTLE THE QUESTION. Two
+ * semi-rigids exist with published empty weights, they differ by 1.6 to 1 on the
+ * stable metric, and they straddle zero advantage against the rigid fleet:
+ *
+ *   Roma is the only semi-rigid ever built at the volume this project is
+ *   designing for, and at 0.456 kg/m3 it beats every rigid in the table above.
+ *
+ *   The Zeppelin NT is the only one built in the last ninety years, and at 0.728
+ *   it is worse than every rigid except R101, and statistically
+ *   indistinguishable from the Goodyear GZ-20A NON-RIGID it replaced.
+ *
+ * So the honest answer to "is semi-rigid lighter" at 33,000 m3 is that nobody
+ * knows, and any model that produces a confident saving is producing it from
+ * assumptions rather than from data.
+ */
+export interface PressureStabilisedEntry {
+  readonly id: string
+  readonly name: string
+  readonly year: number
+  readonly architecture: 'semi-rigid' | 'non-rigid'
+  readonly gasVolume: number
+  readonly emptyWeight: number
+  readonly emptyWeightPerGasVolume: number
+  readonly note: string
+}
+
+export const PRESSURE_STABILISED_FLEET: readonly PressureStabilisedEntry[] = [
+  {
+    id: 'roma',
+    name: 'Roma (T-34)',
+    year: 1921,
+    architecture: 'semi-rigid',
+    gasVolume: 33810,
+    emptyWeight: 15400,
+    emptyWeightPerGasVolume: 0.4555,
+    note: 'THE ONLY SEMI-RIGID EVER BUILT AT THIS PROJECT’S VOLUME, within 3 percent of the 32,968 m3 baseline. 125 m long, 25 m diameter, 34,500 kg gross. At 0.456 kg/m3 it beats every rigid in the fleet table. It also crashed in 1922 killing 34, after its gas cells shifted and it lost control, which is a damage-tolerance failure rather than a structural one.',
+  },
+  {
+    id: 'zeppelin-nt',
+    name: 'Zeppelin NT LZ N07-100',
+    year: 1997,
+    architecture: 'semi-rigid',
+    gasVolume: 8450,
+    emptyWeight: 6150,
+    emptyWeightPerGasVolume: 0.7278,
+    note: 'The only semi-rigid built in ninety years, and four times smaller than the baseline. Its 1,000 kg carbon and aluminium truss is the one published semi-rigid primary structure mass there is. CORRECTION TO A PUBLISHED FIGURE: the widely quoted 10,690 kg gross weight is impossible, because 8,450 m3 of helium at ISA with 26 percent ballonet inflation lifts about 6,600 kg and even a fully deflated envelope gives 8,920. Two German-language sources give 8,045 to 8,050 kg, and the empty weight here is derived from that.',
+  },
+  {
+    id: 'gz-20a',
+    name: 'Goodyear GZ-20A',
+    year: 1969,
+    architecture: 'non-rigid',
+    gasVolume: 5740,
+    emptyWeight: 4252,
+    emptyWeightPerGasVolume: 0.7408,
+    note: 'The blimp the Zeppelin NT replaced, and the reason the NT figure is not evidence of a semi-rigid advantage: the two are within 2 percent of each other on the stable metric. Whatever the truss buys, it does not show up here.',
+  },
+] as const
+
+/**
+ * What the pressure-stabilised fleet actually supports.
+ *
+ * A well-supported no. Use this rather than a point estimate anywhere the
+ * semi-rigid mass advantage is claimed.
+ */
+export const SEMI_RIGID_ADVANTAGE = {
+  /** Roma, at the baseline's own volume. */
+  best: 0.4555,
+  /** Zeppelin NT, the only modern one. */
+  worst: 0.7278,
+  /** The non-rigid the modern one replaced, for scale. */
+  nonRigidComparator: 0.7408,
+  spread: 0.7278 / 0.4555,
+  note: 'Two data points 1.6 to 1 apart, straddling zero advantage against the rigid fleet. There is no defensible number for the semi-rigid mass saving at 33,000 m3.',
+} as const

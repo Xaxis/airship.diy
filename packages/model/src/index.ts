@@ -52,7 +52,9 @@ export {
 } from './architectures.js'
 export {
   structuralMass,
+  SEMI_RIGID_MASS_UNCERTAINTY,
   pressureStabilisedLimit,
   buoyancyControlCost,
+  fillFractionForSuperheat,
   compareArchitecture,
 } from './architecture.js'

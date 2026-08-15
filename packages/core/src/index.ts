@@ -136,13 +136,14 @@ export {
   PROPULSIVE_EFFICIENCY,
 } from './aerodynamics/drag.js'
 
-export type { LiftingBodyGeometry, HullLift, HybridLiftPenalty } from './aerodynamics/lifting-body.js'
+export type { LiftingBodyGeometry, HullLift, HybridLiftPenalty, StationKeepingPower } from './aerodynamics/lifting-body.js'
 export {
   liftCurveSlope,
   liftingBodyGeometry,
   diaphragmArea,
   hullLift,
   minimumFlyingSpeed,
+  stationKeepingPower,
   hybridLiftPenalty,
 } from './aerodynamics/lifting-body.js'
 

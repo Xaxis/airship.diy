@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   diaphragmArea,
+  stationKeepingPower,
   hullLift,
   hybridLiftPenalty,
   liftCurveSlope,
@@ -88,20 +89,44 @@ describe('hull lift', () => {
     expect(eight / four).toBeGreaterThan(2)
   })
 
-  it('produces lift of the right order for the real vehicle', () => {
-    // The Airlander is up to 13.3 t heavy at maximum takeoff weight. At cruise
-    // and a moderate incidence the hull has to find that, and it does.
-    const lift = hullLift(AIRLANDER, rad((8 * Math.PI) / 180), q).lift
-    expect(lift / 9.80665).toBeGreaterThan(10000)
-    expect(lift / 9.80665).toBeLessThan(60000)
+  it('reproduces the AAIB figure of 40 percent of weight at cruise', () => {
+    // THE CALIBRATION, and it is checked rather than asserted. 28 m/s and 12
+    // degrees should give about 40 percent of the Airlander's 33,285 kg MTOW.
+    const lift = hullLift(AIRLANDER, rad((12 * Math.PI) / 180), q).lift
+    expect(lift / 9.80665 / 33285).toBeGreaterThan(0.33)
+    expect(lift / 9.80665 / 33285).toBeLessThan(0.47)
   })
 
-  it('pays for it in induced drag that rivals the whole hull drag', () => {
-    // At AR 0.65 there is no cheap lift. This is why a hybrid-lift vehicle burns fuel to
-    // stay up in a way an airship does not.
-    const at8 = hullLift(AIRLANDER, rad((8 * Math.PI) / 180), q)
-    expect(at8.inducedDragCoefficient).toBeGreaterThan(0.01)
-    expect(at8.liftToInducedDrag).toBeLessThan(20)
+  it('reproduces 5 percent of weight at the vehicle\'s own loiter speed', () => {
+    // The SAME coefficient, at 20 knots. Lift goes as the square of speed, so
+    // one calibration has to satisfy both conditions or it is not a
+    // calibration. This is the number that kills hybrid-lift for a
+    // station-keeper: the whole benefit is gone at loiter.
+    const loiter = 0.5 * 1.225 * 10.29 * 10.29
+    const lift = hullLift(AIRLANDER, rad((12 * Math.PI) / 180), loiter).lift
+    expect(lift / 9.80665 / 33285).toBeGreaterThan(0.03)
+    expect(lift / 9.80665 / 33285).toBeLessThan(0.08)
+  })
+
+  it('achieves about a third of what a thin wing of the same aspect ratio would', () => {
+    // A hull is a thick body, not a lifting surface. Using the thin-wing slope
+    // flattered hybrid-lift by a factor of three.
+    const thinWing = liftCurveSlope(AIRLANDER.aspectRatio)
+    const actual =
+      hullLift(AIRLANDER, rad(0.01), 1).liftCoefficient / 0.01
+    expect(actual / thinWing).toBeGreaterThan(0.2)
+    expect(actual / thinWing).toBeLessThan(0.45)
+  })
+
+  it('uses the MEASURED induced drag law, not the elliptical ideal', () => {
+    // CDi = 1.976 CL^2 on planform, from NACA TR-432 and NASA CR-137691. The
+    // textbook CL^2/(pi AR e) with e near unity gives 0.516 CL^2 at this
+    // aspect ratio, so the ideal is optimistic by a factor of 3.8 on the term
+    // that decides whether hybrid-lift can be afforded.
+    const at12 = hullLift(AIRLANDER, rad((12 * Math.PI) / 180), q)
+    const ideal =
+      (at12.liftCoefficient * at12.liftCoefficient) / (Math.PI * AIRLANDER.aspectRatio * 0.95)
+    expect(at12.inducedDragCoefficient / ideal).toBeCloseTo(3.8, 0)
   })
 
   it('refuses to extrapolate past its validity range', () => {
@@ -120,13 +145,27 @@ describe('the minimum flying speed, which is the mission question', () => {
     expect(heavy / light).toBeCloseTo(2, 1)
   })
 
-  it('forces a meaningful cruise on a vehicle carrying real heaviness', () => {
+  it('forces a real cruise on a vehicle carrying real heaviness', () => {
     // The Airlander at maximum takeoff weight is 13.3 t heavy and has to hold
     // this or come down. A station-keeping liveaboard cannot pay that bill for
     // a year: the power goes as the cube of it.
     const speed = minimumFlyingSpeed(AIRLANDER, 13285, 1.225)
-    expect(speed).toBeGreaterThan(12)
-    expect(speed).toBeLessThan(22)
+    expect(speed).toBeGreaterThan(20)
+    expect(speed).toBeLessThan(40)
+  })
+
+  it('costs an order of magnitude more power than flying neutrally buoyant', () => {
+    // The comparison that settles it. 20 percent heavy on the baseline hull
+    // needs a couple of hundred kilowatts continuously; the same hull neutrally
+    // buoyant needs about ten to push against the same wind, and nothing at all
+    // in still air.
+    const OURS = liftingBodyGeometry(m(115), m(58), m(27), 3)
+    const heavy = stationKeepingPower(OURS, 4900, 1.0065, 8)
+    expect(heavy.heavyPower).toBeGreaterThan(150000)
+    expect(heavy.ratio).toBeGreaterThan(10)
+    const neutral = stationKeepingPower(OURS, 0, 1.0065, 8)
+    expect(neutral.heavyPower).toBe(0)
+    expect(neutral.buoyantPower).toBeLessThan(20000)
   })
 })
 

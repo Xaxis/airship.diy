@@ -5,6 +5,8 @@ import {
   BASELINE,
   BASELINE_ARRANGEMENT,
   buoyancyControlCost,
+  fillFractionForSuperheat,
+  SEMI_RIGID_MASS_UNCERTAINTY,
   compareArchitecture,
   hullBendingMoment,
   massStatement,
@@ -119,18 +121,41 @@ describe('structural mass, calibrated', () => {
 describe('buoyancy control, which settles the variable-buoyancy question', () => {
   const AUTHORITY = 2000
 
-  it('makes gas compression forty times heavier than water for the same authority', () => {
-    const water = buoyancyControlCost('water-ballast', AUTHORITY, 'hydrogen')
+  it('is NOT beaten by water on mass, which is what the first version claimed', () => {
+    // The correction. Against water that has to be CARRIED, compression at 17
+    // bar in Mirai-grade composite is slightly lighter, not forty times heavier.
+    // Higher storage pressure makes it worse, not better, because hydrogen's
+    // compressibility factor rises with pressure.
+    const carried = buoyancyControlCost('water-ballast', AUTHORITY, 'hydrogen', true)
     const compression = buoyancyControlCost('gas-compression', AUTHORITY, 'hydrogen')
-    expect(compression.systemMass / water.systemMass).toBeGreaterThan(30)
+    expect(compression.massRatio).toBeLessThan(carried.massRatio)
+    expect(compression.massRatio).toBeGreaterThan(0.7)
   })
 
-  it('costs about a megajoule per kilogram of lift traded, against ten joules for water', () => {
+  it('loses on RATE instead, by three orders of magnitude', () => {
+    // A compressor moves 0.16 kg of heaviness per minute per kilowatt. A
+    // seawater pump moves 214. That is the difference between hours and
+    // seconds, and it is what makes compression useless for a landing, a gust
+    // or a storm.
     const water = buoyancyControlCost('water-ballast', AUTHORITY, 'hydrogen')
     const compression = buoyancyControlCost('gas-compression', AUTHORITY, 'hydrogen')
-    expect(compression.energyPerKilogram).toBeGreaterThan(5e5)
-    expect(compression.energyPerKilogram).toBeLessThan(2e6)
-    expect(compression.energyPerKilogram / water.energyPerKilogram).toBeGreaterThan(1e4)
+    expect(water.ratePerKilowatt / compression.ratePerKilowatt).toBeGreaterThan(1000)
+  })
+
+  it('costs a thousand times the energy per kilogram traded', () => {
+    const water = buoyancyControlCost('water-ballast', AUTHORITY, 'hydrogen')
+    const compression = buoyancyControlCost('gas-compression', AUTHORITY, 'hydrogen')
+    expect(compression.energyPerKilogram / water.energyPerKilogram).toBeGreaterThan(1000)
+  })
+
+  it('is beaten outright by a lower fill fraction for the diurnal case', () => {
+    // The answer with no machinery, no energy and no failure mode. A partially
+    // full cell expands freely, so leaving room at fill absorbs the whole day's
+    // superheat. It costs gross lift and nothing else.
+    const f = fillFractionForSuperheat(20, 0.85)
+    expect(f.fillFraction).toBeLessThan(0.85)
+    expect(f.fillFraction).toBeGreaterThan(0.75)
+    expect(f.liftGivenUp).toBeLessThan(0.08)
   })
 
   it('is the only non-renewable option, which is the argument FOR it', () => {
@@ -138,6 +163,18 @@ describe('buoyancy control, which settles the variable-buoyancy question', () =>
     // is the other way round, and this vehicle lives over an ocean.
     expect(buoyancyControlCost('gas-compression', AUTHORITY, 'hydrogen').renewable).toBe(false)
     expect(buoyancyControlCost('water-ballast', AUTHORITY, 'hydrogen').renewable).toBe(true)
+  })
+
+  it('has no defensible mass saving for semi-rigid at this size, and says so', () => {
+    // A well-supported no. Roma at 33,810 m3 came in at 0.456 kg/m3, better than
+    // every rigid in the fleet. The Zeppelin NT is 0.728, worse than every rigid
+    // except R101 and indistinguishable from the non-rigid it replaced. The two
+    // straddle zero advantage.
+    expect(SEMI_RIGID_MASS_UNCERTAINTY.spread).toBeGreaterThan(1.5)
+    expect(SEMI_RIGID_MASS_UNCERTAINTY.romaPerVolume).toBeLessThan(
+      SEMI_RIGID_MASS_UNCERTAINTY.zeppelinNtPerVolume,
+    )
+    expect(at('semi-rigid').structure.note).toContain('NOT DEMONSTRABLE')
   })
 
   it('costs more for helium than hydrogen, because helium releases less lift per kg', () => {

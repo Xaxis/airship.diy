@@ -54,9 +54,11 @@ export {
 export type { HistoricalShip } from './validation/historical-ships.js'
 export { HISTORICAL_SHIPS, ZEPPELIN_NT } from './validation/historical-ships.js'
 
-export type { FleetEntry } from './validation/structural-fleet.js'
+export type { FleetEntry, PressureStabilisedEntry } from './validation/structural-fleet.js'
 export {
   STRUCTURAL_FLEET,
+  PRESSURE_STABILISED_FLEET,
+  SEMI_RIGID_ADVANTAGE,
   EMPTY_WEIGHT_PER_GAS_VOLUME,
   STRUCTURAL_SCALING,
 } from './validation/structural-fleet.js'

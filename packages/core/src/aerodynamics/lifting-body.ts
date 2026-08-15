@@ -64,6 +64,30 @@ export const liftCurveSlope = (aspectRatio: number): number =>
  */
 const VORTEX_LIFT_FRACTION = 0.6
 
+/**
+ * How much of the thin-wing lift curve slope a thick lobed HULL actually
+ * achieves.
+ *
+ * @source Anchored on the Airlander 10, twice, and the two anchors agree.
+ * The AAIB records 40 percent of weight carried aerodynamically at cruise, and
+ * the manufacturer's loiter speed is 20 knots. A single lift coefficient of
+ * 0.07 at 12 degrees reproduces BOTH: 39.6 percent of MTOW at 28 m/s and 5.4
+ * percent at 10.29 m/s, because lift goes as the square of speed and the two
+ * conditions differ only in dynamic pressure.
+ *
+ * That coefficient implies an effective lift curve slope of 0.307 per radian,
+ * against the 0.995 Helmbold gives for an aspect ratio of 0.65. So a lobed hull
+ * achieves 31 percent of what a thin wing of the same aspect ratio would.
+ *
+ * IT IS NOT A FUDGE, IT IS THE DIFFERENCE BETWEEN A WING AND A BODY. Helmbold
+ * describes a thin lifting surface; a hull is a thick body whose planform area
+ * includes a great deal of volume that is not making lift, and whose flow
+ * separates well before a wing's would. Using the thin-wing figure flattered
+ * hybrid-lift by a factor of three on the term that decides whether it can be
+ * afforded, and this module did exactly that in its first version.
+ */
+const HULL_LIFT_EFFICIENCY = 0.31
+
 /** @source Airship hulls run out of usable incidence around 20 degrees. */
 const MAXIMUM_USABLE_INCIDENCE = (20 * Math.PI) / 180
 
@@ -237,12 +261,27 @@ export const hullLift = (
   const s = Math.sin(incidence)
   const c = Math.cos(incidence)
 
-  const liftCoefficient = slope * s * c + VORTEX_LIFT_FRACTION * slope * s * Math.abs(s) * c
+  const effective = slope * HULL_LIFT_EFFICIENCY
+  const liftCoefficient =
+    effective * s * c + VORTEX_LIFT_FRACTION * effective * s * Math.abs(s) * c
 
-  /** @source Span efficiency of an elliptical planform, close to unity. */
-  const SPAN_EFFICIENCY = 0.95
+  /**
+   * @source MEASURED induced drag of an airship hull at incidence, not the
+   * elliptical-planform ideal. NACA TR-432 and NASA CR-137691 give
+   * CDi = 1.976 * CL^2 referenced to planform area for a lifting-body hull.
+   *
+   * The ideal CL^2/(pi AR e) with e near unity gives 0.516 * CL^2 at this
+   * aspect ratio, so the textbook figure is optimistic by a factor of 3.8. A
+   * hull is not an elliptically loaded wing: it sheds vorticity along its whole
+   * length rather than off two tips, and the span efficiency that implies is
+   * 0.26 rather than 0.95.
+   *
+   * This module used the ideal form first, and it flattered hybrid-lift by
+   * nearly four times on the term that decides whether it can be afforded.
+   */
+  const MEASURED_INDUCED_DRAG_FACTOR = 1.976
   const inducedDragCoefficient =
-    (liftCoefficient * liftCoefficient) / (Math.PI * geometry.aspectRatio * SPAN_EFFICIENCY)
+    MEASURED_INDUCED_DRAG_FACTOR * liftCoefficient * liftCoefficient
 
   const lift = liftCoefficient * dynamicPressure * geometry.planformArea
   const inducedDrag = inducedDragCoefficient * dynamicPressure * geometry.planformArea
@@ -285,6 +324,77 @@ export const minimumFlyingSpeed = (
   if (clMax <= 0) return Infinity
 
   return Math.sqrt((2 * weight) / (airDensity * geometry.planformArea * clMax))
+}
+
+/**
+ * Zero-lift drag coefficient of an airship hull on volume^(2/3).
+ *
+ * @source NACA TR-432. The value the hybrid-lift power comparison needs, and it
+ * is the same reference the conventional drag module uses.
+ */
+const HULL_ZERO_LIFT_DRAG = 0.024
+
+/** @source Propeller plus drivetrain, for an electric vehicle at low speed. */
+const PROPULSIVE_EFFICIENCY = 0.75
+
+export interface StationKeepingPower {
+  /** Continuous shaft power a heavy vehicle needs just to stay up, W. */
+  readonly heavyPower: number
+  /** Speed it must hold to do it, m/s. */
+  readonly speed: number
+  /** What the same hull needs neutrally buoyant, in the same wind, W. */
+  readonly buoyantPower: number
+  readonly ratio: number
+  readonly verdict: string
+}
+
+/**
+ * The comparison that settles hybrid-lift for a station-keeping mission.
+ *
+ * A vehicle flying 20 percent heavy must hold its minimum flying speed
+ * continuously, and propulsive power goes as the CUBE of speed. The same hull
+ * flown neutrally buoyant needs only to push against the wind, and in still air
+ * it needs nothing at all.
+ *
+ * @source Calibrated against the Airlander: at its own 20 kt loiter speed the
+ * hull provides 5.0 percent of MTOW aerodynamically, and 1.2 percent at 5 m/s.
+ * The architecture's entire benefit evaporates at exactly the condition a
+ * liveaboard spends its life in.
+ */
+export const stationKeepingPower = (
+  geometry: LiftingBodyGeometry,
+  heaviness: number,
+  airDensity: number,
+  windSpeed: number,
+): StationKeepingPower => {
+  const speed = minimumFlyingSpeed(geometry, heaviness, airDensity)
+
+  const powerAt = (v: number, carryLift: boolean): number => {
+    const q = 0.5 * airDensity * v * v
+    const parasite = HULL_ZERO_LIFT_DRAG * q * Math.pow(geometry.volume, 2 / 3)
+    if (!carryLift) return (parasite * v) / PROPULSIVE_EFFICIENCY
+    /** @source Standard gravity, turning the heaviness into a lift requirement. */
+    const g = 9.80665
+    const cl = (heaviness * g) / (q * geometry.planformArea)
+    /** @source The measured induced drag law, NACA TR-432 / NASA CR-137691. */
+    const MEASURED_INDUCED_DRAG_FACTOR = 1.976
+    const induced = MEASURED_INDUCED_DRAG_FACTOR * cl * cl * q * geometry.planformArea
+    return ((parasite + induced) * v) / PROPULSIVE_EFFICIENCY
+  }
+
+  const heavyPower = heaviness > 0 && Number.isFinite(speed) ? powerAt(speed, true) : 0
+  const buoyantPower = powerAt(windSpeed, false)
+
+  return {
+    heavyPower,
+    speed,
+    buoyantPower,
+    ratio: buoyantPower === 0 ? Infinity : heavyPower / buoyantPower,
+    verdict:
+      heaviness <= 0
+        ? `Neutrally buoyant: ${(buoyantPower / 1000).toFixed(1)} kW to hold station against ${windSpeed} m/s, and nothing at all in still air.`
+        : `${(heavyPower / 1000).toFixed(0)} kW continuously to hold ${speed.toFixed(1)} m/s and stay up, against ${(buoyantPower / 1000).toFixed(1)} kW for the same hull flown neutrally buoyant in the same ${windSpeed} m/s wind. A factor of ${(heavyPower / buoyantPower).toFixed(0)}. There is no wind at which the heavy vehicle is cheaper, because the buoyant one pays only for the wind and the heavy one pays for the wind AND for staying up.`,
+  }
 }
 
 export interface HybridLiftPenalty {

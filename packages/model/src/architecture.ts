@@ -6,7 +6,7 @@ import {
   liftingBodyGeometry,
   minimumFlyingSpeed,
 } from '@airship/core'
-import { EMPTY_WEIGHT_PER_GAS_VOLUME } from '@airship/data'
+import { EMPTY_WEIGHT_PER_GAS_VOLUME, SEMI_RIGID_ADVANTAGE } from '@airship/data'
 import { m, m2 } from '@airship/units'
 
 /**
@@ -117,21 +117,55 @@ const RIGID_FRAME_PER_VOLUME =
   EMPTY_WEIGHT_PER_GAS_VOLUME.hindenburg * 0.47 * 0.62
 
 /**
- * Semi-rigid keel mass coefficient, kg per kilogram of gross weight per metre of
- * length.
+ * Semi-rigid keel truss mass per cubic metre of envelope, kg/m3.
  *
  * @source Calibrated on the Zeppelin NT: a 1,000 kg carbon-and-aluminium
- * triangular truss in a 75 m vehicle of 10,690 kg gross weight gives
- * 1.247e-6 kg/(kg m).
+ * triangular truss in an 8,450 m3 envelope gives 0.1183 kg/m3. The truss mass is
+ * the manufacturer's own figure and it is the TRUSS ONLY: not the envelope, not
+ * the fins, not the gondola. Comparing it against the historical fleet's 0.505
+ * to 0.79 kg/m3, which are whole EMPTY WEIGHTS, is the single easiest way to get
+ * this trade wrong, and it is why the two are never mixed in this module.
  *
- * @derived The scaling is mass proportional to gross weight times length. A keel
- * beam carrying distributed load has a bending moment going as W*L, and a beam
- * of depth d needs mass proportional to M*L/(sigma*d). The depth available is
- * the hull diameter, which for a fixed fineness ratio goes as L, so the two
- * lengths cancel and the mass goes as W*L. It is a one-point calibration and
- * that is the honest description of it: there is one flying semi-rigid.
+ * @derived The scaling is mass proportional to VOLUME. A keel beam carrying
+ * distributed load has mass ~ M*L/((sigma/rho)*D); at fixed fineness and speed
+ * M ~ D^3 and L ~ D, so the mass goes as D^3, which is the volume.
+ *
+ * ONE FLYING DATA POINT. The Zeppelin NT is the only semi-rigid built in ninety
+ * years, and it is four times smaller than this vehicle. See
+ * SEMI_RIGID_MASS_UNCERTAINTY for what that is worth.
  */
-const SEMI_RIGID_KEEL_COEFFICIENT = 1000 / (10690 * 75)
+const SEMI_RIGID_KEEL_PER_VOLUME = 1000 / 8450
+
+/**
+ * What is actually known about the semi-rigid mass advantage at this size.
+ *
+ * A WELL-SUPPORTED NO. The two historical data points at or near 33,000 m3
+ * differ by 1.6 to 1 and STRADDLE ZERO ADVANTAGE:
+ *
+ *   Roma (T-34), 33,810 m3, the only semi-rigid ever built at this volume:
+ *   15,400 kg empty, 0.4555 kg/m3. Better than every rigid in the fleet table.
+ *
+ *   Zeppelin NT, 8,450 m3, the only one built since: 6,150 kg empty, 0.7278
+ *   kg/m3. Worse than every rigid except R101, and statistically
+ *   indistinguishable from the Goodyear GZ-20A NON-RIGID it replaced at 0.7408.
+ *
+ * So there is no defensible number for the semi-rigid mass saving at this size.
+ * The structural figure this module computes is a bottom-up estimate from the
+ * Zeppelin NT truss plus a pressure envelope, and it should be read as one
+ * plausible value inside a band that includes "no saving at all".
+ *
+ * The Zeppelin NT's own published gross weight also needs correcting before use:
+ * the English-language figure of 10,690 kg is impossible, because 8,450 m3 of
+ * helium at ISA with 26 percent ballonet inflation lifts about 6,600 kg and even
+ * a fully deflated envelope gives 8,920. Two German sources agree on 8,045 kg.
+ */
+export const SEMI_RIGID_MASS_UNCERTAINTY = {
+  romaPerVolume: SEMI_RIGID_ADVANTAGE.best,
+  zeppelinNtPerVolume: SEMI_RIGID_ADVANTAGE.worst,
+  goodyearGZ20aNonRigidPerVolume: SEMI_RIGID_ADVANTAGE.nonRigidComparator,
+  spread: SEMI_RIGID_ADVANTAGE.spread,
+  note: SEMI_RIGID_ADVANTAGE.note,
+} as const
 
 /**
  * Envelope areal mass for a pressure-stabilised hull, kg/m2.
@@ -323,7 +357,7 @@ export const structuralMass = (
       // A keel truss carrying the point loads into a pressure-stabilised
       // envelope. The truss is far lighter than a full frame; the envelope is
       // far heavier than a cover, and there are no independent cells.
-      const frame = SEMI_RIGID_KEEL_COEFFICIENT * grossWeight * length
+      const frame = SEMI_RIGID_KEEL_PER_VOLUME * gasVolume
       const envelope = wettedArea * PRESSURISED_ENVELOPE_AREAL_MASS
       /** @derived Ballonet fabric area scales with its share of the volume. */
       const ballonetArea = wettedArea * Math.pow(architecture.ballonetFraction, 2 / 3)
@@ -335,7 +369,7 @@ export const structuralMass = (
         containment,
         total,
         perVolume: total / gasVolume,
-        note: `Keel truss scaled from the Zeppelin NT's 1,000 kg at 75 m and 10,690 kg gross, a pressure-stabilised envelope that is structure rather than a cover, and ${(architecture.ballonetFraction * 100).toFixed(0)} percent ballonets. One gas volume: a tear does not lose a cell, it loses the ship.`,
+        note: `Keel truss scaled from the Zeppelin NT's 1,000 kg in 8,450 m3, a pressure-stabilised envelope that is structure rather than a cover, and ${(architecture.ballonetFraction * 100).toFixed(0)} percent ballonets. One gas volume: a tear does not lose a cell, it loses the ship. THE SAVING IS NOT DEMONSTRABLE at this size: Roma at 33,810 m3 came in at 0.456 kg/m3 and the Zeppelin NT at 0.728, a factor of 1.6 that straddles zero advantage.`,
       }
     }
 
@@ -396,6 +430,8 @@ export interface BuoyancyControlCost {
   readonly systemMass: number
   /** Energy to trade one kilogram of lift, J. */
   readonly energyPerKilogram: number
+  /** How fast heaviness can be changed, kg per minute per kW of input. */
+  readonly ratePerKilowatt: number
   /** How much mass this costs per kilogram of authority. */
   readonly massRatio: number
   readonly renewable: boolean
@@ -403,84 +439,128 @@ export interface BuoyancyControlCost {
 }
 
 /**
+ * Tank mass per kilogram of heaviness authority, for gas compression.
+ *
+ * @source Derived from a PRODUCTION vessel rather than a hoped-for one: the
+ * first-generation Toyota Mirai carries 122 litres at 70 MPa in 87.5 kg of Type
+ * IV COPV, which is a structural coefficient of 1.0246e-5 kg per joule of
+ * stored pressure-volume energy.
+ *
+ * THE COUNTERINTUITIVE PART, and the reason the first version of this got it
+ * wrong in the pessimistic direction: LOWER STORAGE PRESSURE IS BETTER. Tank
+ * mass per unit of heaviness goes as C * P0 * (Z_tank / Z_cell), and hydrogen's
+ * compressibility factor rises with pressure: 1.0 at ambient, 1.23 at 350 bar,
+ * 1.47 at 700. So 17 bar costs 0.856 kg/kg, 350 bar costs 1.04 and 700 bar
+ * costs 1.242. Storing at 250 bar with a hopeful gravimetric efficiency, which
+ * is what this module did first, produced 1.42 kg/kg and made compression look
+ * three times worse than it is.
+ */
+const COPV_MASS_PER_KILOGRAM_AT_17_BAR = 0.856
+
+/**
  * What it costs to be able to change static heaviness by a given amount.
  *
- * THE COMPARISON THAT KILLS COMPRESSION FOR THIS MISSION. Aeroscraft's COSH is
- * the right answer for a cargo airship over land that must unload without
- * taking on ballast. It is the wrong answer for a vehicle that lives over an
- * ocean, and the margin is not close.
+ * THE COMPARISON THAT SETTLES COMPRESSION FOR THIS MISSION, and it is not the
+ * one the first version of this module made. Compression is NOT forty times
+ * heavier than water: at 0.856 kg per kg of authority it is slightly LIGHTER
+ * than carrying the water would be, at 1.02.
+ *
+ * It loses on three other things instead, and each is decisive on its own:
+ *
+ *   RATE. A compressor moves 0.175 kg of heaviness per minute per kilowatt. A
+ *   seawater pump at 20 m of head moves 214. That is 1,224 to one, and it is
+ *   the difference between four and a half hours to shift a tonne and twenty
+ *   seconds.
+ *
+ *   THE DISTURBANCE IS DIURNAL, NOT SECULAR. The permeation drift compression
+ *   is imagined to correct is 1.1 kg of heaviness per day, which needs FOUR
+ *   AND A HALF WATTS. The real disturbance is the 20 K superheat swing, which
+ *   is 2,383 kg, and the cheapest answer to that is not a compressor at all: it
+ *   is a lower fill fraction, which costs gross lift and no energy, no mass and
+ *   no failure mode.
+ *
+ *   THE VEHICLE LANDS ON WATER. The moment it touches down it has unlimited
+ *   free ballast, which is precisely the case COSH exists to solve on a cargo
+ *   airship that has no such option.
  *
  * @param authority Lift change required, kg.
+ * @param carried True when the ballast must be carried rather than taken on in
+ *   flight. Over an ocean it is not; over a desert it is, and that is the whole
+ *   argument for compression.
  */
 export const buoyancyControlCost = (
   control: BuoyancyControl,
   authority: number,
   species: 'hydrogen' | 'helium',
+  carried = false,
 ): BuoyancyControlCost => {
   switch (control) {
     case 'water-ballast': {
       /** @source Water at 1000 kg/m3, in a tank of about 30 kg per m3 of capacity. */
       const TANK_MASS_PER_CUBIC_METRE = 30
-      /** @source Fresh water at 1000 kg/m3. Seawater is 2.5 percent denser. */
       const WATER_DENSITY = 1000
       const tankVolume = authority / WATER_DENSITY
-      const systemMass = tankVolume * TANK_MASS_PER_CUBIC_METRE
+      const systemMass = tankVolume * TANK_MASS_PER_CUBIC_METRE + (carried ? authority : 0)
       /**
-       * @derived Pumping water aboard from a metre below the surface costs
-       * rho*g*h per cubic metre, which is 10 kJ per tonne, or 10 J per kg. It
-       * rounds to nothing against everything else in this comparison.
+       * @derived Pumping seawater aboard from 20 m of head costs rho*g*h per
+       * cubic metre at pump efficiency, which is 287 J per kg. It rounds to
+       * nothing against a compressor's 343 kJ.
        */
-      const energyPerKilogram = 10
+      const energyPerKilogram = 287
+      /** @source 214 kg per minute per kW at 20 m head and 70 percent pump efficiency. */
+      const ratePerKilowatt = 214
       return {
         systemMass,
         energyPerKilogram,
+        ratePerKilowatt,
         massRatio: systemMass / authority,
         renewable: true,
-        note: `${tankVolume.toFixed(1)} m3 of tankage at ${systemMass.toFixed(0)} kg. Over an ocean the ballast is free, unlimited, and the same water the electrolyzer and the crew are already using. Rain refills it.`,
+        note: carried
+          ? `${authority.toFixed(0)} kg of water in ${tankVolume.toFixed(1)} m3 of tankage, carried. Over land the ballast has to come along, and then it is the water itself that costs, not the tank.`
+          : `${tankVolume.toFixed(1)} m3 of tankage at ${systemMass.toFixed(0)} kg, and the water is taken on from the sea. Unlimited, free, and the same water the electrolyzer and the crew already use. ${ratePerKilowatt} kg per minute per kilowatt of pump.`,
       }
     }
 
     case 'ballonet-air': {
       /**
        * @derived Air ballast changes lift by displacing lifting gas rather than
-       * by adding mass, so the authority is limited to the ballonet volume
-       * times the specific lift. The fan work is the pressure rise times the
-       * volume, which at 500 Pa and 1.14 kg of lift per m3 is 440 J per kg.
+       * by adding mass, so the authority is hard-limited to the ballonet volume
+       * times the specific lift. Fan work is the pressure rise times the volume:
+       * at 500 Pa and 1.14 kg of lift per m3 that is 440 J per kg.
        */
       const energyPerKilogram = 440
-      /** @source A ballonet fan and its ducting, per kg/s of air moved. */
+      /** @source A ballonet fan and its ducting. */
       const systemMass = 60
+      /** @derived A fan moving 1 m3/s at 500 Pa shifts 1.14 kg of lift per second. */
+      const ratePerKilowatt = 137
       return {
         systemMass,
         energyPerKilogram,
+        ratePerKilowatt,
         massRatio: systemMass / authority,
         renewable: true,
-        note: 'A fan and a valve. Almost free, and hard-limited to the ballonet volume, so it trims rather than lifts. It cannot make the vehicle heavy enough to sit on the ground.',
+        note: 'A fan and a valve. Almost free, fast, and hard-limited to the ballonet volume, so it trims rather than lifts. It cannot make the vehicle heavy enough to sit on the ground.',
       }
     }
 
     case 'gas-compression': {
-      /**
-       * @derived Isothermal compression work is n*R*T*ln(p2/p1). For hydrogen
-       * at 293 K from 1 bar to 250 bar that is 6.67 MJ per kg of gas. Removing
-       * 1 kg of hydrogen from a cell at ambient shrinks it by 11.74 m3, which
-       * is 13.4 kg of lift, so the work is 0.50 MJ per kg of lift. A real
-       * multi-stage compressor manages about half of isothermal, so 1.0 MJ.
-       */
       /** @source Molar masses: hydrogen 2.016 g/mol, helium 4.003 g/mol. */
       const molarMass = species === 'hydrogen' ? 0.002016 : 0.004003
       /** @source Densities at ISA sea level: hydrogen 0.0852, helium 0.1691 kg/m3. */
       const gasDensity = species === 'hydrogen' ? 0.0852 : 0.1691
       /** @source The SI molar gas constant. */
       const R = 8.314462618
-      /** @source 20 C, the temperature a compressor intercooler returns the gas to. */
+      /** @source 20 C, the temperature an intercooler returns the gas to. */
       const T = 293.15
-      /** @source Storage at 250 bar, which is where COPV mass fraction is still tolerable. */
-      const pressureRatio = 250
+      /**
+       * @source 17 bar rather than 250. A rotary screw compressor reaches 250
+       * psig in one stage, and hydrogen's compressibility makes higher pressure
+       * WORSE per kilogram of authority, so there is no reason to go higher.
+       */
+      const pressureRatio = 17
       const workPerKilogramOfGas = (R * T * Math.log(pressureRatio)) / molarMass
-      /** @source Multi-stage intercooled compressors reach about half of isothermal. */
-      const compressorEfficiency = 0.5
-      /** @derived Lift released per kg of gas removed at ambient. */
+      /** @source Multi-stage intercooled compressors reach about 68 percent of isentropic. */
+      const compressorEfficiency = 0.68
       /** @source ISA sea level air density, against which the gas lifts. */
       const AIR_DENSITY = 1.225
       const liftPerKilogramOfGas = (1 / gasDensity) * (AIR_DENSITY - gasDensity)
@@ -488,26 +568,63 @@ export const buoyancyControlCost = (
         workPerKilogramOfGas / compressorEfficiency / liftPerKilogramOfGas
 
       /**
-       * @source COPV gravimetric efficiency at 250 bar is about 5.5 percent of
-       * stored gas mass to tank mass for hydrogen, which is the figure the
-       * automotive sector reaches at 700 bar and is optimistic at 250.
+       * @derived The COPV coefficient is calibrated on hydrogen. Helium stores
+       * more mass per unit of pressure-volume energy because it is denser, so
+       * the tank is heavier per kilogram of lift released by the same factor.
        */
-      const COPV_GRAVIMETRIC_EFFICIENCY = 0.055
-      const gasStored = authority / liftPerKilogramOfGas
-      const tankMass = gasStored / COPV_GRAVIMETRIC_EFFICIENCY
-      /** @source A compressor and its drive, per kW. Sized at 5 kW here. */
+      const HYDROGEN_DENSITY = 0.0852
+      const scale = species === 'hydrogen' ? 1 : gasDensity / HYDROGEN_DENSITY
+      const tankMass = authority * COPV_MASS_PER_KILOGRAM_AT_17_BAR * scale
+      /**
+       * @source Aeros publishes no COSH machinery mass at all: not in the
+       * patent, not on the site, nowhere. This is a placeholder for a compressor
+       * and its drive and it is the largest unquantified hole in this branch.
+       */
       const COMPRESSOR_MASS = 120
       const systemMass = tankMass + COMPRESSOR_MASS
+
+      /** @derived 60 seconds over the specific work, per kilowatt. */
+      const ratePerKilowatt = 60000 / energyPerKilogram
 
       return {
         systemMass,
         energyPerKilogram,
+        ratePerKilowatt,
         massRatio: systemMass / authority,
         renewable: false,
-        note: `${gasStored.toFixed(0)} kg of ${species} in ${tankMass.toFixed(0)} kg of composite pressure vessel, plus a compressor. It never runs out, which is the argument for it, and it weighs ${(systemMass / buoyancyControlCost('water-ballast', authority, species).systemMass).toFixed(0)} times what the same authority in water tankage does.`,
+        note: `${tankMass.toFixed(0)} kg of Type IV composite vessel at 17 bar, plus a compressor whose mass nobody has published. It never runs out, which is the argument for it. It moves ${ratePerKilowatt.toFixed(2)} kg per minute per kilowatt against a seawater pump's 214, so shifting a tonne takes hours rather than seconds.`,
       }
     }
   }
+}
+
+/**
+ * Fill fraction that absorbs a superheat swing without any machinery at all.
+ *
+ * THE ANSWER THAT BEATS EVERY BUOYANCY CONTROL SYSTEM FOR THE DIURNAL CASE, and
+ * it has no moving parts, no energy cost and no failure mode.
+ *
+ * A partially full cell expands freely, so superheat costs volume rather than
+ * pressure. Leave enough room at fill and the day's expansion simply fills it,
+ * with no valving and no compression. The price is gross lift: the cells are
+ * smaller all the time to be safe some of the time.
+ *
+ * For the baseline that is 0.85 down to about 0.77, which costs a few percent of
+ * gross lift and answers a 2,383 kg swing that a compressor would need two
+ * tonnes of tankage and 28 kW to fight.
+ *
+ * @param designSuperheat K.
+ * @param currentFillFraction The fill fraction before the allowance.
+ */
+export const fillFractionForSuperheat = (
+  designSuperheat: number,
+  currentFillFraction: number,
+  /** @source ISA sea level temperature. */
+  ambientTemperature = 288.15,
+): { fillFraction: number; liftGivenUp: number } => {
+  const expansion = designSuperheat / ambientTemperature
+  const fillFraction = currentFillFraction / (1 + expansion)
+  return { fillFraction, liftGivenUp: currentFillFraction - fillFraction }
 }
 
 // --------------------------------------------------------------------------
