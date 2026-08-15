@@ -22,7 +22,15 @@ import {
   powerRequired,
   STANDARD_GAS_TEMPERATURE,
 } from '@airship/core'
-import { DESIGN_POINTS, BASELINE } from '@airship/model'
+import {
+  DESIGN_POINTS,
+  BASELINE,
+  BASELINE_ARRANGEMENT,
+  massStatement,
+  validateArrangement,
+  finPlanform,
+  smallestClosingLength,
+} from '@airship/model'
 import { energyBalance, integrateMission, maximumSustainableWind } from '@airship/solvers'
 import { m, m3, purity as asPurity } from '@airship/units'
 
@@ -326,3 +334,122 @@ export const diagnostics = (() => {
 })()
 
 export const sources = SOURCES
+
+/**
+ * The arrangement, flattened for the drawing.
+ *
+ * The 3D view renders THIS. Every box it draws is placed and sized from the
+ * same station, extent, width and height the mass statement integrated, so a
+ * compartment cannot look roomy on screen and be a cupboard in the budget. The
+ * gas cells are the volume the lift figure used, minus the keel corridor. The
+ * fins are the planform the yaw static margin was computed from.
+ *
+ * Serialised to plain numbers because it crosses into a client component.
+ */
+export const arrangement = (() => {
+  const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+  const findings = validateArrangement(BASELINE, BASELINE_ARRANGEMENT)
+  const fins = finPlanform(BASELINE, BASELINE_ARRANGEMENT)
+  const { length, finenessRatio, cellCount } = BASELINE.hull
+  const maxRadius = length / finenessRatio / 2
+
+  const volumeOf = (id: string) => statement.items.find((i) => i.id === id)?.volume ?? 0
+  const heightOf = (id: string) => statement.items.find((i) => i.id === id)?.z ?? 0
+
+  return {
+    length,
+    maxRadius,
+    cellCount,
+    radii: hullProfile.radii,
+    exhaustStation: BASELINE_ARRANGEMENT.exhaustStation,
+    exhaustHeightFraction: BASELINE_ARRANGEMENT.exhaustHeightFraction,
+    cellBlockForward: BASELINE_ARRANGEMENT.cellBlockForward,
+    cellBlockAft: BASELINE_ARRANGEMENT.cellBlockAft,
+    keelForward: BASELINE_ARRANGEMENT.keelForward,
+    keelAft: BASELINE_ARRANGEMENT.keelAft,
+    keelWidth: BASELINE_ARRANGEMENT.keelWidth,
+    arrayHalfAngle: BASELINE.power.arrayCoverageHalfAngle,
+    arrayForwardStation: BASELINE.power.arrayForwardStation,
+    arrayAftStation: BASELINE.power.arrayAftStation,
+    fins,
+
+    compartments: BASELINE_ARRANGEMENT.compartments.map((c) => ({
+      id: c.id,
+      name: c.name,
+      deck: c.deck,
+      category: c.category,
+      station: c.station,
+      extent: c.extent,
+      width: c.width,
+      height: c.height,
+      mass: c.mass,
+      volume: volumeOf(c.id),
+      z: heightOf(c.id),
+      habitable: c.habitable,
+      netHabitable: c.netHabitable,
+      shell: c.shell,
+      enclosed: c.enclosed,
+      note: c.note ?? null,
+    })),
+
+    propulsors: BASELINE_ARRANGEMENT.propulsors.map((p) => ({
+      id: p.id,
+      station: p.station,
+      lateralOffset: p.lateralOffset,
+      heightFraction: p.heightFraction,
+      diameter: p.diameter,
+      ratedPower: p.ratedPower,
+      vectorAuthority: p.vectorAuthority,
+      mass: p.mass,
+      note: p.note ?? null,
+    })),
+
+    mass: {
+      total: statement.total,
+      emptyWeight: statement.emptyWeight,
+      grossLift: statement.grossLift,
+      liftAtSeaLevel: statement.liftAtSeaLevel,
+      liftAtAltitude: statement.liftAtAltitude,
+      bindingCondition: statement.bindingCondition,
+      liftMargin: statement.liftMargin,
+      marginFraction: statement.liftMargin / statement.total,
+      gasVolume: statement.gasVolume,
+      keelEnvelope: statement.keelEnvelope,
+      emptyWeightPerGasVolume: statement.emptyWeightPerGasVolume,
+      habitableVolume: statement.habitableVolume,
+      centreOfGravity: statement.centreOfGravity,
+      centreOfBuoyancy: statement.centreOfBuoyancy,
+      byCategory: statement.byCategory,
+      byDeck: statement.byDeck,
+      items: statement.items.map((i) => ({
+        id: i.id,
+        name: i.name,
+        category: i.category,
+        deck: i.deck,
+        mass: i.mass,
+        x: i.x,
+        z: i.z,
+        volume: i.volume,
+        computed: i.computed,
+        note: i.note ?? null,
+      })),
+    },
+
+    findings: findings.map((f) => ({
+      id: f.id,
+      severity: f.severity,
+      rule: f.rule,
+      detail: f.detail,
+    })),
+
+    /** What the hull length had to be, and what it would have been without the margin. */
+    sizing: {
+      closesExactly: smallestClosingLength(BASELINE, BASELINE_ARRANGEMENT, 0),
+      withGrowthAllowance: smallestClosingLength(BASELINE, BASELINE_ARRANGEMENT),
+      marginAt90: massStatement(
+        { ...BASELINE, hull: { ...BASELINE.hull, length: 90 } },
+        BASELINE_ARRANGEMENT,
+      ).liftMargin,
+    },
+  }
+})()

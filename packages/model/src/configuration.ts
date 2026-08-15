@@ -61,21 +61,24 @@ export interface Compartment {
   readonly category: Category
   /** Centre position as a fraction of hull length from the nose. */
   readonly station: number
-  /** Longitudinal extent as a fraction of hull length. */
+  /**
+   * Size in METRES. Not in fractions of the hull, which was the first version
+   * and was wrong: it made the galley twice as big when the hull grew, so the
+   * habitability check passed by growing the ship rather than by arranging it.
+   * A galley is a galley. What the hull decides is whether it FITS, which
+   * `compartmentsFitTheHull` checks.
+   */
+  readonly width: number
+  readonly height: number
   readonly extent: number
   /**
-   * Half-width as a fraction of the local hull radius. Sets how much of the
-   * cross-section the compartment occupies, which is what makes the volumes in
-   * the drawing and the volumes in the model the same numbers.
+   * Vertical centre, m, measured from this deck's datum. Positive is up.
+   *
+   * The datum is physical rather than fractional: a gondola hangs a fixed
+   * standoff below the hull skin whatever the hull's size, and a keel bay sits
+   * on the corridor floor.
    */
-  readonly halfWidth: number
-  /** Height as a fraction of the local hull radius. */
-  readonly height: number
-  /**
-   * Vertical centre as a fraction of the local hull radius. Negative is below
-   * the hull axis. This is the number the pendulum stability check integrates.
-   */
-  readonly heightFraction: number
+  readonly rise: number
   /** Mass, kg, as installed. Fixed items only; scaling items are computed. */
   readonly mass: number
   /**
@@ -92,6 +95,14 @@ export interface Compartment {
    * generous ship and delivers a corridor.
    */
   readonly netHabitable: boolean
+  /**
+   * True when the box is an enclosing SHELL rather than a usable space: the
+   * gondola structure, the keel corridor. Its volume is real — the keel
+   * corridor is subtracted from the gas cells — but it is not additive with the
+   * bays inside it, and reporting it as usable volume would count the same
+   * cubic metres twice.
+   */
+  readonly shell: boolean
   /** True when the space is sealed rather than continuously ventilated. */
   readonly enclosed: boolean
   readonly note?: string
@@ -104,8 +115,8 @@ export interface Propulsor {
   readonly lateralOffset: number
   /** Vertical centre as a fraction of local hull radius. Negative is below. */
   readonly heightFraction: number
-  /** Propeller diameter as a fraction of hull max radius. */
-  readonly diameterFraction: number
+  /** Propeller diameter, m. Sized by the thrust it has to make, not by the hull. */
+  readonly diameter: number
   /** Shaft power, W. */
   readonly ratedPower: number
   /** Vectoring authority, radians either side of horizontal. */
@@ -150,20 +161,23 @@ export const BASELINE_ARRANGEMENT: Configuration = {
   compartments: [
     // ------------------------------------------------------------- gondola
     // Every habitable space is here or in the keel: below the cells, outside
-    // the envelope, and continuously ventilated with outside air.
+    // the envelope, and continuously ventilated with outside air. Fifty square
+    // metres of floor across five rooms, which is a small flat rather than a
+    // capsule, and for a year aboard that is the right comparison.
     {
       id: 'nav',
       name: 'Nav station and helm',
       deck: 'gondola',
       category: 'habitat',
       station: 0.225,
-      extent: 0.04,
-      halfWidth: 0.2,
-      height: 0.24,
-      heightFraction: -1.26,
+      width: 3.2,
+      height: 2.1,
+      extent: 3.0,
+      rise: 0,
       mass: 210,
       habitable: true,
       netHabitable: true,
+      shell: false,
       enclosed: false,
       note: 'Forward, with the view. Instruments, controls, and the energy display that decides whether today is a station-keeping day or a drifting one.',
     },
@@ -172,30 +186,32 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       name: 'Saloon',
       deck: 'gondola',
       category: 'habitat',
-      station: 0.275,
-      extent: 0.055,
-      halfWidth: 0.22,
-      height: 0.24,
-      heightFraction: -1.26,
+      station: 0.262,
+      width: 3.6,
+      height: 2.1,
+      extent: 4.5,
+      rise: 0,
       mass: 240,
       habitable: true,
       netHabitable: true,
+      shell: false,
       enclosed: false,
-      note: 'The one space where two people can be without being in each other\u2019s way. Over a year that is a structural requirement, not a comfort.',
+      note: 'Sixteen square metres. The one space where two people can be without being in each other’s way, which over a year is a structural requirement rather than a comfort.',
     },
     {
       id: 'galley',
       name: 'Galley',
       deck: 'gondola',
       category: 'habitat',
-      station: 0.318,
-      extent: 0.03,
-      halfWidth: 0.2,
-      height: 0.24,
-      heightFraction: -1.26,
+      station: 0.298,
+      width: 3.0,
+      height: 2.1,
+      extent: 2.8,
+      rise: 0,
       mass: 260,
       habitable: true,
       netHabitable: true,
+      shell: false,
       enclosed: false,
       note: 'Electric only. No combustion in any habitable space on a hydrogen ship, which also removes the cooking-gas tankage a boat this size would carry.',
     },
@@ -204,30 +220,32 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       name: 'Head and washroom',
       deck: 'gondola',
       category: 'habitat',
-      station: 0.343,
-      extent: 0.02,
-      halfWidth: 0.16,
-      height: 0.24,
-      heightFraction: -1.26,
+      station: 0.32,
+      width: 2.2,
+      height: 2.1,
+      extent: 2.2,
+      rise: 0,
       mass: 180,
       habitable: true,
       netHabitable: true,
+      shell: false,
       enclosed: false,
-      note: 'Greywater to the recycling loop, which is where most of the recovered water comes from.',
+      note: 'Greywater to the recycling loop, which recovers about 85 percent and is where the water budget is actually won.',
     },
     {
       id: 'cabin',
       name: 'Sleeping cabin',
       deck: 'gondola',
       category: 'habitat',
-      station: 0.378,
-      extent: 0.045,
-      halfWidth: 0.2,
-      height: 0.24,
-      heightFraction: -1.26,
+      station: 0.352,
+      width: 3.2,
+      height: 2.1,
+      extent: 3.6,
+      rise: 0,
       mass: 220,
       habitable: true,
       netHabitable: true,
+      shell: false,
       enclosed: false,
       note: 'Aft of the head and as far from the machinery as the gondola allows, for the noise and vibration reason.',
     },
@@ -236,30 +254,32 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       name: 'Gondola structure, glazing and hull attachment',
       deck: 'gondola',
       category: 'structure',
-      station: 0.3,
-      extent: 0.2,
-      halfWidth: 0.24,
-      height: 0.3,
-      heightFraction: -1.26,
+      station: 0.29,
+      width: 4.4,
+      height: 3.2,
+      extent: 20.0,
+      rise: 0,
       mass: 700,
       habitable: false,
       netHabitable: false,
+      shell: true,
       enclosed: false,
-      note: 'Also the water-landing hull. Its underside is the planing surface, which is why it is a shallow-V section rather than a fairing.',
+      note: 'Also the water-landing hull. Its underside is the shallow-V planing surface, which is why it is a boat section rather than a fairing.',
     },
     {
       id: 'crew',
       name: 'Crew and personal effects',
       deck: 'gondola',
       category: 'crew',
-      station: 0.3,
-      extent: 0.02,
-      halfWidth: 0.1,
-      height: 0.1,
-      heightFraction: -1.26,
+      station: 0.29,
+      width: 1.4,
+      height: 1.8,
+      extent: 1.4,
+      rise: 0,
       mass: 220,
       habitable: false,
       netHabitable: false,
+      shell: false,
       enclosed: false,
     },
 
@@ -270,40 +290,42 @@ export const BASELINE_ARRANGEMENT: Configuration = {
     // The ORDER of these bays is a trim decision, not a convenience one. The
     // fins, the aft propulsors and the machinery are all irreducibly aft, and
     // the centre of buoyancy sits forward of midships because the nose is
-    // fuller than the tail. Everything heavy that has a choice therefore goes
-    // forward, and the two water tanks straddle the centre of buoyancy so that
-    // pumping between them is the trim control.
+    // fuller than the tail. Everything heavy that has a choice goes forward,
+    // and the two water tanks straddle the centre of buoyancy so that pumping
+    // between them is the trim control.
     {
       id: 'nose-gear',
       name: 'Mooring cone, anchor winch, drogue and sea anchor',
       deck: 'keel',
       category: 'machinery',
       station: 0.05,
-      extent: 0.07,
-      halfWidth: 0.4,
-      height: 0.5,
-      heightFraction: -0.3,
+      width: 3.0,
+      height: 2.4,
+      extent: 6.0,
+      rise: 1.2,
       mass: 320,
       habitable: false,
       netHabitable: false,
+      shell: false,
       enclosed: false,
-      note: 'At the bow because that is where a moored airship is held and where the sea anchor rode has to lead from. It is also the only large mass forward of the gondola, and the trim budget needs it there.',
+      note: 'At the bow, because that is where a moored airship is held and where the sea anchor rode leads from. It is also the only large mass forward of the gondola, and the trim budget needs it there.',
     },
     {
       id: 'stores',
       name: 'Food and consumable stores',
       deck: 'keel',
       category: 'consumable',
-      station: 0.22,
-      extent: 0.06,
-      halfWidth: 0.28,
-      height: 0.3,
-      heightFraction: -0.72,
+      station: 0.2,
+      width: 3.0,
+      height: 2.0,
+      extent: 4.5,
+      rise: 1.0,
       mass: 560,
       habitable: false,
       netHabitable: false,
+      shell: false,
       enclosed: false,
-      note: 'A year of dry stores for two, plus engine consumables and the spares the maintenance interval demands. Forward, and it lightens as the mission runs, which trims the ship nose-up over the year.',
+      note: 'A year of dry stores for two, plus engine consumables and the spares the maintenance interval demands. Forward, and it lightens over the mission, which trims the ship nose-up as the year runs.',
     },
     {
       id: 'water-forward',
@@ -311,29 +333,31 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       deck: 'keel',
       category: 'consumable',
       station: 0.3,
-      extent: 0.09,
-      halfWidth: 0.34,
-      height: 0.18,
-      heightFraction: -0.86,
-      mass: 1500,
+      width: 2.6,
+      height: 1.0,
+      extent: 4.0,
+      rise: 0.5,
+      mass: 1250,
       habitable: false,
       netHabitable: false,
+      shell: false,
       enclosed: true,
-      note: 'Drinking water, electrolyzer feedstock, ballast and trim, in one tank doing four jobs. As low as the structure allows, because this is most of the pendulum lever.',
+      note: 'Drinking water, electrolyzer feedstock, ballast and trim: one tank doing four jobs. On the corridor floor, because this is most of the pendulum lever.',
     },
     {
       id: 'systems-bay',
       name: 'Systems bay: fuel cell, electrolyzer, battery',
       deck: 'keel',
       category: 'energy',
-      station: 0.46,
-      extent: 0.09,
-      halfWidth: 0.3,
-      height: 0.34,
-      heightFraction: -0.7,
+      station: 0.44,
+      width: 3.4,
+      height: 2.2,
+      extent: 6.0,
+      rise: 1.1,
       mass: 1150,
       habitable: true,
       netHabitable: false,
+      shell: false,
       enclosed: false,
       note: 'Continuously ventilated and Group IIC throughout, because it handles hydrogen. The battery is most of this mass and most of the argument for a smaller one. Amidships: nothing about it wants to be aft, and the trim budget wants it here.',
     },
@@ -342,30 +366,32 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       name: 'Aft water tank',
       deck: 'keel',
       category: 'consumable',
-      station: 0.56,
-      extent: 0.07,
-      halfWidth: 0.32,
-      height: 0.18,
-      heightFraction: -0.86,
-      mass: 1000,
+      station: 0.576,
+      width: 2.6,
+      height: 1.0,
+      extent: 4.0,
+      rise: 0.5,
+      mass: 1250,
       habitable: false,
       netHabitable: false,
+      shell: false,
       enclosed: true,
-      note: 'The other half of the trim system. Pumping between the two tanks is how the ship is trimmed in flight, and the mass that can be moved is what sets the trim authority.',
+      note: 'The other half of the trim system. Deliberately the SAME size as the forward tank, because trim authority is the smaller of the two and an asymmetric pair wastes the larger one, and placed so the PAIR is centred on the centre of buoyancy: a symmetric pair straddling it contributes no standing trim moment of its own and still gives a 32 m arm to work with.',
     },
     {
       id: 'reserve-fuel',
       name: 'Hydrocarbon reserve',
       deck: 'keel',
       category: 'consumable',
-      station: 0.385,
-      extent: 0.05,
-      halfWidth: 0.22,
-      height: 0.2,
-      heightFraction: -0.82,
+      station: 0.355,
+      width: 2.2,
+      height: 1.0,
+      extent: 3.0,
+      rise: 0.5,
       mass: 1200,
       habitable: false,
       netHabitable: false,
+      shell: false,
       enclosed: true,
       note: 'The weather-escape and get-home capability. It deliberately opens the closed loop, and it is finite by tankage rather than by policy.',
     },
@@ -374,14 +400,15 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       name: 'Hydrogen COPV storage',
       deck: 'keel',
       category: 'energy',
-      station: 0.535,
-      extent: 0.055,
-      halfWidth: 0.26,
-      height: 0.28,
-      heightFraction: -0.72,
+      station: 0.665,
+      width: 2.6,
+      height: 2.0,
+      extent: 4.0,
+      rise: 1.0,
       mass: 400,
       habitable: false,
       netHabitable: false,
+      shell: false,
       enclosed: false,
       note: 'Altitude control by compressing gas out of the cells rather than valving it away. Ventilated, never in a sealed bay, and next to the systems bay it feeds.',
     },
@@ -390,14 +417,15 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       name: 'Workshop',
       deck: 'keel',
       category: 'habitat',
-      station: 0.72,
-      extent: 0.07,
-      halfWidth: 0.3,
-      height: 0.34,
-      heightFraction: -0.7,
+      station: 0.73,
+      width: 3.2,
+      height: 2.2,
+      extent: 5.0,
+      rise: 1.1,
       mass: 300,
       habitable: true,
       netHabitable: true,
+      shell: false,
       enclosed: false,
       note: 'Next to the machinery, because the gearbox teardown at 1,000 hours is the job it exists for and there is nowhere to take the ship instead.',
     },
@@ -406,14 +434,15 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       name: 'Engine and generator bay',
       deck: 'keel',
       category: 'machinery',
-      station: 0.82,
-      extent: 0.06,
-      halfWidth: 0.3,
-      height: 0.32,
-      heightFraction: -0.7,
+      station: 0.81,
+      width: 3.0,
+      height: 2.2,
+      extent: 4.5,
+      rise: 1.1,
       mass: 270,
       habitable: true,
       netHabitable: false,
+      shell: false,
       enclosed: false,
       note: 'AFT and LOW so the exhaust can leave below and downstream of the whole envelope. It would balance better amidships and it may not go there.',
     },
@@ -422,14 +451,15 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       name: 'Keel corridor structure and walkway',
       deck: 'keel',
       category: 'structure',
-      station: 0.46,
-      extent: 0.88,
-      halfWidth: 0.34,
-      height: 0.36,
-      heightFraction: -0.72,
+      station: 0.4575,
+      width: 4.6,
+      height: 2.8,
+      extent: 101.8,
+      rise: 1.4,
       mass: 600,
       habitable: false,
       netHabitable: false,
+      shell: true,
       enclosed: false,
       note: 'Also the main lower longitudinal load path, so it earns part of its mass twice. This envelope is what the gas cells give up, and the model subtracts it from the lift rather than pretending the corridor is free.',
     },
@@ -439,13 +469,14 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       deck: 'keel',
       category: 'machinery',
       station: 0.5,
-      extent: 0.8,
-      halfWidth: 0.3,
-      height: 0.06,
-      heightFraction: -0.55,
+      width: 0.6,
+      height: 0.6,
+      extent: 92.0,
+      rise: 2.6,
       mass: 430,
       habitable: false,
       netHabitable: false,
+      shell: false,
       enclosed: false,
     },
   ],
@@ -460,7 +491,7 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       station: 0.45,
       lateralOffset: -1.18,
       heightFraction: -0.42,
-      diameterFraction: 0.46,
+      diameter: 4.6,
       ratedPower: 22000,
       vectorAuthority: Math.PI / 2,
       mass: 145,
@@ -471,7 +502,7 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       station: 0.45,
       lateralOffset: 1.18,
       heightFraction: -0.42,
-      diameterFraction: 0.46,
+      diameter: 4.6,
       ratedPower: 22000,
       vectorAuthority: Math.PI / 2,
       mass: 145,
@@ -482,7 +513,7 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       station: 0.8,
       lateralOffset: -0.78,
       heightFraction: -0.34,
-      diameterFraction: 0.36,
+      diameter: 3.8,
       ratedPower: 14000,
       vectorAuthority: Math.PI / 3,
       mass: 105,
@@ -493,7 +524,7 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       station: 0.8,
       lateralOffset: 0.78,
       heightFraction: -0.34,
-      diameterFraction: 0.36,
+      diameter: 3.8,
       ratedPower: 14000,
       vectorAuthority: Math.PI / 3,
       mass: 105,

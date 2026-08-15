@@ -123,6 +123,7 @@ export default tseslint.config(
         WebSocket: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
+        Buffer: 'readonly',
       },
     },
   },

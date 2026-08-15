@@ -223,7 +223,12 @@ export function HullViewer({
     const resize = () => {
       const width = container.clientWidth
       const height = Math.max(Math.round(width * 0.42), 240)
-      renderer.setSize(width, height, false)
+      // setSize's third argument is updateStyle, and passing false is a trap
+      // here: it sets the drawing buffer but leaves the canvas CSS size alone,
+      // so with a device pixel ratio of 2 the element lays out at TWICE the
+      // intended height and the scene renders into a box half the size of the
+      // one on screen. Let three.js set both.
+      renderer.setSize(width, height)
       camera.aspect = width / height
       camera.position.set(length * 0.62, length * 0.3, length * 0.78)
       camera.lookAt(0, 0, 0)

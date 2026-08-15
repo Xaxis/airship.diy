@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import { hullGeometry } from '@airship/core'
+import { m } from '@airship/units'
+
 import {
   BASELINE,
   BASELINE_ARRANGEMENT,
@@ -20,22 +23,29 @@ import type { Configuration } from '../src/index.js'
 const at = (length: number) => ({ ...BASELINE, hull: { ...BASELINE.hull, length } })
 
 describe('compartment volumes', () => {
-  it('scales as the cube of hull length, because the box is defined in radii', () => {
-    const c = { station: 0.5, extent: 0.1, halfWidth: 0.3, height: 0.3 }
-    const small = compartmentVolume(c, 90, 5, 0.69)
-    const large = compartmentVolume(c, 180, 5, 0.69)
-    expect(large / small).toBeCloseTo(8, 2)
+  it('does not change when the hull does', () => {
+    // The bug this replaced: sizes were fractions of the local hull radius, so
+    // every room grew with the ship and the habitability check could be passed
+    // by making the hull bigger rather than by arranging it.
+    const galley = BASELINE_ARRANGEMENT.compartments.find((c) => c.id === 'galley')!
+    const small = massStatement(at(90), BASELINE_ARRANGEMENT).items.find((i) => i.id === 'galley')
+    const large = massStatement(at(160), BASELINE_ARRANGEMENT).items.find((i) => i.id === 'galley')
+    expect(small!.volume).toBeCloseTo(large!.volume, 6)
+    expect(small!.volume).toBeCloseTo(galley.width * galley.height * galley.extent, 6)
   })
 
-  it('shrinks toward the ends, where the hull tapers', () => {
-    const shape = { extent: 0.06, halfWidth: 0.3, height: 0.3 }
-    const amidships = compartmentVolume({ ...shape, station: 0.45 }, 115, 5, 0.69)
-    const aft = compartmentVolume({ ...shape, station: 0.9 }, 115, 5, 0.69)
-    expect(aft).toBeLessThan(amidships * 0.5)
+  it('is a box in metres', () => {
+    expect(compartmentVolume({ width: 3, height: 2, extent: 4 })).toBe(24)
   })
 
-  it('is zero for a compartment with no extent', () => {
-    expect(compartmentVolume({ station: 0.5, extent: 0, halfWidth: 0.3, height: 0.3 }, 115, 5, 0.69)).toBe(0)
+  it('gives the five gondola rooms about fifty square metres of floor', () => {
+    // A small flat rather than a capsule. For a year aboard that is the right
+    // comparison, and it is the number the habitability check is really about.
+    const floor = BASELINE_ARRANGEMENT.compartments
+      .filter((c) => c.deck === 'gondola' && c.netHabitable)
+      .reduce((sum, c) => sum + c.width * c.extent, 0)
+    expect(floor).toBeGreaterThan(40)
+    expect(floor).toBeLessThan(65)
   })
 })
 
@@ -56,8 +66,19 @@ describe('the mass statement', () => {
   })
 
   it('takes the keel corridor out of the gas volume', () => {
-    expect(s.gasVolume).toBeLessThan(32000)
     expect(s.keelEnvelope).toBeGreaterThan(0)
+    expect(s.gasVolume).toBeLessThan(
+      hullGeometry(m(BASELINE.hull.length), BASELINE.hull.finenessRatio).volume,
+    )
+  })
+
+  it('hangs the gondola below the hull and stands the keel bays on its floor', () => {
+    const saloon = s.items.find((i) => i.id === 'saloon')!
+    const water = s.items.find((i) => i.id === 'water-forward')!
+    const radius = BASELINE.hull.length / BASELINE.hull.finenessRatio / 2
+    expect(saloon.z).toBeLessThan(-radius)
+    expect(water.z).toBeGreaterThan(-radius)
+    expect(water.z).toBeLessThan(0)
   })
 
   it('does not count the keel bays on top of the corridor that contains them', () => {
@@ -65,7 +86,7 @@ describe('the mass statement', () => {
     // charge the gas volume for all of them.
     const bays = BASELINE_ARRANGEMENT.compartments
       .filter((c) => c.deck === 'keel' && c.id !== 'keel-structure')
-      .reduce((sum, c) => sum + compartmentVolume(c, BASELINE.hull.length, 5, 0.69), 0)
+      .reduce((sum, c) => sum + compartmentVolume(c), 0)
     expect(bays).toBeGreaterThan(0)
     expect(s.keelEnvelope).toBeGreaterThan(bays)
   })
@@ -177,6 +198,18 @@ describe('the rules the arrangement has to obey', () => {
     ).toBe('fail')
   })
 
+  it('fails a keel bay too wide for the hull it is inside', () => {
+    const bad: Configuration = {
+      ...BASELINE_ARRANGEMENT,
+      compartments: BASELINE_ARRANGEMENT.compartments.map((c) =>
+        c.id === 'workshop' ? { ...c, width: 26 } : c,
+      ),
+    }
+    const f = validateArrangement(BASELINE, bad).find((x) => x.id === 'compartments-fit-the-hull')
+    expect(f?.severity).toBe('fail')
+    expect(f?.detail).toContain('Workshop')
+  })
+
   it('fails a propeller disc that intersects the hull', () => {
     const bad: Configuration = {
       ...BASELINE_ARRANGEMENT,
@@ -197,12 +230,12 @@ describe('what the arrangement did to the hull size', () => {
     expect(massStatement(at(90), BASELINE_ARRANGEMENT).liftMargin).toBeLessThan(0)
   })
 
-  it('closes exactly somewhere near 105 m and needs about 114 m to be buildable', () => {
+  it('closes near 104 m and needs about 112 m to be buildable', () => {
     const exact = smallestClosingLength(BASELINE, BASELINE_ARRANGEMENT, 0)
     const withGrowth = smallestClosingLength(BASELINE, BASELINE_ARRANGEMENT)
-    expect(exact).toBeGreaterThan(100)
+    expect(exact).toBeGreaterThan(98)
     expect(exact).toBeLessThan(110)
-    expect(withGrowth).toBeGreaterThan(110)
+    expect(withGrowth).toBeGreaterThan(106)
     expect(withGrowth).toBeLessThan(118)
     expect(withGrowth!).toBeGreaterThan(exact!)
   })
@@ -226,11 +259,28 @@ describe('what the arrangement did to the hull size', () => {
     expect(s.emptyWeightPerGasVolume).toBeLessThan(0.79)
   })
 
-  it('keeps the trim inside the ballast authority across the useful length range', () => {
-    for (const length of [105, 115, 125, 140]) {
+  it('keeps the trim inside the ballast authority across the design family', () => {
+    // The two water tanks are placed so the PAIR is centred on the centre of
+    // buoyancy. A symmetric pair straddling it adds no standing trim moment of
+    // its own and still gives a 32 m arm, which is what makes the same
+    // arrangement work over a wide range of hulls instead of one.
+    for (const length of [105, 115, 125, 140, 150]) {
       const findings = validateArrangement(at(length), BASELINE_ARRANGEMENT)
       const trim = findings.find((f) => f.id === 'trim-authority')
       expect(`${length}: ${trim?.severity}`).toBe(`${length}: pass`)
     }
+  })
+
+  it('runs out of trim authority eventually, and says so', () => {
+    // Not a bug. The arrangement is FIXED and the hull is not: the fins, the
+    // cover and the array all scale as area and all sit aft of the centre of
+    // buoyancy, while the gondola and the stores that balance them do not grow
+    // at all. Past about 155 m the same layout needs rebalancing rather than
+    // more ballast, and this check is what says so instead of letting a
+    // stretched ship quietly fly nose-down for the rest of its life.
+    const trim = validateArrangement(at(175), BASELINE_ARRANGEMENT).find(
+      (f) => f.id === 'trim-authority',
+    )
+    expect(trim?.severity).toBe('fail')
   })
 })

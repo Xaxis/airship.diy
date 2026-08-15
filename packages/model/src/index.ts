@@ -11,9 +11,11 @@ export { BASELINE, MINIMUM_VIABLE, STRETCH, DESIGN_POINTS, designPoint } from '.
 export type { Deck, Category, Compartment, Propulsor, Configuration } from './configuration.js'
 export { BASELINE_ARRANGEMENT } from './configuration.js'
 
-export type { MassItem, MassStatement, Severity, Finding } from './arrangement.js'
+export type { MassItem, MassStatement, Severity, Finding, FinPlanform } from './arrangement.js'
 export {
   compartmentVolume,
+  keelEnvelopeVolume,
+  finPlanform,
   massStatement,
   validateArrangement,
   smallestClosingLength,

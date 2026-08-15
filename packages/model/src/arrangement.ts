@@ -149,8 +149,24 @@ const arrayCentroidHeight = (halfAngle: number): number =>
  */
 const CELL_CENTROID_HEIGHT = 0.05
 
-/** @derived Simpson's rule needs an even panel count. 24 resolves a compartment. */
-const COMPARTMENT_PANELS = 24
+/**
+ * Standoff between the bottom of the hull and the top of the gondola, m.
+ *
+ * @source Set by the suspension: the gondola hangs from the frame on cables and
+ * struts that have to reach past the cover and the lower longitudinals, and the
+ * gap is also the boundary layer the gondola would otherwise sit in. Historical
+ * rigids ran 1 to 2.5 m for a slung car. Taken at 1.6.
+ */
+const GONDOLA_STANDOFF = 1.6
+
+/**
+ * Height of the keel corridor floor above the hull skin at the bottom, m.
+ *
+ * @source The floor sits on the lower longitudinals with the cover, the
+ * catenary curtains and the walkway structure below it. 0.8 m is the depth of
+ * that build-up on a hull of this size.
+ */
+const KEEL_FLOOR_INSET = 0.8
 
 // --------------------------------------------------------------------------
 
@@ -203,39 +219,65 @@ export interface MassStatement {
 }
 
 /**
- * Volume of a compartment, m3.
+ * Volume of a compartment, m3. A box in metres, so this is a multiplication.
  *
- * The box is defined in units of the LOCAL hull radius, so a compartment at the
- * tapering ends is automatically smaller than the same fractions amidships.
- * That is what makes the drawn volume and the budgeted volume the same number:
- * both come from this integral.
- *
- * @derived V = integral over the extent of (2 * halfWidth * R) * (height * R)
- * dx, with dx in metres, evaluated by Simpson's rule.
+ * It reads trivially now and it did not before: the first version defined the
+ * box in fractions of the local hull radius and integrated it along the hull,
+ * which meant every room grew when the hull did. The habitability check then
+ * passed by making the ship bigger rather than by arranging it, which is
+ * exactly backwards.
  */
 export const compartmentVolume = (
-  c: Pick<Compartment, 'station' | 'extent' | 'halfWidth' | 'height'>,
-  length: number,
-  finenessRatio: number,
-  prismaticCoefficient: number,
-): number => {
-  const shape = hullShapeForPrismatic(prismaticCoefficient)
-  const from = Math.max(c.station - c.extent / 2, 0)
-  const to = Math.min(c.station + c.extent / 2, 1)
-  const span = to - from
-  if (span <= 0) return 0
+  c: Pick<Compartment, 'width' | 'height' | 'extent'>,
+): number => c.width * c.height * c.extent
 
-  const h = span / COMPARTMENT_PANELS
-  let sum = 0
-  for (let i = 0; i <= COMPARTMENT_PANELS; i += 1) {
-    const station = from + i * h
-    const r = hullRadiusAt(m(length), finenessRatio, station, shape)
-    const weight = i === 0 || i === COMPARTMENT_PANELS ? 1 : i % 2 === 1 ? 4 : 2
-    sum += weight * r * r
+/**
+ * Vertical centre of a compartment, m from the hull axis. Negative is below.
+ *
+ * Physical rather than fractional: a gondola hangs a fixed standoff below the
+ * hull skin whatever the hull's size, and a keel bay sits on the corridor
+ * floor. Both data move with the local radius, so the arrangement stays put
+ * relative to the structure as the hull changes.
+ */
+export const compartmentHeight = (c: Compartment, localRadius: number): number => {
+  switch (c.deck) {
+    case 'gondola':
+      return -(localRadius + GONDOLA_STANDOFF + c.height / 2) + c.rise
+    case 'keel':
+      return -(localRadius - KEEL_FLOOR_INSET) + c.height / 2 + c.rise
+    case 'cells':
+      return c.rise
+    case 'external':
+      return c.rise
   }
-  const integral = ((h * length) / 3) * sum
+}
 
-  return 2 * c.halfWidth * c.height * integral
+export interface FinPlanform {
+  readonly rootChord: number
+  readonly tipChord: number
+  readonly span: number
+  /** Combined planform area of all four surfaces, m2. */
+  readonly area: number
+  /** Station of the root chord centre. */
+  readonly station: number
+  readonly mass: number
+}
+
+/**
+ * The fin planform, in metres.
+ *
+ * Exported because the drawing needs the same numbers the mass statement used.
+ * A tail that is drawn at one size and weighed at another is exactly the kind of
+ * disagreement this module exists to make impossible.
+ */
+export const finPlanform = (design: DesignPoint, config: Configuration): FinPlanform => {
+  const { length, finenessRatio } = design.hull
+  const rootChord = FIN_ROOT_CHORD_FRACTION * length
+  const tipChord = rootChord * FIN_TAPER_RATIO
+  const span = config.finSpanFraction * (length / finenessRatio / 2)
+  /** @derived Trapezoid area, four surfaces in a cruciform tail. */
+  const area = 4 * 0.5 * (rootChord + tipChord) * span
+  return { rootChord, tipChord, span, area, station: config.finStation, mass: area * FIN_AREAL_MASS }
 }
 
 /**
@@ -245,28 +287,17 @@ export const compartmentVolume = (
  * Read off the `keel-structure` compartment when one is present, because that
  * IS the corridor, and falls back to the keel extent and width otherwise.
  */
-export const keelEnvelopeVolume = (
-  config: Configuration,
-  length: number,
-  finenessRatio: number,
-  prismaticCoefficient: number,
-): number => {
+export const keelEnvelopeVolume = (config: Configuration, length: number): number => {
   const corridor = config.compartments.find((c) => c.id === 'keel-structure')
-  if (corridor) return compartmentVolume(corridor, length, finenessRatio, prismaticCoefficient)
+  if (corridor) return compartmentVolume(corridor)
 
-  const maxRadius = length / finenessRatio / 2
-  return compartmentVolume(
-    {
-      station: (config.keelForward + config.keelAft) / 2,
-      extent: config.keelAft - config.keelForward,
-      halfWidth: config.keelWidth / 2 / maxRadius,
-      /** @derived Standing headroom over the walkway, as a fraction of radius. */
-      height: 0.36,
-    },
-    length,
-    finenessRatio,
-    prismaticCoefficient,
-  )
+  /** @derived Standing headroom over the walkway when no corridor is defined. */
+  const FALLBACK_HEADROOM = 2.6
+  return compartmentVolume({
+    width: config.keelWidth,
+    height: FALLBACK_HEADROOM,
+    extent: (config.keelAft - config.keelForward) * length,
+  })
 }
 
 /**
@@ -321,8 +352,8 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
       deck: c.deck,
       mass: c.mass,
       x: c.station * length,
-      z: c.heightFraction * radiusAt(c.station),
-      volume: compartmentVolume(c, length, finenessRatio, prismaticCoefficient),
+      z: compartmentHeight(c, radiusAt(c.station)),
+      volume: compartmentVolume(c),
       computed: false,
       ...(c.note === undefined ? {} : { note: c.note }),
     })
@@ -351,7 +382,7 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
   // it: they sit within the same structural volume, and adding them up would
   // count the same cubic metres several times over. `keelBaysFitInsideTheKeel`
   // checks that they really do fit.
-  const keelEnvelope = keelEnvelopeVolume(config, length, finenessRatio, prismaticCoefficient)
+  const keelEnvelope = keelEnvelopeVolume(config, length)
   const gasVolume = geometry.volume - keelEnvelope
 
   // ---- the hull group, computed -----------------------------------------
@@ -373,10 +404,7 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
     shape,
   })
 
-  const finRootChord = FIN_ROOT_CHORD_FRACTION * length
-  const finSpan = config.finSpanFraction * maxRadius
-  /** @derived Trapezoid area, four surfaces in a cruciform tail. */
-  const finArea = 4 * 0.5 * (finRootChord + finRootChord * FIN_TAPER_RATIO) * finSpan
+  const fins = finPlanform(design, config)
 
   const arrayStation = (design.power.arrayForwardStation + design.power.arrayAftStation) / 2
 
@@ -448,12 +476,12 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
       name: 'Cruciform fins and control surfaces',
       category: 'structure',
       deck: 'external',
-      mass: finArea * FIN_AREAL_MASS,
+      mass: fins.mass,
       x: config.finStation * length,
       z: 0,
       volume: 0,
       computed: true,
-      note: `${finArea.toFixed(0)} m2 of planform. Large because the Munk moment is destabilising at every angle of attack and the fins are the only thing opposing it.`,
+      note: `${fins.area.toFixed(0)} m2 of planform. Large because the Munk moment is destabilising at every angle of attack and the fins are the only thing opposing it.`,
     },
   )
 
@@ -738,13 +766,13 @@ export const validateArrangement = (
     (c) => c.deck === 'keel' && c.id !== 'keel-structure',
   )
   const bayVolume = keelBays.reduce(
-    (s, c) => s + compartmentVolume(c, length, finenessRatio, design.hull.prismaticCoefficient),
+    (s, c) => s + compartmentVolume(c),
     0,
   )
   const overflowing = keelBays.filter(
     (c) =>
-      c.station - c.extent / 2 < config.keelForward ||
-      c.station + c.extent / 2 > config.keelAft,
+      c.station - c.extent / 2 / length < config.keelForward ||
+      c.station + c.extent / 2 / length > config.keelAft,
   )
   findings.push({
     id: 'keel-bays-fit-inside-the-keel',
@@ -777,10 +805,37 @@ export const validateArrangement = (
     })
   }
 
+  // ---- does the arrangement physically fit inside the hull ---------------
+  // A box drawn in metres does not automatically fit a hull that tapers. This
+  // is the check the fractional-radius version could not make, because in that
+  // version everything fitted by definition and the rooms grew with the ship.
+  const clashes: string[] = []
+  for (const c of config.compartments) {
+    if (c.deck !== 'keel' && c.deck !== 'cells') continue
+    for (const end of [c.station - c.extent / 2 / length, c.station + c.extent / 2 / length]) {
+      const r = hullRadiusAt(m(length), finenessRatio, Math.min(Math.max(end, 0), 1))
+      const z = compartmentHeight(c, r)
+      // Worst corner: half the width out, and whichever vertical face is
+      // further from the axis.
+      const corner = Math.hypot(c.width / 2, Math.abs(z) + c.height / 2)
+      if (corner > r) {
+        clashes.push(`${c.name} by ${(corner - r).toFixed(1)} m at station ${end.toFixed(2)}`)
+        break
+      }
+    }
+  }
+  findings.push({
+    id: 'compartments-fit-the-hull',
+    severity: clashes.length === 0 ? 'pass' : 'fail',
+    rule: 'Every keel bay fits inside the hull section at both of its ends.',
+    detail:
+      clashes.length === 0
+        ? 'Every bay clears the hull skin over its full length. The hull tapers and the bays do not, so this is a real constraint rather than a formality: it is what stops the corridor running out past the cover near the tail.'
+        : `${clashes.join('; ')}. The hull tapers toward the ends and these boxes do not, so they leave the envelope.`,
+  })
+
   // ---- fins against the Munk moment --------------------------------------
-  const finRootChord = FIN_ROOT_CHORD_FRACTION * length
-  const finSpan = config.finSpanFraction * maxRadius
-  const finArea = 4 * 0.5 * (finRootChord + finRootChord * FIN_TAPER_RATIO) * finSpan
+  const fins = finPlanform(design, config)
   const geometry = hullGeometry(
     m(length),
     finenessRatio,
@@ -799,7 +854,7 @@ export const validateArrangement = (
   const finLiftSlope = 2.8
   const minimumFinArea =
     (2 * MUNK_REAL_FLUID_FACTOR * geometry.volume * (k2 - k1)) / (finLiftSlope * finArm)
-  const staticMargin = finArea / minimumFinArea
+  const staticMargin = fins.area / minimumFinArea
   /** @source Airship practice wants 1.3 to 1.8 in yaw. Below 1 the vehicle diverges. */
   const MINIMUM_YAW_STATIC_MARGIN = 1.3
   findings.push({
@@ -807,7 +862,7 @@ export const validateArrangement = (
     severity:
       staticMargin >= MINIMUM_YAW_STATIC_MARGIN ? 'pass' : staticMargin >= 1 ? 'warn' : 'fail',
     rule: `Fin area at least ${MINIMUM_YAW_STATIC_MARGIN} times the minimum that balances the Munk moment.`,
-    detail: `${finArea.toFixed(0)} m2 of fin against a ${minimumFinArea.toFixed(0)} m2 minimum on a ${finArm.toFixed(1)} m arm: a static margin of ${staticMargin.toFixed(2)}. The Munk moment is certain and the fin effectiveness is not, because the tail sits in a thick hull boundary layer, so the margin is the honest part of this number.`,
+    detail: `${fins.area.toFixed(0)} m2 of fin against a ${minimumFinArea.toFixed(0)} m2 minimum on a ${finArm.toFixed(1)} m arm: a static margin of ${staticMargin.toFixed(2)}. The Munk moment is certain and the fin effectiveness is not, because the tail sits in a thick hull boundary layer, so the margin is the honest part of this number.`,
   })
 
   // ---- habitability ------------------------------------------------------
@@ -840,7 +895,7 @@ export const validateArrangement = (
 
   const propellerTipRadius = Math.max(
     ...config.propulsors.map(
-      (p) => Math.abs(p.lateralOffset) * maxRadius + (p.diameterFraction * maxRadius) / 2,
+      (p) => Math.abs(p.lateralOffset) * maxRadius + p.diameter / 2,
     ),
   )
   const clearance = propellerTipRadius - maxRadius
@@ -884,6 +939,7 @@ export const smallestClosingLength = (
 
   /** @derived Search bounds. Below 50 m nothing closes; above 200 m is a different project. */
   let low = 50
+  /** @derived The upper search bound, from the same reasoning. */
   let high = 200
   if (marginAt(high) < 0) return null
   if (marginAt(low) > 0) return low
