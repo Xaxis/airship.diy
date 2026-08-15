@@ -66,7 +66,7 @@ export function ShedScale({
       <div className="scroll-x p-4">
         <svg
           viewBox={`0 0 ${viewWidth} ${viewHeight}`}
-          className="block w-full min-w-[760px]"
+          className="block w-full min-w-[560px]"
           role="img"
           aria-label={`The ${length} metre ship inside the ${clearLength.toFixed(0)} by ${clearHeight.toFixed(0)} metre shed it needs, drawn to scale`}
         >

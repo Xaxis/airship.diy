@@ -68,6 +68,19 @@ export function FlightSimulator({
    */
   const input = useRef({ thrust: 0, elevator: 0, rudder: 0 })
 
+  /**
+   * Which controls are held down, whatever is holding them.
+   *
+   * The keyboard handlers and the on-screen buttons both write here and the
+   * animation loop only reads. THE SIMULATOR WAS KEYBOARD ONLY, which meant it
+   * was not merely awkward on a phone, it was inoperable: there is no W key on
+   * a touch screen, so the vehicle sat at zero thrust forever. One shared set of
+   * held controls is what lets both input devices drive the same solver rather
+   * than the touch path being a second, subtly different implementation.
+   */
+  const held = useRef(new Set<string>())
+  const [pressed, setPressed] = useState<readonly string[]>([])
+
   useEffect(() => {
     const container = mount.current
     if (!container) return
@@ -194,7 +207,7 @@ export function FlightSimulator({
     scene.add(sun)
 
     // ---------------------------------------------------------------- controls
-    const keys = new Set<string>()
+    const keys = held.current
     const down = (e: KeyboardEvent) => {
       if (
         ['w', 's', 'a', 'd', 'q', 'e', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(
@@ -208,6 +221,9 @@ export function FlightSimulator({
     const up = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase())
     container.addEventListener('keydown', down)
     container.addEventListener('keyup', up)
+    // A control held when the tab loses focus would stay held forever.
+    const releaseAll = () => keys.clear()
+    window.addEventListener('blur', releaseAll)
 
     // ------------------------------------------------------------------- loop
     const resize = () => {
@@ -316,6 +332,7 @@ export function FlightSimulator({
       stopped = true
       cancelAnimationFrame(frame)
       observer.disconnect()
+      window.removeEventListener('blur', releaseAll)
       container.removeEventListener('keydown', down)
       container.removeEventListener('keyup', up)
       renderer.dispose()
@@ -357,13 +374,127 @@ export function FlightSimulator({
         ))}
       </div>
 
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <ControlPad
+          title="Thrust"
+          hint="W and S"
+          held={held}
+          setPressed={setPressed}
+          pressed={pressed}
+          buttons={[
+            { key: 'w', label: 'Ahead', span: 1 },
+            { key: 's', label: 'Astern', span: 1 },
+          ]}
+        />
+        <ControlPad
+          title="Elevator and rudder"
+          hint="Arrow keys"
+          held={held}
+          setPressed={setPressed}
+          pressed={pressed}
+          buttons={[
+            { key: 'arrowup', label: 'Nose down', span: 1 },
+            { key: 'arrowdown', label: 'Nose up', span: 1 },
+            { key: 'arrowleft', label: 'Yaw left', span: 1 },
+            { key: 'arrowright', label: 'Yaw right', span: 1 },
+          ]}
+        />
+        <ControlPad
+          title="Ballast"
+          hint="Q and E"
+          held={held}
+          setPressed={setPressed}
+          pressed={pressed}
+          buttons={[
+            { key: 'q', label: 'Drop', span: 1 },
+            { key: 'e', label: 'Take on', span: 1 },
+          ]}
+        />
+      </div>
+
       <p className="mt-3 text-sm leading-relaxed text-[var(--color-ink-faint)]">
-        Click the view, then <span className="num text-[var(--color-ink-dim)]">W</span> and{' '}
+        Hold a control above, or click the view and use the keyboard:{' '}
+        <span className="num text-[var(--color-ink-dim)]">W</span> and{' '}
         <span className="num text-[var(--color-ink-dim)]">S</span> for thrust, arrow keys for
         elevator and rudder, <span className="num text-[var(--color-ink-dim)]">Q</span> and{' '}
         <span className="num text-[var(--color-ink-dim)]">E</span> to drop and take on ballast.
+        Everything responds slowly, because the vehicle does.
         {running ? '' : ' Loading.'}
       </p>
+    </div>
+  )
+}
+
+/**
+ * A group of hold-to-act controls that write into the same set the keyboard does.
+ *
+ * They are HOLD rather than TAP because that is what the solver expects: the
+ * loop integrates for as long as a control is held, and a tap would be a
+ * one-frame impulse on a vehicle that takes tens of seconds to respond to
+ * anything. Releasing on pointer-leave and pointer-cancel matters more than it
+ * looks: a finger that slides off the button would otherwise leave the thrust
+ * latched on with nothing on screen saying so.
+ */
+function ControlPad({
+  title,
+  hint,
+  buttons,
+  held,
+  pressed,
+  setPressed,
+}: {
+  title: string
+  hint: string
+  buttons: readonly { key: string; label: string; span: number }[]
+  held: React.RefObject<Set<string>>
+  pressed: readonly string[]
+  setPressed: (next: readonly string[]) => void
+}) {
+  const press = (key: string) => {
+    held.current.add(key)
+    setPressed([...held.current])
+  }
+  const release = (key: string) => {
+    held.current.delete(key)
+    setPressed([...held.current])
+  }
+
+  return (
+    <div className="border border-[var(--color-rule)] bg-[var(--color-panel)] p-3">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[11px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+          {title}
+        </span>
+        <span className="num text-[10px] text-[var(--color-ink-faint)]">{hint}</span>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {buttons.map((b) => {
+          const on = pressed.includes(b.key)
+          return (
+            <button
+              key={b.key}
+              type="button"
+              aria-pressed={on}
+              onPointerDown={(e) => {
+                e.preventDefault()
+                e.currentTarget.setPointerCapture(e.pointerId)
+                press(b.key)
+              }}
+              onPointerUp={() => release(b.key)}
+              onPointerCancel={() => release(b.key)}
+              onPointerLeave={() => release(b.key)}
+              className={`min-h-11 select-none border px-2 py-2 text-xs transition-colors ${
+                on
+                  ? 'border-[var(--color-accent)] bg-[var(--color-panel-raised)] text-[var(--color-ink)]'
+                  : 'border-[var(--color-rule)] text-[var(--color-ink-dim)] hover:border-[var(--color-rule-bright)]'
+              }`}
+              style={{ touchAction: 'none' }}
+            >
+              {b.label}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

@@ -80,7 +80,8 @@ export default function Page() {
         <div className="mt-8 grid gap-4 lg:grid-cols-2">
           <div>
             <h3 className="text-sm font-medium">Mass by group</h3>
-            <table className="num mt-3 w-full border border-[var(--color-rule)] text-sm">
+            <div className="scroll-x mt-3">
+            <table className="num w-full min-w-[26rem] border border-[var(--color-rule)] text-sm">
               <tbody>
                 {Object.entries(arrangement.mass.byCategory)
                   .filter(([, kg]) => kg > 0)
@@ -112,6 +113,7 @@ export default function Page() {
                 </tr>
               </tbody>
             </table>
+            </div>
             <p className="mt-2 text-xs leading-relaxed text-[var(--color-ink-faint)]">
               Lift is computed at both ends of the operating band and the binding one is used. At
               sea level the cells are at {pct(0.85, 0)} fill on dense air; at the design altitude

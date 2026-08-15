@@ -13,6 +13,7 @@ SHELL := /bin/bash
 
 .PHONY: help install build type-check lint test validate report uncertainty \
         prose check check-fast clean web web-build web-lint web-type-check \
+        web-responsive-check \
         web-check deploy
 
 help: ## List available targets
@@ -96,7 +97,14 @@ web-live-check: ## Load the DEPLOYED site in a real browser and assert it runs
 	# taking the whole page down rather than just one view.
 	@node tools/check-web-live.mjs
 
-web-check: web-lint web-type-check web-build ## Every website check
+web-responsive-check: ## Load every route at every width a phone actually has
+	# A six-column table is correct HTML, correct CSS and correct data, and on a
+	# 375 px screen it pushes the whole document sideways so every paragraph runs
+	# off the edge. Nothing in a type check, a unit test or a desktop screenshot
+	# sees it. This reports the OFFENDING ELEMENT, not just the overflow.
+	@node tools/check-responsive.mjs
+
+web-check: web-lint web-type-check web-build web-responsive-check ## Every website check
 
 deploy: check ## Build and ship to airship.diy
 	@npx vercel deploy --prebuilt --prod

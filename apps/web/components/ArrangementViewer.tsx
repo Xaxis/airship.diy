@@ -953,7 +953,43 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     // a keyboard-and-trackpad user reliably has.
     const isPanGesture = (e: PointerEvent) => e.button === 1 || e.button === 2 || e.shiftKey
 
+    // ON A TOUCH SCREEN NONE OF THOSE EXIST. There is no middle button, no right
+    // button, no shift key and no wheel, so the viewer was one-third usable on a
+    // phone: you could turn it and nothing else. Two fingers are the whole
+    // vocabulary a touch device has for this, and they carry both missing verbs
+    // at once: the distance between them zooms, and their midpoint pans.
+    const touches = new Map<number, { x: number; y: number }>()
+    let pinchDistance = 0
+    let pinchX = 0
+    let pinchY = 0
+
+    const pinchState = () => {
+      const [a, b] = [...touches.values()]
+      if (!a || !b) return null
+      return {
+        distance: Math.hypot(a.x - b.x, a.y - b.y),
+        x: (a.x + b.x) / 2,
+        y: (a.y + b.y) / 2,
+      }
+    }
+
     const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') {
+        touches.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        const p = pinchState()
+        if (p) {
+          // A second finger arrived. Stop rotating, start pinching, and take the
+          // current separation as the reference so the view does not jump.
+          dragging = false
+          panning = false
+          pinchDistance = p.distance
+          pinchX = p.x
+          pinchY = p.y
+          canvas.setPointerCapture(e.pointerId)
+          e.preventDefault()
+          return
+        }
+      }
       panning = isPanGesture(e)
       dragging = true
       lastX = e.clientX
@@ -963,6 +999,8 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
       e.preventDefault()
     }
     const onPointerUp = (e: PointerEvent) => {
+      touches.delete(e.pointerId)
+      if (touches.size < 2) pinchDistance = 0
       dragging = false
       panning = false
       canvas.style.cursor = 'grab'
@@ -972,28 +1010,56 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
 
     const pointer = new THREE.Vector2()
     let pointerInside = false
+    /**
+     * Move the orbit target in the camera's own screen plane.
+     *
+     * Scaled so a pixel of drag moves the same number of pixels of ship whatever
+     * the zoom: the vertical extent of the view at the target distance is
+     * 2*d*tan(fov/2), so a fraction of the canvas height maps to that fraction
+     * of it. Shared by the shift-drag pan and the two-finger pan, because two
+     * implementations of the same arithmetic is two chances to get it wrong.
+     */
+    const panBy = (dx: number, dy: number) => {
+      const height = canvas.clientHeight || 1
+      const worldPerPixel = (2 * distance * Math.tan((camera.fov * Math.PI) / 360)) / height
+      const right = new THREE.Vector3()
+      const up = new THREE.Vector3()
+      camera.matrixWorld.extractBasis(right, up, new THREE.Vector3())
+      target.addScaledVector(right, -dx * worldPerPixel)
+      target.addScaledVector(up, dy * worldPerPixel)
+    }
+
+    const zoomBy = (factor: number) => {
+      distance = Math.max(span * 0.4, Math.min(span * 3, distance * factor))
+    }
+
     const onPointerMove = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect()
       pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
       pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
       pointerInside = true
+
+      if (e.pointerType === 'touch' && touches.has(e.pointerId)) {
+        touches.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        const p = pinchState()
+        if (p && pinchDistance > 0) {
+          zoomBy(pinchDistance / Math.max(p.distance, 1))
+          panBy(p.x - pinchX, p.y - pinchY)
+          pinchDistance = p.distance
+          pinchX = p.x
+          pinchY = p.y
+          placeCamera()
+          e.preventDefault()
+          return
+        }
+      }
+
       if (!dragging) return
       const dx = e.clientX - lastX
       const dy = e.clientY - lastY
 
       if (panning) {
-        // Pan in the camera's own screen plane, scaled so a pixel of drag moves
-        // the same number of pixels of ship whatever the zoom. The vertical
-        // extent of the view at the target distance is 2*d*tan(fov/2), so a
-        // fraction of the canvas height maps to that fraction of it.
-        const height = canvas.clientHeight || 1
-        const worldPerPixel =
-          (2 * distance * Math.tan((camera.fov * Math.PI) / 360)) / height
-        const right = new THREE.Vector3()
-        const up = new THREE.Vector3()
-        camera.matrixWorld.extractBasis(right, up, new THREE.Vector3())
-        target.addScaledVector(right, -dx * worldPerPixel)
-        target.addScaledVector(up, dy * worldPerPixel)
+        panBy(dx, dy)
       } else {
         azimuth -= dx * 0.006
         elevation = Math.max(-1.35, Math.min(1.35, elevation + dy * 0.005))
@@ -1018,7 +1084,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     }
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      distance = Math.max(span * 0.4, Math.min(span * 3, distance * (1 + e.deltaY * 0.0012)))
+      zoomBy(1 + e.deltaY * 0.0012)
       placeCamera()
     }
 
@@ -1026,6 +1092,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     canvas.addEventListener('pointerup', onPointerUp)
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerleave', onPointerLeave)
+    canvas.addEventListener('pointercancel', onPointerUp)
     canvas.addEventListener('wheel', onWheel, { passive: false })
     canvas.addEventListener('contextmenu', onContextMenu)
 
@@ -1126,6 +1193,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
       canvas.removeEventListener('pointerup', onPointerUp)
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerleave', onPointerLeave)
+      canvas.removeEventListener('pointercancel', onPointerUp)
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('contextmenu', onContextMenu)
       for (const d of disposables) d.dispose()

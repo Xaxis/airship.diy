@@ -50,13 +50,150 @@ body {
 }
 
 /* Wide content scrolls inside its own container. The page body never scrolls
-   sideways, which is the failure that survives every other check. */
+   sideways, which is the failure that survives every other check.
+
+   The scrollbar is styled rather than left to the platform BECAUSE macOS and
+   iOS hide it until you scroll. On a phone that leaves a table showing four of
+   its six columns with nothing on screen saying the other two exist, which is
+   worse than a defect: it is a page that looks complete and is not. A visible
+   6 px rail is the whole affordance and it costs four lines. */
 .scroll-x {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-rule-bright) transparent;
+  overscroll-behavior-x: contain;
+}
+
+.scroll-x::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scroll-x::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-x::-webkit-scrollbar-thumb {
+  background: var(--color-rule-bright);
+  border-radius: 3px;
 }
 
 ::selection {
   background: var(--color-accent);
   color: var(--color-ground);
+}
+
+/*
+ * Sliders you can hit with a thumb.
+ *
+ * A default range input is 16 px tall, which is a mouse target rather than a
+ * finger target: WCAG 2.2 SC 2.5.8 asks for 24 CSS pixels and the platform
+ * guidance for a primary control asks for more. The track stays thin because
+ * that is what reads as an instrument; the HEIGHT of the element is what grows,
+ * and the thumb grows with it.
+ *
+ * This is also the difference between a simulator that works on a phone and one
+ * that a person prods four times and gives up on.
+ */
+input[type='range'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 28px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+
+input[type='range']::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-rule-bright);
+}
+
+input[type='range']::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-rule-bright);
+}
+
+input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -8.5px;
+  border-radius: 50%;
+  border: 2px solid var(--color-ground);
+  background: var(--color-accent);
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--color-ground);
+  background: var(--color-accent);
+}
+
+input[type='range']:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+input[type='range']:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+/*
+ * A grid item that can shrink.
+ *
+ * A CSS grid item defaults to min-width: auto, which means it refuses to be
+ * narrower than its own min-content. One six-column table inside a two-column
+ * layout therefore widens the COLUMN, which widens the GRID, which widens the
+ * page, and every paragraph on it runs off the right edge of a phone. This is
+ * the single commonest cause of horizontal overflow in a Tailwind layout and it
+ * is invisible in the markup.
+ *
+ * Fixing it here rather than sprinkling min-w-0 means a new page cannot
+ * reintroduce it by forgetting.
+ */
+.grid > * {
+  min-width: 0;
+}
+
+/*
+ * A link that is also a finger target.
+ *
+ * Applied to the navigation, the wordmark and the footer links, which are all
+ * single lines of small type and therefore all under the 24 px minimum on their
+ * own. The negative margin keeps the visual rhythm: the target grows, the layout
+ * does not move.
+ */
+.tap {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding-block: 6px;
+}
+
+/*
+ * A 3D viewer sized for the screen it is on.
+ *
+ * On a phone a fixed 520 px canvas is most of the screen and leaves no room for
+ * the controls under it, and on a desktop a percentage height collapses. Both
+ * cases want the same rule: take a share of the viewport, within bounds.
+ */
+.viewer {
+  height: clamp(260px, 52vh, 520px);
+}
+
+/*
+ * Anything that draws itself must let the finger scroll the page vertically
+ * while still handling horizontal drags for rotation. Without this a canvas on
+ * a phone traps the scroll and the page cannot be read past it.
+ */
+canvas {
+  touch-action: pan-y;
 }

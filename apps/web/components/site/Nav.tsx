@@ -26,7 +26,7 @@ export function Nav() {
       <div className="mx-auto flex max-w-6xl items-center gap-4 px-5 py-3 sm:px-8">
         <Link
           href="/"
-          className="num shrink-0 text-xs tracking-[0.2em] text-[var(--color-accent)] transition-opacity hover:opacity-80"
+          className="tap num shrink-0 text-xs tracking-[0.2em] text-[var(--color-accent)] transition-opacity hover:opacity-80"
         >
           AIRSHIP.DIY
         </Link>

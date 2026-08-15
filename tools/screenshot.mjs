@@ -16,6 +16,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const [url, selector, output, ...clicks] = process.argv.slice(2)
+
+// Width and height come from the environment so the same tool can look at the
+// desktop layout and the phone layout. A responsive defect is only visible at
+// the width it happens at, and hardcoding 1400 px means never seeing one.
+const VIEW_WIDTH = Number(process.env['SHOT_WIDTH'] ?? 1400)
+const VIEW_HEIGHT = Number(process.env['SHOT_HEIGHT'] ?? 2000)
 if (!url || !output) {
   console.error('usage: node tools/screenshot.mjs <url> [selector] <output.png>')
   process.exit(1)
@@ -35,7 +41,7 @@ const chrome = spawn(
     '--no-first-run',
     '--no-default-browser-check',
     '--remote-debugging-port=9334',
-    '--window-size=1400,2000',
+    `--window-size=${VIEW_WIDTH},${VIEW_HEIGHT}`,
     `--user-data-dir=${profile}`,
     'about:blank',
   ],
@@ -92,10 +98,10 @@ const main = async () => {
   await send('Page.enable')
   await send('Runtime.enable')
   await send('Emulation.setDeviceMetricsOverride', {
-    width: 1400,
-    height: 2000,
+    width: VIEW_WIDTH,
+    height: VIEW_HEIGHT,
     deviceScaleFactor: 2,
-    mobile: false,
+    mobile: VIEW_WIDTH < 900,
   })
   await send('Page.navigate', { url })
   await new Promise((r) => setTimeout(r, 6000))

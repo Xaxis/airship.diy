@@ -42,7 +42,8 @@ export default function Page() {
           </div>
 
           <div>
-            <table className="num w-full border border-[var(--color-rule)] text-sm">
+            <div className="scroll-x">
+            <table className="num w-full min-w-[26rem] border border-[var(--color-rule)] text-sm">
               <thead>
                 <tr className="border-b border-[var(--color-rule)] text-left text-xs text-[var(--color-ink-faint)]">
                   <th className="p-2.5 font-normal">Sea state</th>
@@ -81,6 +82,7 @@ export default function Page() {
                 ))}
               </tbody>
             </table>
+            </div>
             <p className="mt-2 text-xs leading-relaxed text-[var(--color-ink-faint)]">
               Suspension load as a fraction of its flight design load, with the dynamic
               amplification from the {' '}
@@ -105,7 +107,8 @@ export default function Page() {
             towed at hull speed by a rowing boat; what has to be pushed through the air is the
             entire envelope.
           </p>
-          <table className="num mt-3 w-full border border-[var(--color-rule)] text-sm">
+          <div className="scroll-x mt-3">
+          <table className="num w-full min-w-[30rem] border border-[var(--color-rule)] text-sm">
             <thead>
               <tr className="border-b border-[var(--color-rule)] text-left text-xs text-[var(--color-ink-faint)]">
                 <th className="p-2.5 font-normal">Wind</th>
@@ -137,6 +140,7 @@ export default function Page() {
               ))}
             </tbody>
           </table>
+          </div>
           <p className="mt-2 text-xs leading-relaxed text-[var(--color-ink-faint)]">
             Above {marine.stallWind.toFixed(0)} m/s the vehicle goes wherever the wind goes. That is
             not a failure of the propulsion, it is the ratio of a {fmt(marine.envelopeVolume)} m³

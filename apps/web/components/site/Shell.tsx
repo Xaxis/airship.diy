@@ -85,7 +85,7 @@ export function Footer() {
         </p>
         <p className="mt-3 text-xs text-[var(--color-ink-faint)]">
           <a
-            className="underline decoration-[var(--color-rule-bright)] underline-offset-4 hover:text-[var(--color-ink-dim)]"
+            className="tap underline decoration-[var(--color-rule-bright)] underline-offset-4 hover:text-[var(--color-ink-dim)]"
             href="https://github.com/Xaxis/airship.diy"
           >
             Source
