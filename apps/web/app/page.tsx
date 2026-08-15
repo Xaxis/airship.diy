@@ -4,9 +4,12 @@ import { Diagnostics } from '../components/Diagnostics'
 import { FlightSimulator } from '../components/FlightSimulator'
 import { ArrangementViewer } from '../components/ArrangementViewer'
 import { InboardProfile } from '../components/InboardProfile'
+import { MarineSimulator } from '../components/MarineSimulator'
 import {
+  architectures,
   arrangement,
   baseline,
+  marine,
   designs,
   hullProfile,
   hydrogenAdvantage,
@@ -289,6 +292,212 @@ export default function Home() {
       {/* ---------------------------------------------------------------- */}
       <Section
         n="04"
+        title="Land it on water"
+        lede="Flotation is trivial and it is not the problem. The load resting on the water is the STATIC HEAVINESS, not the weight: trimmed 800 kg heavy this vehicle displaces 0.8 m³ under a 31,657 m³ envelope. It is a cork with a 115 m sail on it, and every consequence is the opposite of boat intuition."
+      >
+        <div className="border border-[var(--color-rule)] bg-[var(--color-panel)]">
+          <MarineSimulator data={marine} radii={hullProfile.radii} length={hullProfile.length} />
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <div className="border-l-2 border-[var(--color-fail)] bg-[var(--color-panel)] p-5">
+            <h3 className="font-medium">It does not slam. It gets picked up.</h3>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--color-ink-dim)]">
+              A floatplane is limited to about 0.3 m of wave because it is heavy: several tonnes
+              have to be stopped in a hull length and the deceleration breaks things. This vehicle
+              puts {fmt(marine.landingHeaviness)} kg on the water. It is far too light to slam.
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-[var(--color-ink-dim)]">
+              What happens instead is that a crest tries to LIFT it. The envelope above is fixed in
+              altitude by 30 tonnes of buoyancy and an enormous added mass, so the whole relative
+              motion goes into the suspension. A rigid hull is a hydrostatic spring with no ceiling:
+              in a 0.3 m sea it feeds{' '}
+              {fmt((marine.seakeepingComparison[1]?.rigid.load ?? 0) / 1000)} kN up the cables
+              against a {fmt(marine.suspensionDesignLoad / 1000)} kN flight design load.
+            </p>
+          </div>
+
+          <div>
+            <table className="num w-full border border-[var(--color-rule)] text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-rule)] text-left text-xs text-[var(--color-ink-faint)]">
+                  <th className="p-2.5 font-normal">Sea state</th>
+                  <th className="p-2.5 text-right font-normal">Hs</th>
+                  <th className="p-2.5 text-right font-normal">Rigid hull</th>
+                  <th className="p-2.5 text-right font-normal">Cushion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {marine.seakeepingComparison.map((s) => (
+                  <tr key={s.code} className="border-b border-[var(--color-rule)] last:border-0">
+                    <td className="sans p-2.5">
+                      {s.code} <span className="text-[var(--color-ink-faint)]">{s.description}</span>
+                    </td>
+                    <td className="p-2.5 text-right text-[var(--color-ink-dim)]">
+                      {s.significantWaveHeight} m
+                    </td>
+                    <td
+                      className={`p-2.5 text-right ${s.rigid.ok ? 'text-[var(--color-pass)]' : 'text-[var(--color-fail)]'}`}
+                    >
+                      {pct(s.rigid.utilisation, 0)}
+                    </td>
+                    <td
+                      className={`p-2.5 text-right ${s.cushion.ok ? 'text-[var(--color-pass)]' : 'text-[var(--color-fail)]'}`}
+                    >
+                      {pct(s.cushion.utilisation, 0)}
+                      {s.cushion.forceLimited ? ' *' : ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--color-ink-faint)]">
+              Suspension load as a fraction of its flight design load. A rigid hull is limited to
+              sea state {marine.maximumSeaStateRigid}; a pneumatic cushion at{' '}
+              {(marine.cushionPressure / 1000).toFixed(2)} kPa gauge, which is{' '}
+              {(marine.cushionPressure / 6895).toFixed(2)} psi, reaches sea state{' '}
+              {marine.maximumSeaStateCushion}. An asterisk marks where the cushion has reached its
+              pressure ceiling and is squashing rather than transmitting.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <h3 className="text-sm font-medium">Motoring to windward</h3>
+          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+            The question that decides whether marine mode is an escape or a trap. The hull could be
+            towed at hull speed by a rowing boat; what has to be pushed through the air is the
+            entire envelope.
+          </p>
+          <table className="num mt-3 w-full border border-[var(--color-rule)] text-sm">
+            <thead>
+              <tr className="border-b border-[var(--color-rule)] text-left text-xs text-[var(--color-ink-faint)]">
+                <th className="p-2.5 font-normal">Wind</th>
+                <th className="p-2.5 text-right font-normal">Speed made good</th>
+                <th className="p-2.5 text-right font-normal">Of the drag, air is</th>
+                <th className="p-2.5 font-normal" />
+              </tr>
+            </thead>
+            <tbody>
+              {marine.windward.map((w) => (
+                <tr key={w.wind} className="border-b border-[var(--color-rule)] last:border-0">
+                  <td className="p-2.5">{w.wind} m/s</td>
+                  <td
+                    className={`p-2.5 text-right ${w.overpowered ? 'text-[var(--color-fail)]' : ''}`}
+                  >
+                    {w.speed.toFixed(2)} m/s
+                  </td>
+                  <td className="p-2.5 text-right text-[var(--color-ink-dim)]">
+                    {pct(w.aerodynamicFraction, 0)}
+                  </td>
+                  <td className="sans p-2.5 text-xs text-[var(--color-ink-faint)]">
+                    {w.overpowered
+                      ? 'blown backwards'
+                      : w.porpoisingLimited
+                        ? 'limited by porpoising, not power'
+                        : ''}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-xs leading-relaxed text-[var(--color-ink-faint)]">
+            Above {marine.stallWind.toFixed(0)} m/s the vehicle goes wherever the wind goes. That is
+            not a failure of the propulsion, it is the ratio of a {fmt(marine.envelopeVolume)} m³
+            envelope to {fmt(marine.staticThrust / 1000, 1)} kN of thrust, and the answer to it is
+            the bow drogue rather than more power.
+          </p>
+        </div>
+      </Section>
+
+      <Rule />
+
+      {/* ---------------------------------------------------------------- */}
+      <Section
+        n="05"
+        title="Why this architecture and not another"
+        lede="Rigid, semi-rigid, non-rigid, hybrid-lift and variable-buoyancy, each calibrated on a vehicle that actually flew and each run through the same gates. The comparison is the point: three of them are lighter than the one chosen, and each is lighter for a reason that costs something a liveaboard cannot pay."
+      >
+        <div className="overflow-x-auto border border-[var(--color-rule)]">
+          <table className="num w-full min-w-[820px] text-sm">
+            <thead>
+              <tr className="border-b border-[var(--color-rule)] text-left text-xs text-[var(--color-ink-faint)]">
+                <th className="p-2.5 font-normal">Architecture</th>
+                <th className="p-2.5 text-right font-normal">Structure</th>
+                <th className="p-2.5 text-right font-normal">kg/m³</th>
+                <th className="p-2.5 text-right font-normal">Ballast system</th>
+                <th className="p-2.5 font-normal">Can hover</th>
+                <th className="p-2.5 font-normal">A torn cell</th>
+              </tr>
+            </thead>
+            <tbody>
+              {architectures.comparison.map((a) => (
+                <tr key={a.id} className="border-b border-[var(--color-rule)] last:border-0">
+                  <td className="sans p-2.5">
+                    {a.name}
+                    {a.id === 'rigid' ? (
+                      <span className="ml-2 text-xs text-[var(--color-accent)]">chosen</span>
+                    ) : null}
+                  </td>
+                  <td className="p-2.5 text-right">{fmt(a.structure.total)} kg</td>
+                  <td className="p-2.5 text-right text-[var(--color-ink-dim)]">
+                    {a.structure.perVolume.toFixed(3)}
+                  </td>
+                  <td className="p-2.5 text-right">{fmt(a.ballastMass)} kg</td>
+                  <td
+                    className={`sans p-2.5 text-xs ${a.canHover ? 'text-[var(--color-pass)]' : 'text-[var(--color-fail)]'}`}
+                  >
+                    {a.canHover ? 'yes' : `no, needs ${a.minimumFlyingSpeed.toFixed(1)} m/s`}
+                  </td>
+                  <td className="sans p-2.5 text-xs text-[var(--color-ink-dim)]">
+                    {a.containment === 'independent-cells'
+                      ? 'costs one cell'
+                      : 'costs the ship'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-6 border-l-2 border-[var(--color-accent)] bg-[var(--color-panel)] p-5">
+          <h3 className="font-medium">The hull girder is sized by a gust, and the gust gets worse as the ship slows down</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+            {architectures.girder.note}
+          </p>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+            That number then decides whether a pressure-stabilised hull is available at all, and it
+            turns out not to be the binding criterion:{' '}
+            {architectures.comparison.find((a) => a.pressure)?.pressure?.reason}
+          </p>
+        </div>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {architectures.comparison.map((a) => (
+            <div
+              key={a.id}
+              className="border border-[var(--color-rule)] bg-[var(--color-panel)] p-4"
+            >
+              <p className="font-medium">{a.name}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-ink-dim)]">
+                {a.description}
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-[var(--color-ink-faint)]">
+                Calibrated on {a.calibratedOn}.
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-[var(--color-ink-dim)]">
+                {a.verdict}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Rule />
+
+      {/* ---------------------------------------------------------------- */}
+      <Section
+        n="06"
         title="Move a parameter and watch what breaks"
         lede="Every figure here is recomputed by the same solvers the tests and the reports use. Infeasible regions are shown as infeasible rather than as a small number: a hull that cannot lift its own structure says so, and a wind the vehicle cannot hold against turns the verdict red."
       >
@@ -299,7 +508,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="05"
+        n="07"
         title="Does it hold up against ships that actually flew?"
         lede="Unit tests catch regressions. These catch being wrong. The model is fed published geometry for every rigid airship in the reference set and has to reproduce published gross lift within a stated tolerance. Where a source contradicts itself, the fixture records the contradiction rather than resolving it quietly."
       >
@@ -407,7 +616,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="06"
+        n="08"
         title="Does the loop close?"
         lede="Regime A is the project's thesis: sunlight in, electrolysis to store, fuel cell to convert back, engines cold, endurance bounded by component life rather than by energy. The balance is run day by day through a year, because an annual average hides the ship that banks a surplus in June and runs a deficit in December."
       >
@@ -562,7 +771,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="07"
+        n="09"
         title="Can it be built?"
         lede="Empty weight scaled from the Hindenburg, across the range of structural scaling exponents the historical record cannot distinguish between. This is deliberately a family of curves: one curve would be a claim the evidence does not support, and the two ends disagree about whether bigger ships are better or worse."
       >
@@ -700,7 +909,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="08"
+        n="10"
         title="What should the engine burn?"
         lede="Comparing fuels by energy per kilogram is the habit of every other vehicle and it is the wrong metric here. On an airship the scarce resource is not mass, it is lift: every kilogram of fuel aboard is a kilogram of payload that is not, and every cubic metre inside the hull is a cubic metre that is not lifting. Ranked by energy stored per kilogram of lift given up, the order inverts."
       >
@@ -769,7 +978,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="09"
+        n="11"
         title="Which resource runs out first?"
         lede="The energy balance said energy does not bind. This steps a day at a time through a multi-year mission tracking gas mass and purity, water, food and consumables, to find out what does. The answer is a legal interval, and the thing everyone expects to bind turns out not to."
       >
@@ -859,7 +1068,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="10"
+        n="12"
         title="Diagnostics"
         lede="The curves the design actually turns on. Shear and bending moment are drawn as two charts sharing an axis rather than one chart with two scales, because newtons and newton metres are not comparable heights and putting them on one plot invites a reading that means nothing."
       >
@@ -877,7 +1086,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="11"
+        n="13"
         title="Where the model is guessing"
         lede="Values nobody has published, with the range and what measurement would resolve each. A number without a source fails the build here, so anything genuinely unknown has to be declared rather than quietly invented. This list is the project's research queue."
       >
@@ -907,7 +1116,7 @@ export default function Home() {
 
       {/* ---------------------------------------------------------------- */}
       <Section
-        n="12"
+        n="14"
         title="Build order"
         lede="Each phase has a validation gate. Nothing downstream of a failing gate is trustworthy, so a phase has to pass before the next opens."
       >

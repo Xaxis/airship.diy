@@ -2,7 +2,10 @@ import {
   HISTORICAL_SHIPS,
   STRUCTURAL_FLEET,
   STRUCTURAL_SCALING,
+  SEA_STATE,
+  barrierFilm,
   allUncertain,
+  v,
   SOURCES,
 } from '@airship/data'
 import {
@@ -20,6 +23,13 @@ import {
   buoyancyDistribution,
   solveBeam,
   powerRequired,
+  hullSpeed,
+  porpoisingSpeed,
+  seakeeping,
+  maximumSeaState,
+  cushionPressureFor,
+  windwardSpeed,
+  waterTouchdown,
   STANDARD_GAS_TEMPERATURE,
 } from '@airship/core'
 import {
@@ -30,9 +40,12 @@ import {
   validateArrangement,
   finPlanform,
   smallestClosingLength,
+  hullBendingMoment,
+  ARCHITECTURES,
+  compareArchitecture,
 } from '@airship/model'
 import { energyBalance, integrateMission, maximumSustainableWind } from '@airship/solvers'
-import { m, m3, purity as asPurity } from '@airship/units'
+import { m, m3, kg, N, purity as asPurity } from '@airship/units'
 
 /**
  * The site reads the model. It does not restate it.
@@ -451,5 +464,197 @@ export const arrangement = (() => {
         BASELINE_ARRANGEMENT,
       ).liftMargin,
     },
+  }
+})()
+
+/**
+ * Marine mode, from the same solver the tests exercise.
+ *
+ * The simulator on the site integrates these numbers in the browser; this is
+ * the vehicle description it integrates, plus the standing answers that do not
+ * depend on what the visitor does with the sliders.
+ */
+export const marine = (() => {
+  const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+  const gondola = BASELINE_ARRANGEMENT.compartments.find((c) => c.id === 'gondola-structure')
+  if (!gondola) throw new Error('The arrangement has no gondola to float on.')
+
+  /** @derived Waterline is shorter than the hull: the ends are fined off. */
+  const waterlineLength = gondola.extent * 0.85
+  /** @derived Waterplane is not the full rectangle: the sides taper in. */
+  const waterplaneArea = gondola.width * waterlineLength * 0.75
+  const gondolaMass = statement.byDeck.gondola
+  /** @source Gondola weight times a gust factor: what the suspension is sized by. */
+  const suspensionDesignLoad = gondolaMass * 9.80665 * 2.5
+  const cushionPressure = cushionPressureFor(N(suspensionDesignLoad), waterplaneArea)
+
+  /**
+   * Static thrust of the four propulsors by momentum theory.
+   *
+   * @derived T = (2 * rho * A)^(1/3) * P^(2/3), the ideal actuator disc result.
+   * A real propeller reaches about 80 percent of it, and that factor is applied.
+   */
+  const staticThrust = BASELINE_ARRANGEMENT.propulsors.reduce((sum, p) => {
+    const area = Math.PI * (p.diameter / 2) ** 2
+    const ideal = Math.cbrt(2 * 1.225 * area) * Math.pow(p.ratedPower, 2 / 3)
+    return sum + ideal * 0.8
+  }, 0)
+
+  /** The trim the ship lands at: deliberately heavy, so it stays put. */
+  const landingHeaviness = 800
+
+  const rigid = { kind: 'rigid' as const, waterplaneArea }
+  const cushion = {
+    kind: 'pneumatic' as const,
+    contactArea: waterplaneArea,
+    gaugePressure: cushionPressure,
+  }
+
+  return {
+    waterlineLength,
+    waterplaneArea,
+    gondolaWidth: gondola.width,
+    gondolaLength: gondola.extent,
+    gondolaMass,
+    suspensionDesignLoad,
+    cushionPressure,
+    staticThrust,
+    landingHeaviness,
+    totalMass: statement.total,
+    envelopeVolume: statement.gasVolume,
+    hullSpeed: hullSpeed(m(waterlineLength)),
+    porpoisingSpeed: porpoisingSpeed(m(waterlineLength)),
+
+    /** The comparison that decided the landing gear. */
+    seakeepingComparison: SEA_STATE.map((state) => ({
+      code: state.code,
+      description: state.description,
+      significantWaveHeight: state.significantWaveHeight,
+      rigid: (() => {
+        const k = seakeeping(state.code, rigid, N(suspensionDesignLoad))
+        return { load: k.suspensionLoad as number, utilisation: k.utilisation, ok: k.acceptable }
+      })(),
+      cushion: (() => {
+        const k = seakeeping(state.code, cushion, N(suspensionDesignLoad))
+        return {
+          load: k.suspensionLoad as number,
+          utilisation: k.utilisation,
+          ok: k.acceptable,
+          forceLimited: k.forceLimited,
+        }
+      })(),
+    })),
+    maximumSeaStateRigid: maximumSeaState(rigid, N(suspensionDesignLoad)),
+    maximumSeaStateCushion: maximumSeaState(cushion, N(suspensionDesignLoad)),
+
+    /** Speed made good against wind, which decides whether marine mode is an escape. */
+    windward: [0, 3, 5, 8, 10, 12, 15, 18, 20].map((wind) => {
+      const p = windwardSpeed(
+        N(staticThrust),
+        wind,
+        kg(landingHeaviness),
+        m(waterlineLength),
+        statement.gasVolume,
+      )
+      return {
+        wind,
+        speed: p.speed,
+        overpowered: p.overpowered,
+        porpoisingLimited: p.porpoisingLimited,
+        aerodynamicFraction: p.resistance.aerodynamicFraction,
+      }
+    }),
+    stallWind: windwardSpeed(
+      N(staticThrust),
+      5,
+      kg(landingHeaviness),
+      m(waterlineLength),
+      statement.gasVolume,
+    ).stallWind,
+
+    /** Touchdown at a range of arrival rates. */
+    touchdown: [0.5, 1.0, 1.5, 2.0, 3.0].map((rate) => {
+      const t = waterTouchdown(
+        rate,
+        waterplaneArea,
+        kg(landingHeaviness),
+        kg(statement.total),
+        m(1.8),
+      )
+      return {
+        rate,
+        immersion: t.immersion,
+        loadFactor: t.loadFactor,
+        submerged: t.submerged,
+      }
+    }),
+  }
+})()
+
+/** Every architecture, run through the same gates. */
+export const architectures = (() => {
+  const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+  const girder = hullBendingMoment(BASELINE, BASELINE_ARRANGEMENT)
+
+  return {
+    girder: {
+      staticMoment: girder.staticMoment,
+      staticStation: girder.staticStation,
+      hogging: girder.hogging,
+      gustMoment: girder.gustMoment,
+      gustIncidence: girder.gustIncidence,
+      designMoment: girder.designMoment,
+      note: girder.note,
+    },
+    comparison: ARCHITECTURES.map((a) => {
+      const c = compareArchitecture(
+        a,
+        BASELINE.hull.length,
+        BASELINE.hull.finenessRatio,
+        BASELINE.hull.prismaticCoefficient,
+        statement.total,
+        BASELINE.hull.cellCount,
+        v(barrierFilm(BASELINE.hull.filmId).arealDensity),
+        girder.designMoment,
+      )
+      return {
+        id: a.id,
+        name: a.name,
+        description: a.description,
+        calibratedOn: a.calibratedOn,
+        containment: a.containment,
+        buoyancyControl: a.buoyancyControl,
+        aerodynamicLiftFraction: a.aerodynamicLiftFraction,
+        gasVolume: c.gasVolume,
+        structure: {
+          frame: c.structure.frame,
+          envelope: c.structure.envelope,
+          containment: c.structure.containment,
+          total: c.structure.total,
+          perVolume: c.structure.perVolume,
+          note: c.structure.note,
+        },
+        ballastMass: c.buoyancyControl.systemMass,
+        ballastEnergy: c.buoyancyControl.energyPerKilogram,
+        ballastRenewable: c.buoyancyControl.renewable,
+        ballastNote: c.buoyancyControl.note,
+        pressure: c.pressureLimit
+          ? {
+              required: c.pressureLimit.requiredPressure,
+              wrinkling: c.pressureLimit.wrinklingPressure,
+              aerodynamic: c.pressureLimit.aerodynamicPressure,
+              governedBy: c.pressureLimit.governedBy,
+              fabricLoad: c.pressureLimit.fabricLoad,
+              allowable: c.pressureLimit.allowable,
+              withinLimit: c.pressureLimit.withinLimit,
+              reason: c.pressureLimit.reason,
+            }
+          : null,
+        minimumFlyingSpeed: c.minimumFlyingSpeed,
+        canHover: c.canHover,
+        damageTolerance: c.damageTolerance,
+        verdict: c.verdict,
+      }
+    }),
   }
 })()
