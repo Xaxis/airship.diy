@@ -27,3 +27,8 @@ uncertainty-report.json
 validation-report.json
 test-report.json
 *.tsbuildinfo
+
+# Scratch scripts. They belong in the session scratchpad, not the tree, and
+# `git add -A` will otherwise sweep them in and fail lint on the next run.
+/chk*.mjs
+/scratch*.mjs
