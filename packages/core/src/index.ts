@@ -57,6 +57,8 @@ export {
   addedMassMatrix,
   munkMoment,
   pendulumPeriod,
+  pendulumToFinCrossoverSpeed,
+  MUNK_REAL_FLUID_FACTOR,
 } from './dynamics/added-mass.js'
 
 export type { BucklingMode, BucklingResult } from './structure/buckling.js'
