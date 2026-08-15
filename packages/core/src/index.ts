@@ -98,6 +98,12 @@ export {
   mayUseUniversalCompositeKnockdown,
 } from './structure/buckling.js'
 
+export type { LaminateProperties, LaminateOptions } from './structure/laminate.js'
+export { laminate, pliesFor } from './structure/laminate.js'
+
+export type { MemberSection, FrameSchedule, ScheduleAgreement } from './structure/members.js'
+export { sizeCompressionMember, frameSchedule, scheduleAgreement } from './structure/members.js'
+
 export type { MassFractionEstimate } from './structure/mass-fraction.js'
 export {
   scaledEmptyWeight,

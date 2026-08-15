@@ -5,6 +5,12 @@ import {
   Stat,
   fmt,
   pct,
+  Callout,
+  DataTable,
+  Th,
+  Td,
+  Tr,
+  StatGrid,
 } from '../../components/site/primitives'
 import { Shell } from '../../components/site/Shell'
 import {
@@ -14,6 +20,7 @@ import {
   massFractionTable,
   structuralBenchmark,
   structuralScaling,
+  frame,
 } from '../../lib/model'
 
 export const metadata = { title: 'Structure' }
@@ -169,6 +176,93 @@ export default function Page() {
           hullLength={diagnostics.hullLength}
           beam={diagnostics.beam}
         />
+      </Section>
+
+      <Rule />
+
+      <Section
+        title="The frame, member by member"
+        lede="Everywhere else the frame mass is a scaling estimate: the Hindenburg's framework share of empty weight, corrected for carbon. That sizes a concept, and it is not a structure. This sizes the actual members against the gust moment and the buckling allowable, and then compares the two."
+      >
+        <Callout title="The laminate you can actually lay up" tone="unknown">
+          <p>{frame.material.note}</p>
+          <p>
+            Leaving the vacuum bag off costs a further {pct(frame.withoutVacuumBag.penalty, 0)} of
+            compressive strength. The bag is not optional, and this is the number that says so.
+          </p>
+        </Callout>
+
+        <div className="mt-4">
+          <StatGrid columns={5}>
+            <Stat
+              label="Fibre volume"
+              value={pct(frame.material.fibreVolumeFraction, 0)}
+              note="57.4% for prepreg autoclave"
+            />
+            <Stat label="Voids" value={pct(frame.material.voidContent, 1)} note="under 1% prepreg" />
+            <Stat
+              label="Compressive"
+              value={fmt(frame.material.compressiveStrength / 1e6)}
+              unit="MPa"
+              note={`${pct(frame.material.prepregFraction, 0)} of prepreg`}
+            />
+            <Stat label="Modulus" value={fmt(frame.material.modulus / 1e9)} unit="GPa" />
+            <Stat
+              label="Ply thickness"
+              value={(frame.material.plyThickness * 1000).toFixed(2)}
+              unit="mm"
+              note="from 200 g/m² twill"
+            />
+          </StatGrid>
+        </div>
+
+        <div className="mt-8">
+          <DataTable
+            minWidth={860}
+            head={
+              <>
+                <Th>Longitudinals</Th>
+                <Th align="right">Bay</Th>
+                <Th align="right">Section</Th>
+                <Th align="right">Plies</Th>
+                <Th align="right">Allowable</Th>
+                <Th align="right">Reserve</Th>
+                <Th align="right">Frame mass</Th>
+              </>
+            }
+            caption={`Every configuration lands on the four ply minimum practical laminate, with reserve factors of ${frame.chosen ? frame.chosen.reserveFactor.toFixed(0) : ''} and above. THE HULL GIRDER MOMENT DOES NOT SIZE THIS FRAME: what you can lay up does. So each of these masses is a floor rather than an estimate, and doubling the longitudinal count doubles the mass while buying nothing.`}
+          >
+            {frame.schedules.map((s) => (
+              <Tr key={`${s.longitudinals}-${s.spacing}`}>
+                <Td sans>
+                  {s.longitudinals}
+                  {s === frame.chosen ? (
+                    <span className="ml-2 text-xs text-[var(--color-accent)]">chosen</span>
+                  ) : null}
+                </Td>
+                <Td align="right">{s.spacing} m</Td>
+                <Td align="right">
+                  {(s.diameter * 1000).toFixed(0)} × {(s.wall * 1000).toFixed(1)} mm
+                </Td>
+                <Td align="right" tone={s.minimumGauge ? 'unknown' : 'ink'}>
+                  {s.plies}
+                </Td>
+                <Td align="right">{fmt(s.allowable / 1e6)} MPa</Td>
+                <Td align="right">{s.reserveFactor.toFixed(1)}×</Td>
+                <Td align="right">{fmt(s.totalMass)} kg</Td>
+              </Tr>
+            ))}
+          </DataTable>
+        </div>
+
+        <div className="mt-6">
+          <Callout
+            title="Two routes to the frame mass, and they do not agree"
+            tone={frame.agreement.agrees ? 'pass' : 'unknown'}
+          >
+            <p>{frame.agreement.verdict}</p>
+          </Callout>
+        </div>
       </Section>
     </Shell>
   )

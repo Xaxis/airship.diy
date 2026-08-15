@@ -33,6 +33,9 @@ import {
   effectiveHeaveInertia,
   windwardSpeed,
   waterTouchdown,
+  laminate,
+  frameSchedule,
+  scheduleAgreement,
   STANDARD_GAS_TEMPERATURE,
 } from '@airship/core'
 import {
@@ -737,5 +740,92 @@ export const architectures = (() => {
         verdict: c.verdict,
       }
     }),
+  }
+})()
+
+/**
+ * The frame, sized from the loads rather than scaled from a regression.
+ *
+ * Two independent routes to the same number, and the site shows both. Agreement
+ * would not prove either right; disagreement proves at least one wrong, and
+ * that is the only structural cross-check this project has.
+ */
+export const frame = (() => {
+  const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+  const girder = hullBendingMoment(BASELINE, BASELINE_ARRANGEMENT)
+  const material = laminate()
+  const radius = BASELINE.hull.length / BASELINE.hull.finenessRatio / 2
+
+  /** @source Historical rigid practice: 12 to 36 longitudinals, 5 to 15 m bays. */
+  const CONFIGURATIONS = [
+    { longitudinals: 16, spacing: 10 },
+    { longitudinals: 16, spacing: 8 },
+    { longitudinals: 24, spacing: 8 },
+    { longitudinals: 24, spacing: 6 },
+    { longitudinals: 32, spacing: 6 },
+  ]
+
+  const scalingEstimate = statement.items.find((i) => i.id === 'frame')?.mass ?? 0
+
+  const schedules = CONFIGURATIONS.map((c) => {
+    const s = frameSchedule(
+      girder.designMoment as never,
+      m(radius),
+      m(BASELINE.hull.length),
+      statement.gasVolume,
+      c.longitudinals,
+      m(c.spacing),
+      material,
+    )
+    return {
+      longitudinals: c.longitudinals,
+      spacing: c.spacing,
+      rings: s.ringCount,
+      diameter: s.longitudinal.radius * 2,
+      wall: s.longitudinal.thickness,
+      plies: s.longitudinal.plies,
+      allowable: s.longitudinal.allowableStress as number,
+      governingMode: s.longitudinal.governingMode,
+      reserveFactor: s.longitudinal.reserveFactor,
+      minimumGauge: s.minimumGauge,
+      longitudinalMass: s.longitudinalMass,
+      ringMass: s.ringMass,
+      jointMass: s.jointMass,
+      totalMass: s.totalMass,
+      warnings: [...s.warnings],
+      note: s.note,
+    }
+  })
+
+  const chosen = schedules[1]
+
+  return {
+    material: {
+      fibreVolumeFraction: material.fibreVolumeFraction,
+      voidContent: material.voidContent,
+      modulus: material.modulus as number,
+      compressiveStrength: material.compressiveStrength as number,
+      tensileStrength: material.tensileStrength as number,
+      density: material.density,
+      plyThickness: material.plyThickness,
+      prepregFraction: material.prepregFraction,
+      note: material.note,
+    },
+    /** The same laminate with the vacuum bag left off, which is a quarter worse. */
+    withoutVacuumBag: (() => {
+      const bad = laminate({ vacuumBagged: false })
+      return {
+        compressiveStrength: bad.compressiveStrength as number,
+        penalty: 1 - (bad.compressiveStrength as number) / (material.compressiveStrength as number),
+      }
+    })(),
+    schedules,
+    chosen,
+    scalingEstimate,
+    agreement: (() => {
+      const a = scheduleAgreement(chosen?.totalMass ?? 0, scalingEstimate)
+      return { ratio: a.ratio, agrees: a.agrees, verdict: a.verdict }
+    })(),
+    designMoment: girder.designMoment,
   }
 })()
