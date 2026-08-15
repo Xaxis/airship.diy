@@ -80,7 +80,12 @@ web-build: build ## Production build of the site
 web-lint: ## ESLint the site workspace
 	@npm run lint --workspace @airship/web
 
-web-type-check: ## TypeScript for the site
+# `build` first, like web-build. The site resolves @airship/* through the
+# packages' published exports, which point at dist, so type-checking it on a
+# clean checkout fails with "cannot find module" until the packages are built.
+# This passed locally for a long time only because dist was already there from
+# an earlier build, and CI caught it on a cold runner.
+web-type-check: build ## TypeScript for the site
 	@npm run type-check --workspace @airship/web
 
 web-check: web-lint web-type-check web-build ## Every website check
