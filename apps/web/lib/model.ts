@@ -25,6 +25,8 @@ import {
   powerRequired,
   hullSpeed,
   porpoisingSpeed,
+  arrayOutput,
+  solarIrradiance,
   seakeeping,
   maximumSeaState,
   reliefPressureFor,
@@ -49,6 +51,10 @@ import {
   hullBendingMoment,
   ARCHITECTURES,
   compareArchitecture,
+  powerSchematic,
+  waterSchematic,
+  redundancyCheck,
+  waterLoopCheck,
 } from '@airship/model'
 import { energyBalance, integrateMission, maximumSustainableWind } from '@airship/solvers'
 import { m, m3, kg, N, purity as asPurity } from '@airship/units'
@@ -827,5 +833,117 @@ export const frame = (() => {
       return { ratio: a.ratio, agrees: a.agrees, verdict: a.verdict }
     })(),
     designMoment: girder.designMoment,
+  }
+})()
+
+/**
+ * The three loops as schematics, with the connectivity checks a budget cannot
+ * make.
+ */
+export const systems = (() => {
+  const energy = energyBalance(BASELINE)
+  const missionResult = integrateMission(
+    BASELINE,
+    { food: BASELINE.loads.crew * 0.62 * 400, water: 3000, waterCapacity: 4000 },
+    2200,
+  )
+  const w = missionResult.waterBalance
+
+  /**
+   * Peak array power, from the solar model itself at local noon on the summer
+   * solstice rather than from a shape factor on the daily average.
+   *
+   * The shape-factor version of this was out by a large margin, and it was out
+   * in the direction that makes the array look better. The array is a curved
+   * surface: most of it is at a large incidence to the sun at any moment, so the
+   * peak is far below area times efficiency times irradiance.
+   */
+  const solstice = 172
+  const arrayPeak = (() => {
+    const shape = hullShapeForPrismatic(BASELINE.hull.prismaticCoefficient)
+    const layout = {
+      length: m(BASELINE.hull.length),
+      finenessRatio: BASELINE.hull.finenessRatio,
+      coverageHalfAngle: BASELINE.power.arrayCoverageHalfAngle as never,
+      forwardStation: BASELINE.power.arrayForwardStation,
+      aftStation: BASELINE.power.arrayAftStation,
+      shape,
+    }
+    /** @derived Local solar noon. */
+    const NOON = 12
+    const irradiance = solarIrradiance(
+      BASELINE.mission.latitude as never,
+      solstice,
+      NOON,
+      m(BASELINE.mission.altitude),
+    )
+    return arrayOutput(
+      layout,
+      irradiance,
+      0 as never,
+      atmosphere(m(BASELINE.mission.altitude)).temperature,
+      BASELINE.power.moduleEfficiency,
+    ).power as number
+  })()
+
+  /** @derived Four propulsors at their rated shaft power. */
+  const propulsionRating = BASELINE_ARRANGEMENT.propulsors.reduce((s, p) => s + p.ratedPower, 0)
+  /** @source A Rotax-class engine driving a generator: 30 kW electrical. */
+  const generatorRating = 30000
+
+  /** @derived Nine kilograms of water per kilogram of hydrogen, both ways. */
+  const WATER_PER_HYDROGEN = 9
+  const hydrogenCycled = energy.dailyHydrogenLeak * 3
+  const waterCirculated = hydrogenCycled * WATER_PER_HYDROGEN
+
+  const power = powerSchematic({
+    arrayPeak,
+    fuelCellRating: BASELINE.power.fuelCellRating,
+    electrolyzerRating: BASELINE.power.electrolyzerRating,
+    batteryEnergy: BASELINE.power.batteryEnergy,
+    habitatLoad: BASELINE.loads.habitatPower,
+    propulsionRating,
+    generatorRating,
+  })
+
+  const waterInputs = {
+    dailyConsumption: w.dailyConsumption,
+    dailyRecovered: w.dailyRecovered,
+    dailyCatchment: w.dailyCatchment,
+    fuelCellProduct: waterCirculated,
+    electrolyzerDemand: waterCirculated,
+    tankCapacity: 2500,
+  }
+  const water = waterSchematic(waterInputs)
+
+  const plain = (s: ReturnType<typeof powerSchematic>) => ({
+    unit: s.unit,
+    nodes: s.nodes.map((n) => ({
+      id: n.id,
+      name: n.name,
+      kind: n.kind,
+      rating: n.rating,
+      unit: n.unit,
+      critical: n.critical,
+      note: n.note,
+    })),
+    flows: s.flows.map((f) => ({ from: f.from, to: f.to, rate: f.rate })),
+  })
+
+  return {
+    power: plain(power),
+    water: plain(water),
+    powerFindings: redundancyCheck(power).map((f) => ({
+      id: f.id,
+      severity: f.severity,
+      rule: f.rule,
+      detail: f.detail,
+    })),
+    waterFindings: waterLoopCheck(waterInputs).map((f) => ({
+      id: f.id,
+      severity: f.severity,
+      rule: f.rule,
+      detail: f.detail,
+    })),
   }
 })()

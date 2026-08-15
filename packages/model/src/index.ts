@@ -58,3 +58,20 @@ export {
   fillFractionForSuperheat,
   compareArchitecture,
 } from './architecture.js'
+
+export type {
+  Loop,
+  NodeKind,
+  SystemNode,
+  SystemFlow,
+  SystemSchematic,
+  PowerInputs,
+  WaterInputs,
+  SystemFinding,
+} from './systems.js'
+export {
+  powerSchematic,
+  waterSchematic,
+  redundancyCheck,
+  waterLoopCheck,
+} from './systems.js'

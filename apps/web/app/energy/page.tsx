@@ -5,13 +5,16 @@ import {
   fmt,
   kWh,
   pct,
+  Verdict,
 } from '../../components/site/primitives'
+import { SystemDiagram } from '../../components/SystemDiagram'
 import { Shell } from '../../components/site/Shell'
 import {
   baseline,
   designs,
   fuelRanking,
   mission,
+  systems,
 } from '../../lib/model'
 
 export const metadata = { title: 'Energy' }
@@ -328,6 +331,54 @@ export default function Page() {
             the catchment term collapses and the whole analysis changes.
           </p>
         </div>
+      </Section>
+
+      <Rule />
+
+      <Section
+        title="What is plumbed to what"
+        lede="A day-by-day integration answers whether the loop closes. It cannot answer whether the vehicle has one bus whose failure kills everything, or a water loop whose only source stops working in the doldrums. These are the schematics, and the checks are connectivity questions rather than budget ones."
+      >
+        <h3 className="text-sm font-medium">Power</h3>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+          Nothing drives a propeller mechanically. Every source feeds one DC bus and every load
+          takes from it, which is what lets the engine sit aft for the exhaust rule while the
+          propulsors sit where they are aerodynamically useful. It costs a conversion stage and it
+          buys the entire arrangement.
+        </p>
+        <div className="mt-4">
+          <SystemDiagram
+            nodes={systems.power.nodes}
+            flows={systems.power.flows}
+            unit={systems.power.unit}
+          />
+        </div>
+        <ul className="mt-4 space-y-2">
+          {systems.powerFindings.map((f) => (
+            <Verdict key={f.id} severity={f.severity} rule={f.rule} detail={f.detail} />
+          ))}
+        </ul>
+
+        <h3 className="mt-10 text-sm font-medium">Water</h3>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+          The fuel cell and the electrolyzer are a closed water loop with each other: nine
+          kilograms of water per kilogram of hydrogen, both ways. The hydrogen store is therefore
+          also a water store, and the two inventories cannot be reasoned about separately. What is
+          not closed is the crew&rsquo;s own consumption, which is why the recycling fraction and the
+          catchment decide the endurance rather than the tank size.
+        </p>
+        <div className="mt-4">
+          <SystemDiagram
+            nodes={systems.water.nodes}
+            flows={systems.water.flows}
+            unit={systems.water.unit}
+          />
+        </div>
+        <ul className="mt-4 space-y-2">
+          {systems.waterFindings.map((f) => (
+            <Verdict key={f.id} severity={f.severity} rule={f.rule} detail={f.detail} />
+          ))}
+        </ul>
       </Section>
     </Shell>
   )
