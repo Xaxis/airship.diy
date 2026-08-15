@@ -68,6 +68,17 @@ export {
   benchmark,
 } from './structure/mass-fraction.js'
 
+export type { ConfinementVerdict } from './safety/ventilation.js'
+export {
+  requiredVentilationFlow,
+  airChangesPerHour,
+  criticalDuctDiameter,
+  assessConfinement,
+  inertingOxygenTarget,
+  equipmentGroup,
+  buoyantClearanceTime,
+} from './safety/ventilation.js'
+
 export type { PermeationRates } from './permeation.js'
 export {
   permeationRates,
