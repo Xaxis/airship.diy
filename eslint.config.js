@@ -103,9 +103,10 @@ export default tseslint.config(
     },
   },
 
-  // Tool scripts run in Node and are plain ESM, outside the TypeScript project.
+  // Tool scripts and framework configs run in Node and are plain ESM, outside
+  // any TypeScript project.
   {
-    files: ['tools/**/*.mjs', 'eslint-rules/**/*.js'],
+    files: ['tools/**/*.mjs', 'eslint-rules/**/*.js', 'apps/web/*.mjs'],
     languageOptions: {
       parserOptions: { projectService: false, project: false },
       globals: { console: 'readonly', process: 'readonly', URL: 'readonly' },
@@ -117,6 +118,17 @@ export default tseslint.config(
   // physics symbols greppable, and neither of these is physics.
   {
     files: ['eslint-rules/**/*.js', 'eslint.config.js', 'vitest.config.ts', '**/*.config.{ts,js,mjs}'],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
+
+  // Next.js REQUIRES a default export from every page, layout and config. The
+  // no-default-export rule exists to keep physics symbols greppable across the
+  // docs, the tests and the site; a route file is not a physics symbol, and its
+  // name is its path.
+  {
+    files: ['apps/web/**/*.{ts,tsx,mjs}'],
     rules: {
       'no-restricted-syntax': 'off',
     },

@@ -1,0 +1,62 @@
+@import 'tailwindcss';
+
+/*
+ * An engineering notebook, not a product page.
+ *
+ * The visual language is instrument panel: dark ground, monospace figures,
+ * hairline rules, and colour reserved for state (pass, fail, unknown). Nothing
+ * is decorative. If an element does not carry a number or label one, it should
+ * not be there.
+ */
+
+@theme {
+  --color-ground: #0a0c0f;
+  --color-panel: #11151a;
+  --color-panel-raised: #171c23;
+  --color-rule: #232b35;
+  --color-rule-bright: #33404e;
+
+  --color-ink: #e6edf3;
+  --color-ink-dim: #9aa7b4;
+  --color-ink-faint: #61707f;
+
+  --color-pass: #4ec9a0;
+  --color-fail: #f2705a;
+  --color-unknown: #e0b64a;
+  --color-accent: #6ba8e5;
+
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html {
+  background: var(--color-ground);
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Figures are monospace and tabular everywhere, so columns of numbers line up
+   and a digit change does not reflow the row. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Wide content scrolls inside its own container. The page body never scrolls
+   sideways, which is the failure that survives every other check. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-ground);
+}

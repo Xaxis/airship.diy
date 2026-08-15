@@ -1,0 +1,32 @@
+{
+  "name": "@airship/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "airship.diy. The model made visible.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@airship/core": "0.1.0",
+    "@airship/data": "0.1.0",
+    "@airship/model": "0.1.0",
+    "@airship/solvers": "0.1.0",
+    "@airship/units": "0.1.0",
+    "next": "16.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@types/three": "0.185.4",
+    "tailwindcss": "4.3.3"
+  }
+}

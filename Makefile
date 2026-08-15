@@ -68,10 +68,12 @@ prose: ## No em dashes, and no bare "hybrid" in the documentation
 
 # --- the website -------------------------------------------------------------
 
-web: ## Run the site locally
+web: build ## Run the site locally
+	# `build` first: the site renders real model output at build time and
+	# resolves the physics packages through their dist entry points.
 	@npm run dev --workspace @airship/web
 
-web-build: ## Production build of the site
+web-build: build ## Production build of the site
 	@rm -rf apps/web/.next apps/web/out
 	@npm run build --workspace @airship/web
 

@@ -80,6 +80,33 @@ jobs:
       - name: Every citation resolves
         run: make uncertainty
 
+  web:
+    name: the site builds and renders real model output
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: make web-lint
+      - run: make web-type-check
+
+      # web-build depends on build: the site resolves the physics packages
+      # through their dist entry points and renders their real output at build
+      # time, so a site that builds is also a check that the model builds.
+      - run: make web-build
+
+      # Every figure on the site is computed by the model at build time. If the
+      # page ever renders without them, something has been replaced by a
+      # hardcoded string and the site has started lying.
+      - name: The page contains live model output
+        run: |
+          grep -q '1\.1397' apps/web/out/index.html
+          grep -q '1\.0557' apps/web/out/index.html
+          grep -q '15,803' apps/web/out/index.html
+
   prose:
     name: documentation holds
     runs-on: ubuntu-latest
