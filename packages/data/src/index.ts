@@ -22,6 +22,16 @@ export {
   HYDROGEN_JOULE_THOMSON_INVERSION_TEMPERATURE,
 } from './gases.js'
 
+export type { CarbonFibre, ResinSystem } from './materials/composites.js'
+export {
+  CARBON_FIBRES,
+  RESIN_SYSTEMS,
+  WET_LAYUP,
+  WOVEN_KNOCKDOWN,
+  TEMPERATURE_LIMITS,
+  maximumOperatingTemperature,
+} from './materials/composites.js'
+
 export type { BarrierFilm } from './materials/films.js'
 export {
   BARRIER_FILMS,
