@@ -7,7 +7,6 @@ import {
 } from '../../components/site/primitives'
 import { Shell } from '../../components/site/Shell'
 import {
-  validation,
 } from '../../lib/model'
 
 export const metadata = { title: 'Flight' }
