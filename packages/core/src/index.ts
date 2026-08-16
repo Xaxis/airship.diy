@@ -72,6 +72,24 @@ export {
   finAreaToHoldHeading,
 } from './marine/navigation.js'
 
+export type {
+  WingGeometry,
+  WingForces,
+  WingTrade,
+  WingSolarAdvantage,
+  WingPayload,
+  WingPayloadEnvelope,
+} from './aerodynamics/wing.js'
+export {
+  wingGeometry,
+  wingForces,
+  wingTrade,
+  wingSolarAdvantage,
+  wingPayloadEnvelope,
+  WING_SPAN_EFFICIENCY,
+  WING_PROFILE_DRAG_COEFFICIENT,
+} from './aerodynamics/wing.js'
+
 export type { Attitude, WindLoad } from './marine/windage.js'
 export {
   windLoad,
