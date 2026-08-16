@@ -9,7 +9,10 @@ import {
   hullRadiusAt,
   hullShapeForPrismatic,
   pure,
+  hoverCapability,
+  vectoredControl,
   DRAG_COEFFICIENT_BOW_ON,
+  SIDE_FORCE_COEFFICIENT_BEAM_ON,
 } from '@airship/core'
 import {
   BUILD_LABOUR,
@@ -21,7 +24,7 @@ import {
   bounds,
   WET_LAYUP,
 } from '@airship/data'
-import { m, Pa, rad, K } from '@airship/units'
+import { kg, m, N, Pa, rad, K, W } from '@airship/units'
 
 import type { Provenanced } from '@airship/data'
 
@@ -843,6 +846,8 @@ export interface HandlingLimits {
   readonly twoPersonBowOnLimit: number
   /** People needed to hold it broadside at the Navy docking limit. */
   readonly unmechanisedCrew: number
+  /** Wind the vehicle holds itself bow-on in on its own vectored thrust, m/s. */
+  readonly vectoredHold: number
   /** Steady axial drag on the mast at the ride-out wind, N. */
   readonly mastDragLoad: number
   /** What airship practice actually designs the mast to, N. */
@@ -909,6 +914,29 @@ export const handlingLimits = (design: DesignPoint, config: Configuration): Hand
   const mastDesignLoad =
     AIR_MINISTRY_MAST_LOAD * (geometry.volume / R101_VOLUME) ** (2 / 3)
 
+  // What the vehicle can do for itself, which changes the answer to the ground
+  // crew question even though it changes nothing about the broadside one.
+  const totalPropulsorPower = config.propulsors.reduce((sum, p) => sum + p.ratedPower, 0)
+  const totalDiscArea = config.propulsors.reduce(
+    (sum, p) => sum + (Math.PI * p.diameter ** 2) / 4,
+    0,
+  )
+  const effectiveDiameter = 2 * Math.sqrt(totalDiscArea / config.propulsors.length / Math.PI)
+  const hover = hoverCapability(
+    config.propulsors.length,
+    effectiveDiameter,
+    W(totalPropulsorPower),
+    config.propulsors.every((p) => p.ducted),
+    kg(1),
+    1,
+  )
+  const vectored = vectoredControl(
+    N(hover.staticThrust),
+    geometry.volume,
+    SIDE_FORCE_COEFFICIENT_BEAM_ON,
+    DRAG_COEFFICIENT_BOW_ON,
+  )
+
   const findings: string[] = []
   findings.push(
     `TWO PEOPLE CAN HOLD THIS SHIP BROADSIDE IN ${twoPersonBroadsideLimit.toFixed(2)} m/s OF WIND, which is ${(twoPersonBroadsideLimit * KNOTS_PER_MS).toFixed(1)} knots and is not a wind, it is a draught. The ${sideArea.toFixed(0)} m2 of side area is the whole problem.`,
@@ -918,6 +946,9 @@ export const handlingLimits = (design: DesignPoint, config: Configuration): Hand
   )
   findings.push(
     `At the ${dockingLimit} m/s the US Navy would still dock in, holding it broadside by hand needs ${unmechanisedCrew} people. The Navy did it with ${v(GROUND_HANDLING.zpg3wLandingCrew)} because they had a mobile mast and two mechanical mules; before that machinery existed, LZ-8 took ${v(GROUND_HANDLING.lz8GroundCrew)} and was destroyed against the shed doors anyway.`,
+  )
+  findings.push(
+    `BUT THE SHIP CAN HOLD ITSELF. Its own vectored thrust holds it bow-on in ${vectored.headwindHold.toFixed(0)} m/s at zero airspeed, which is above the ${dockingLimit} m/s the US Navy would dock in. It does not help broadside, where it manages ${vectored.crosswindHold.toFixed(1)} m/s, and no plausible installation would: the broadside force is an order of magnitude larger and thrust scales with power. What it removes is the CREW, not the need to weathervane.`,
   )
   findings.push(
     `Dogged on to a mast the same ship rides out ${mastWind.toFixed(0)} m/s. THE SHIP IS SAFE IN A GALE AND HELPLESS IN A BREEZE, and every ground operation must be designed around that inversion.`,
@@ -931,6 +962,7 @@ export const handlingLimits = (design: DesignPoint, config: Configuration): Hand
     twoPersonBroadsideLimit,
     twoPersonBowOnLimit,
     unmechanisedCrew,
+    vectoredHold: vectored.headwindHold,
     mastDragLoad,
     mastDesignLoad,
     findings,
@@ -972,6 +1004,7 @@ export const buildVerdict = (design: DesignPoint, config: Configuration): BuildV
   const capitalRequired = bom.total + facility.rigidHangarCost
 
   const blockers: string[] = []
+  const mitigationsFromHandling: string[] = []
   if (capitalRequired > INDIVIDUAL_CAPITAL_CEILING) {
     blockers.push(
       `CAPITAL. $${(bom.total / MEGA).toFixed(1)}M of materials and $${(facility.rigidHangarCost / MEGA).toFixed(1)}M for the building is $${(capitalRequired / MEGA).toFixed(1)}M before any labour is paid for, against about $${(INDIVIDUAL_CAPITAL_CEILING / MEGA).toFixed(0)}M an individual can plausibly raise. The building is the larger half.`,
@@ -985,11 +1018,17 @@ export const buildVerdict = (design: DesignPoint, config: Configuration): BuildV
   blockers.push(
     `THE BUILDING. ${facility.clearLength.toFixed(0)} by ${facility.clearWidth.toFixed(0)} by ${facility.clearHeight.toFixed(0)} m clear, and you cannot rent one. The airship sheds that remain are museums, film studios or in use, and the last purpose-built one cost EUR 78M. This, not the physics, is what has stopped every individual since 1930.`,
   )
-  blockers.push(
-    `GROUND HANDLING. Two people hold it broadside in ${handling.twoPersonBroadsideLimit.toFixed(2)} m/s. Even finished and flying, the vehicle needs either a crew of ${handling.unmechanisedCrew} or a mast, a mule and ${facility.mooringCircleArea.toFixed(0)} hectares every single time it touches the ground.`,
-  )
+  if (handling.vectoredHold < v(GROUND_HANDLING.navyDockingLimit)) {
+    blockers.push(
+      `GROUND HANDLING. Two people hold it broadside in ${handling.twoPersonBroadsideLimit.toFixed(2)} m/s and its own thrust holds it bow-on in only ${handling.vectoredHold.toFixed(0)}. The vehicle needs either a crew of ${handling.unmechanisedCrew} or a mast, a mule and ${facility.mooringCircleArea.toFixed(0)} hectares every single time it touches the ground.`,
+    )
+  } else {
+    mitigationsFromHandling.push(
+      `GROUND HANDLING IS NO LONGER A BLOCKER, and vectored thrust is why. Two people hold it broadside in ${handling.twoPersonBroadsideLimit.toFixed(2)} m/s, which has not changed and will not; but the ship holds ITSELF bow-on in ${handling.vectoredHold.toFixed(0)} m/s, above the ${v(GROUND_HANDLING.navyDockingLimit)} m/s the US Navy would dock a ZPG-3W in with a mobile mast, two mechanical mules and eighteen trained people. A vehicle that can point into the wind and stay there does not need any of them. It still must never be held across the wind, and the mooring must still be single-point.`,
+    )
+  }
 
-  const mitigations: string[] = []
+  const mitigations: string[] = [...mitigationsFromHandling]
   const tube = v(MATERIAL_PRICES.pultrudedTube)
   const fabric = v(MATERIAL_PRICES.carbonFabricRetail)
   const laminateTask = labour.tasks.find((t) => t.id === 'frame-laminate')

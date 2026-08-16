@@ -151,12 +151,18 @@ describe('the verdict', () => {
     expect(VERDICT.blockers.some((b) => b.startsWith('THE BUILDING'))).toBe(true)
   })
 
-  it('says what would change the answer, and the first one improves the structure too', () => {
-    // Bought pultruded tube is barely more per kilogram than the fabric you
-    // would use to make it, arrives at nearly double the modulus, and removes
-    // the largest laminating task, the bagging consumables and the oven. It
-    // does not save the project. It is the only change here that costs nothing.
-    expect(VERDICT.mitigations[0]).toContain('BUY THE MEMBERS')
+  it('says what would change the answer, including one that already has', () => {
+    // GROUND HANDLING WAS A BLOCKER AND IS NOW A MITIGATION, because the
+    // propulsors grew. The vehicle holds itself bow-on in more wind than the US
+    // Navy would dock a ZPG-3W in with eighteen people and two mechanical
+    // mules, so the crew requirement is gone even though the broadside case is
+    // exactly as bad as it ever was.
+    expect(VERDICT.mitigations.some((m) => m.includes('GROUND HANDLING IS NO LONGER'))).toBe(true)
+    expect(VERDICT.blockers.some((b) => b.startsWith('GROUND HANDLING'))).toBe(false)
+
+    // And the tube finding survives: it is the only change that improves cost,
+    // schedule and structure at once.
+    expect(VERDICT.mitigations.some((m) => m.includes('BUY THE MEMBERS'))).toBe(true)
     expect(VERDICT.mitigations.length).toBeGreaterThanOrEqual(4)
   })
 })
