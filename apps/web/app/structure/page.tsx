@@ -138,8 +138,8 @@ export default function Page() {
           Structural material moves the fraction by 9.5 points at constant size, year and
           specification: R100 in duralumin against R101 in stainless steel, both built to the same
           Air Ministry requirement in the same year. That is larger than any size effect in the
-          dataset. Three of these eight entries were wrong in the first version of this table, all
-          in the direction that flattered the historical fleet.
+          dataset, which is why the material choice decides the mass fraction and the hull size does
+          not.
         </p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">

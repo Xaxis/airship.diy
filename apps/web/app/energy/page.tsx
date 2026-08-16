@@ -337,11 +337,11 @@ export default function Page() {
 
       <Section
         title="What is plumbed to what"
-        lede="A day-by-day integration answers whether the loop closes. It cannot answer whether the vehicle has one bus whose failure kills everything, or a water loop whose only source stops working in the doldrums. These are the schematics, and the checks are connectivity questions rather than budget ones."
+        lede="A day-by-day integration answers whether the loop closes. Whether the vehicle survives a component failing is a different question and it is a connectivity one: which paths exist, and what happens to each load when a node goes."
       >
         <h3 className="text-sm font-medium">Power</h3>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
-          Nothing drives a propeller mechanically. Every source feeds one DC bus and every load
+          Nothing drives a propeller mechanically. Every source feeds a split DC bus and every load
           takes from it, which is what lets the engine sit aft for the exhaust rule while the
           propulsors sit where they are aerodynamically useful. It costs a conversion stage and it
           buys the entire arrangement.

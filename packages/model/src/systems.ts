@@ -137,17 +137,6 @@ export const powerSchematic = (inputs: PowerInputs): SystemSchematic => {
       note: 'Turns stored hydrogen back into electricity and water. The night-time source, and the reason the electrolyzer exists.',
     },
     {
-      id: 'battery',
-      name: 'Battery',
-      loop: 'power',
-      kind: 'store',
-      rating: inputs.batteryEnergy / SECONDS_PER_DAY,
-      unit: 'W over a day',
-      mass: 0,
-      critical: true,
-      note: 'The buffer that covers the minutes between a cloud and the fuel cell reaching load. Critical: without it every source transient is a load transient, and the loads include the propulsors holding station.',
-    },
-    {
       id: 'bus-a',
       name: 'DC bus A',
       loop: 'power',
@@ -157,6 +146,17 @@ export const powerSchematic = (inputs: PowerInputs): SystemSchematic => {
       mass: 0,
       critical: false,
       note: 'HALF THE BUS, AND THAT IS THE WHOLE POINT. This was one node until the failure analysis found it was the only catastrophic single point on the vehicle: every source and every load met there, so a fault took out propulsion and the ventilation the hydrogen safety case depends on at the same instant, and no amount of generating capacity upstream could reach a load. Split into halves with a tie that opens on a fault, no single bus fault can do that. NOT critical any more, individually, which is the entire achievement.',
+    },
+    {
+      id: 'tie',
+      name: 'Bus tie',
+      loop: 'power',
+      kind: 'converter',
+      rating: (inputs.propulsionRating + inputs.habitatLoad + inputs.electrolyzerRating) / 2,
+      unit: 'W',
+      mass: 0,
+      critical: false,
+      note: 'Closed in normal operation so either half can carry the whole ship, and OPENS ON A FAULT so a short on one side cannot pull the other down. It is a contactor and a relay, and it is the cheapest fix for the worst failure mode in the analysis. Its fault energy is bounded for a separate reason: 4.3 kJ is enough to initiate a hydrogen detonation directly, which a capacitor bank or an arcing contactor reaches.',
     },
     {
       id: 'bus-b',
@@ -170,15 +170,15 @@ export const powerSchematic = (inputs: PowerInputs): SystemSchematic => {
       note: 'The other half. Segregated from A all the way down to the cable routing, because two buses that share a conduit are one bus with extra contactors. The array strings, the fuel cell and the generator each split between them, and every critical load is fed from both.',
     },
     {
-      id: 'tie',
-      name: 'Bus tie',
+      id: 'battery',
+      name: 'Battery',
       loop: 'power',
-      kind: 'converter',
-      rating: (inputs.propulsionRating + inputs.habitatLoad + inputs.electrolyzerRating) / 2,
-      unit: 'W',
+      kind: 'store',
+      rating: inputs.batteryEnergy / SECONDS_PER_DAY,
+      unit: 'W over a day',
       mass: 0,
-      critical: false,
-      note: 'Closed in normal operation so either half can carry the whole ship, and OPENS ON A FAULT so a short on one side cannot pull the other down. It is a contactor and a relay, and it is the cheapest fix for the worst failure mode in the analysis. Its fault energy is bounded for a separate reason: 4.3 kJ is enough to initiate a hydrogen detonation directly, which a capacitor bank or an arcing contactor reaches.',
+      critical: true,
+      note: 'The buffer that covers the minutes between a cloud and the fuel cell reaching load. Critical: without it every source transient is a load transient, and the loads include the propulsors holding station.',
     },
     {
       id: 'electrolyzer',
@@ -453,7 +453,7 @@ export const redundancyCheck = (schematic: SystemSchematic): readonly SystemFind
       rule: `No single component failure isolates ${node.name} from every source.`,
       detail:
         singlePoints.length === 0
-          ? `Every node in the schematic can be deleted and ${node.name} still reaches a source. That is the property a split bus buys, and it is checked by deleting each node in turn rather than by counting feeders, because counting feeders reports five paths when five sources meet at one bus.`
+          ? `Every node in the schematic can be deleted and ${node.name} still reaches a source. Two segregated buses with a tie, every source divided between them, and this load fed from both.`
           : `${singlePoints.length} single point${singlePoints.length === 1 ? '' : 's'} of failure: ${singlePoints.join(', ')}. Deleting any one of those leaves ${node.name} with no path to any source. A year is long enough that every single point of failure gets its turn.`,
     })
   }

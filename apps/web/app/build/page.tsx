@@ -122,7 +122,7 @@ export default function Page() {
             <p>
               The range on that one line spans a factor of six, which is wider than the gap between
               first place and fourth. A quotation from a barrier film converter is the single most
-              valuable phone call anyone could make about this project.
+              valuable phone call in the whole bill of materials.
             </p>
           </Callout>
         </div>
@@ -167,7 +167,7 @@ export default function Page() {
 
       <Section
         title="How long it takes"
-        lede="Two independent estimates: task by task from the areas and joint counts the model already knows, and hours per kilogram of empty weight from composite homebuilt aircraft, which is the only body of experience there is for a small number of people building an aircraft structure out of carbon in a shed."
+        lede="Two independent estimates: task by task from the areas and joint counts, and hours per kilogram of empty weight from composite homebuilt aircraft, which is the only body of experience there is for a small number of people building an aircraft structure out of carbon in a shed."
       >
         <RankedBars
           items={build.tasks.map((t) => ({
