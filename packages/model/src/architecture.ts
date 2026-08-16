@@ -13,7 +13,7 @@ import { m, m2 } from '@airship/units'
  * The architectures, and what each one actually costs.
  *
  * The point of this module is that the choice between rigid, semi-rigid,
- * non-rigid, hybrid-lift and variable-buoyancy is not a matter of taste. Each is
+ * non-rigid, hybridLift and variable-buoyancy is not a matter of taste. Each is
  * a different set of trades, each is calibrated here against a vehicle that
  * really flew, and each is run through the same gates so the comparison means
  * something.
@@ -24,7 +24,7 @@ import { m, m2 } from '@airship/units'
  *   semi-rigid       Zeppelin NT, 8,255 m3, a 1,000 kg carbon and aluminium
  *                    truss inside a 5 mbar envelope with 2,000 m3 of ballonets
  *   non-rigid        the same, with the truss deleted
- *   hybrid-lift      Airlander 10, 38,000 m3 in a 98 by 50 by 30 m three-lobe
+ *   hybridLift      Airlander 10, 38,000 m3 in a 98 by 50 by 30 m three-lobe
  *                    envelope, 60 to 80 percent buoyant, pneumatic skids
  *   variable-buoyancy Aeros Aeroscraft COSH, which has no published numbers at
  *                    all, so its figures here are derived from thermodynamics
@@ -204,9 +204,9 @@ const CELL_NETTING_AREAL_MASS = 0.06
  *
  * The consequence is not cosmetic. At the old numbers a lobed hull came out with
  * a 63 percent wetted-area penalty against a body of revolution, and that
- * penalty was this chapter's central argument against hybrid lift. At the
+ * penalty was this chapter's central argument against hybridLift. At the
  * corrected ones the penalty is a few percent either way depending on which
- * fineness ratio you compare against. Hybrid lift still loses here, and it loses
+ * fineness ratio you compare against. HybridLift still loses here, and it loses
  * on the lift split and on the power at low speed rather than on skin friction.
  *
  * @source Airlander 10 hull: 42 m of beam on a 92 m hull is 0.457, and 17 m of

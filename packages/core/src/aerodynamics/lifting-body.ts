@@ -1,9 +1,9 @@
 import type { Meters, Newtons, Radians, SquareMeters } from '@airship/units'
 
 /**
- * Aerodynamic lift from the hull itself, for hybrid-lift architectures.
+ * Aerodynamic lift from the hull itself, for hybridLift architectures.
  *
- * A hybrid-lift airship carries part of its weight buoyantly and part on the
+ * A hybridLift airship carries part of its weight buoyantly and part on the
  * hull acting as a very low aspect ratio wing. The Airlander 10 is the flying
  * example: 38,000 m3, 98 m long, 50 m across, and somewhere between 60 and 80
  * percent of its weight held up by helium with the rest coming from the hull at
@@ -13,7 +13,7 @@ import type { Meters, Newtons, Radians, SquareMeters } from '@airship/units'
  * solves the airship's worst operational problem: a vehicle that is exactly
  * neutrally buoyant is uncontrollable on the ground and has to trade ballast for
  * every kilogram of cargo. Flying heavy fixes that, which is why every serious
- * modern airship programme is hybrid-lift.
+ * modern airship programme is hybridLift.
  *
  * It also does nothing whatsoever at zero airspeed, and THIS vehicle's figure of
  * merit is days aloft while holding station. `minimumFlyingSpeed` makes the
@@ -93,7 +93,7 @@ const VORTEX_LIFT_FRACTION = 0.6
  * describes a thin lifting surface; a hull is a thick body whose planform area
  * includes a great deal of volume that is not making lift, and whose flow
  * separates well before a wing's would. Using the thin-wing figure flattered
- * hybrid-lift by a factor of three on the term that decides whether it can be
+ * hybridLift by a factor of three on the term that decides whether it can be
  * afforded, and this module did exactly that in its first version.
  */
 const HULL_LIFT_EFFICIENCY = 0.433
@@ -137,10 +137,10 @@ export interface LiftingBodyGeometry {
  * WHAT THIS COST. Everything downstream inherited it: lift per unit volume,
  * skin mass, permeating area, and above all the wetted-area penalty of a lobed
  * hull, which this project computed as 63 percent and used as its central
- * argument against hybrid lift. At the corrected coefficient the penalty is 4
+ * argument against hybridLift. At the corrected coefficient the penalty is 4
  * to 7 percent against a body of revolution at the same volume, and against one
  * at the drag-optimum fineness the lobed hull is actually BETTER by about 5
- * percent. The architecture chapter rejected hybrid lift for a reason that was
+ * percent. The architecture chapter rejected hybridLift for a reason that was
  * an artifact of this constant. It is rejected here for other reasons, which
  * survive.
  *
@@ -157,23 +157,6 @@ const MULTI_LOBE_VOLUME_COEFFICIENT = 0.587
  * saying so is more useful than quietly accepting it.
  */
 export const MINIMUM_LOBED_SECTION_FULLNESS = Math.PI / 4
-
-/**
- * Published dimensions for Airlander 10, which do not agree with each other.
- *
- * Recorded rather than resolved, per the project rule. The length is quoted as
- * 91 m (the HAV 304 / LEMV spec table), 92 m (the German Wikipedia article) and
- * 98 m (the English one). The beam is quoted as 34 m (again HAV 304), 42 m, 43.5
- * m, and 50 m as a "wingspan" that is almost certainly fin tip to fin tip. The
- * 33,285 kg MTOW and the AAIB lift measurement belong to the Airlander 10 set,
- * so mixing in the HAV 304 numbers, which this module did, describes no vehicle
- * at all.
- */
-export const AIRLANDER_DIMENSION_DISCREPANCY = {
-  lengthQuoted: [91, 92, 98],
-  beamQuoted: [34, 42, 43.5, 50],
-  note: 'The smallest of each is the HAV 304 spec table, a different configuration. Taking the smallest silently is the choice that flatters every derived coefficient, which is why this is written down instead.',
-} as const
 
 /** @source A single lobe is a body of revolution: pi/6 for an ellipsoid. */
 const SINGLE_LOBE_VOLUME_COEFFICIENT = Math.PI / 6
@@ -252,7 +235,7 @@ export const liftingBodyGeometry = (
  *
  * Not wetted area, and not free either: every square metre is barrier film
  * carrying a pressure difference, and it permeates in both directions. A lobed
- * hull pays for it in mass and in lift, and it is the term that quick hybrid-lift
+ * hull pays for it in mass and in lift, and it is the term that quick hybridLift
  * comparisons leave out.
  */
 export const diaphragmArea = (geometry: LiftingBodyGeometry, lobes: number): number => {
@@ -325,7 +308,7 @@ export const hullLift = (
    * length rather than off two tips, and the span efficiency that implies is
    * 0.26 rather than 0.95.
    *
-   * This module used the ideal form first, and it flattered hybrid-lift by
+   * This module used the ideal form first, and it flattered hybridLift by
    * nearly four times on the term that decides whether it can be afforded.
    */
   const MEASURED_INDUCED_DRAG_FACTOR = 1.976
@@ -378,7 +361,7 @@ export const minimumFlyingSpeed = (
 /**
  * Zero-lift drag coefficient of an airship hull on volume^(2/3).
  *
- * @source NACA TR-432. The value the hybrid-lift power comparison needs, and it
+ * @source NACA TR-432. The value the hybridLift power comparison needs, and it
  * is the same reference the conventional drag module uses.
  */
 const HULL_ZERO_LIFT_DRAG = 0.024
@@ -398,7 +381,7 @@ export interface StationKeepingPower {
 }
 
 /**
- * The comparison that settles hybrid-lift for a station-keeping mission.
+ * The comparison that settles hybridLift for a station-keeping mission.
  *
  * A vehicle flying 20 percent heavy must hold its minimum flying speed
  * continuously, and propulsive power goes as the CUBE of speed. The same hull
@@ -453,7 +436,7 @@ export interface HybridLiftPenalty {
   readonly skinMassPenalty: number
   /** Extra permeating area, m2. Lift lost every day, forever. */
   readonly permeationAreaPenalty: number
-  /** Speed below which the hybrid-lift vehicle cannot hold altitude, m/s. */
+  /** Speed below which the hybridLift vehicle cannot hold altitude, m/s. */
   readonly minimumFlyingSpeed: number
   /** True when the vehicle can hold station at zero airspeed. */
   readonly canHover: boolean
@@ -461,7 +444,7 @@ export interface HybridLiftPenalty {
 }
 
 /**
- * What a hybrid-lift vehicle costs a vehicle whose job is to stay up rather than to go
+ * What a hybridLift vehicle costs a vehicle whose job is to stay up rather than to go
  * somewhere.
  *
  * The comparison is against a body of revolution of the SAME VOLUME, because

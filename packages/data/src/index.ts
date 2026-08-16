@@ -53,7 +53,11 @@ export {
 } from './materials/films.js'
 
 export type { HistoricalShip } from './validation/historical-ships.js'
-export { HISTORICAL_SHIPS, ZEPPELIN_NT } from './validation/historical-ships.js'
+export {
+  HISTORICAL_SHIPS,
+  ZEPPELIN_NT,
+  AIRLANDER_DIMENSIONS,
+} from './validation/historical-ships.js'
 
 export {
   MATERIAL_PRICES,

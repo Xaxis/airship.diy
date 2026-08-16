@@ -8,13 +8,13 @@ import {
   liftCurveSlope,
   liftingBodyGeometry,
   minimumFlyingSpeed,
-  AIRLANDER_DIMENSION_DISCREPANCY,
   MINIMUM_LOBED_SECTION_FULLNESS,
 } from '../src/index.js'
+import { AIRLANDER_DIMENSIONS } from '@airship/data'
 import { m, rad } from '@airship/units'
 
 /**
- * The hybrid-lift case, calibrated on the one hybrid-lift vehicle that has flown.
+ * The hybridLift case, calibrated on the one hybridLift vehicle that has flown.
  *
  * THE DIMENSIONS USED TO BE 98 BY 50 BY 30 AND THAT VEHICLE DOES NOT EXIST.
  * 98 m is the English Wikipedia length against 91 m in the HAV 304 spec table
@@ -56,16 +56,16 @@ describe('the Airlander as the calibration case', () => {
   it('records the published dimensions that disagree rather than picking one', () => {
     // Taking the smallest of each is the choice that flatters every derived
     // coefficient, which is why the spread is written down.
-    expect(AIRLANDER_DIMENSION_DISCREPANCY.lengthQuoted.length).toBeGreaterThan(2)
-    expect(AIRLANDER_DIMENSION_DISCREPANCY.beamQuoted.length).toBeGreaterThan(2)
+    expect(AIRLANDER_DIMENSIONS.lengthQuoted.length).toBeGreaterThan(2)
+    expect(AIRLANDER_DIMENSIONS.beamQuoted.length).toBeGreaterThan(2)
   })
 
   it('does NOT carry the enormous skin penalty this module used to report', () => {
     // THE CORRECTION THAT MATTERS MOST. At the bad dimensions a lobed hull came
     // out with a 63 percent wetted-area penalty against a body of revolution,
     // and that penalty was the architecture chapter's central argument against
-    // hybrid lift. At the real ones it is a few percent either way depending on
-    // which fineness ratio the comparison is against. Hybrid lift still loses,
+    // hybridLift. At the real ones it is a few percent either way depending on
+    // which fineness ratio the comparison is against. HybridLift still loses,
     // and it loses on the lift split and on power at low speed instead.
     expect(AIRLANDER.wettedAreaCoefficient).toBeLessThan(7)
     expect(AIRLANDER.wettedAreaCoefficient).toBeGreaterThan(5)
@@ -123,7 +123,7 @@ describe('hull lift', () => {
   it('reproduces 5 percent of weight at the vehicle\'s own loiter speed', () => {
     // The SAME coefficient, at 20 knots. Lift goes as the square of speed, so
     // one calibration has to satisfy both conditions or it is not a
-    // calibration. This is the number that kills hybrid-lift for a
+    // calibration. This is the number that kills hybridLift for a
     // station-keeper: the whole benefit is gone at loiter.
     const loiter = 0.5 * 1.225 * 10.29 * 10.29
     const lift = hullLift(AIRLANDER, rad((12 * Math.PI) / 180), loiter).lift
@@ -133,7 +133,7 @@ describe('hull lift', () => {
 
   it('achieves about two fifths of what a thin wing of the same aspect ratio would', () => {
     // A hull is a thick body, not a lifting surface. Using the thin-wing slope
-    // flattered hybrid-lift by a factor of three.
+    // flattered hybridLift by a factor of three.
     const thinWing = liftCurveSlope(AIRLANDER.aspectRatio)
     const actual =
       hullLift(AIRLANDER, rad(0.01), 1).liftCoefficient / 0.01
@@ -145,7 +145,7 @@ describe('hull lift', () => {
     // CDi = 1.976 CL^2 on planform, from NACA TR-432 and NASA CR-137691. The
     // textbook CL^2/(pi AR e) with e near unity gives 0.516 CL^2 at this
     // aspect ratio, so the ideal is optimistic by a factor of 3.8 on the term
-    // that decides whether hybrid-lift can be afforded.
+    // that decides whether hybridLift can be afforded.
     const at12 = hullLift(AIRLANDER, rad((12 * Math.PI) / 180), q)
     const ideal =
       (at12.liftCoefficient * at12.liftCoefficient) / (Math.PI * AIRLANDER.aspectRatio * 0.95)
@@ -192,21 +192,21 @@ describe('the minimum flying speed, which is the mission question', () => {
   })
 })
 
-describe('what hybrid-lift costs a station-keeping vehicle', () => {
+describe('what hybridLift costs a station-keeping vehicle', () => {
   const OURS = liftingBodyGeometry(m(115), m(58), m(27), 3)
 
-  it('adds only a few percent of extra skin, which is NOT why hybrid lift loses', () => {
+  it('adds only a few percent of extra skin, which is NOT why hybridLift loses', () => {
     // THIS TEST USED TO ASSERT A 50 PERCENT SKIN PENALTY and it was an artifact
     // of a bounding box built from a wingspan row and a height that included
     // the fins. A lobed hull carries a little more skin per unit volume than a
     // body of revolution at the same fineness and a little LESS than one at the
-    // drag optimum. The argument against hybrid lift has to be made on the lift
+    // drag optimum. The argument against hybridLift has to be made on the lift
     // split and on power at low speed, and it survives being made there.
     const penalty = hybridLiftPenalty(OURS, 5.4, 0.53, 4000, 1.0065)
     expect(penalty.wettedAreaPenalty).toBeLessThan(0.2)
   })
 
-  it('says plainly that a heavy hybrid-lift vehicle cannot hold station', () => {
+  it('says plainly that a heavy hybridLift vehicle cannot hold station', () => {
     const penalty = hybridLiftPenalty(OURS, 5.4, 0.53, 4000, 1.0065)
     expect(penalty.canHover).toBe(false)
     expect(penalty.minimumFlyingSpeed).toBeGreaterThan(5)
@@ -214,7 +214,7 @@ describe('what hybrid-lift costs a station-keeping vehicle', () => {
   })
 
   it('can hover when flown neutrally buoyant, which is the only way it stays up', () => {
-    // The trap in the hybrid-lift argument is still real, it is just smaller
+    // The trap in the hybridLift argument is still real, it is just smaller
     // than this module used to claim: fly it neutral and you have paid for a
     // lifting body and are using it as an airship with a worse planform.
     const penalty = hybridLiftPenalty(OURS, 5.4, 0.53, 0, 1.0065)

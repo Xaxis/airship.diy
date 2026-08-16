@@ -197,3 +197,34 @@ export const ZEPPELIN_NT = {
   validates:
     'The drag to power chain on a real modern airship: volumetric drag coefficient, wetted area from the shape function, and propulsive efficiency.',
 } as const
+
+
+/**
+ * Published dimensions for Airlander 10, which do not agree with each other.
+ *
+ * RECORDED RATHER THAN RESOLVED, per the project rule. This project mixed rows
+ * from two configurations and produced a hull volume coefficient of 0.2585,
+ * which is geometrically impossible for a union of equal circles, and then used
+ * it as the central argument against hybridLift for months.
+ *
+ * The length is quoted as 91 m (the HAV 304 / LEMV spec table), 92 m (the German
+ * Wikipedia article) and 98 m (the English one). The beam is quoted as 34 m
+ * (again HAV 304), 42 m, 43.5 m, and 50 m as a "wingspan" that is almost
+ * certainly fin tip to fin tip. The 33,285 kg maximum takeoff weight and the
+ * AAIB lift measurement both belong to the Airlander 10 set, so the HAV 304
+ * numbers cannot be mixed with them.
+ *
+ * Taking the smallest of each is the choice that flatters every coefficient
+ * derived from them, which is exactly why the spread is written down.
+ */
+export const AIRLANDER_DIMENSIONS = {
+  lengthQuoted: [91, 92, 98],
+  beamQuoted: [34, 42, 43.5, 50],
+  /** The pair this project uses: the hull's own, from the Airlander 10 set. */
+  hullLength: 92,
+  hullBeam: 42,
+  publishedVolume: 38000,
+  maximumTakeoffWeight: 33285,
+  discrepancy:
+    'Three lengths and four beams across two configurations. The 50 m beam is a wingspan row and the 30 m height includes the fins and the gondola, which is how a 0.2585 volume coefficient was arrived at for a shape whose geometric floor is 0.542.',
+} as const
