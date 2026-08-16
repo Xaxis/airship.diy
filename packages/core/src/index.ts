@@ -61,6 +61,17 @@ export {
   lateralWaterResistance,
 } from './marine/boat.js'
 
+export type {
+  NavigationPoint,
+  NavigationPolar,
+} from './marine/navigation.js'
+export {
+  navigationPolar,
+  yawedForceCoefficients,
+  differentialYawMoment,
+  finAreaToHoldHeading,
+} from './marine/navigation.js'
+
 export type { Attitude, WindLoad } from './marine/windage.js'
 export {
   windLoad,

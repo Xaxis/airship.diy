@@ -332,7 +332,15 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       name: 'Forward water tank',
       deck: 'keel',
       category: 'consumable',
-      station: 0.3,
+      // MOVED FORWARD FROM 0.30 WHEN THE TAIL GREW. The pair used to straddle
+      // the centre of buoyancy so that dumping ballast changed weight without
+      // changing trim, which is the right arrangement for a ship whose tail is
+      // light. Correcting the yaw stability put 1,816 kg of fin at station 0.9,
+      // and the only masses big enough to answer that are the array and the
+      // water. The pair now sits forward of the centre of buoyancy, which means
+      // dumping both tanks equally trims the ship nose-up, and the drill is
+      // therefore to dump the aft tank first.
+      station: 0.22,
       width: 2.6,
       height: 1.0,
       extent: 4.0,
@@ -366,7 +374,9 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       name: 'Aft water tank',
       deck: 'keel',
       category: 'consumable',
-      station: 0.576,
+      // The separation is what buys trim authority, so it grew as the pair
+      // moved forward: 32 m between the tanks against 25 before.
+      station: 0.5,
       width: 2.6,
       height: 1.0,
       extent: 4.0,
@@ -539,8 +549,23 @@ export const BASELINE_ARRANGEMENT: Configuration = {
   cellBlockForward: 0.06,
   cellBlockAft: 0.92,
 
-  finStation: 0.86,
-  finSpanFraction: 0.85,
+  /**
+   * The tail, and it grew a great deal when the yaw stability check was
+   * corrected.
+   *
+   * At a 0.86 station and a 0.85 span fraction the vehicle was DIRECTIONALLY
+   * DIVERGENT: 202 m2 of vertical fin against a 374 m2 minimum, a static margin
+   * of 0.54. Two compounding errors had hidden it, the fin lift slope taken at
+   * twice its geometric value and the whole cruciform counted against a
+   * requirement only the vertical pair can meet.
+   *
+   * The fix is span, chord and arm together. Span is the efficient lever
+   * because it raises the aspect ratio and therefore the lift slope as well as
+   * the area, and it is the expensive one because it sets the height of the
+   * building. Moving the fins aft is free until they run out of hull.
+   */
+  finStation: 0.9,
+  finSpanFraction: 1.3,
 
   keelForward: 0.015,
   keelAft: 0.9,

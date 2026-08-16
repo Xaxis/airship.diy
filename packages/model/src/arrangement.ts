@@ -125,13 +125,17 @@ const FIN_TAPER_RATIO = 0.5
 /**
  * Root chord of a fin as a fraction of hull length.
  *
+ * RAISED FROM 0.12 TO 0.16 when the yaw stability check was corrected. At 0.12
+ * the vehicle was directionally divergent, and chord is the half of the fix
+ * that costs mass rather than shed height.
+ *
  * @source Conventional practice puts the fin root chord at 12 to 18 percent of
  * length for a cruciform tail on a hull of this fineness. Taken at the BOTTOM of
  * that range: at 0.15 the yaw static margin comes out at 1.78, which is more fin
  * than the Munk moment needs, and every one of those square metres is mass on a
  * 46 m lever that the trim ballast then has to fight.
  */
-const FIN_ROOT_CHORD_FRACTION = 0.12
+const FIN_ROOT_CHORD_FRACTION = 0.16
 
 /**
  * Vertical centroid of the photovoltaic band, as a fraction of local radius.
@@ -851,17 +855,50 @@ export const validateArrangement = (
   const { k1, k2 } = inertiaCoefficients(finenessRatio)
   const finArm = (config.finStation - statement.centreOfBuoyancy.x / length) * length
   /**
-   * @source Slender-body lift-curve slope for a low-aspect-ratio surface,
-   * 2*pi*AR/(AR + 2) at the fin aspect ratio, which for a cruciform tail of this
-   * planform is close to 2.8 per radian. Taken flat rather than computed from
-   * span because the tail sits in a thick hull boundary layer whose local
-   * dynamic pressure is well below free stream, and that loss is larger than the
-   * aspect-ratio correction.
+   * Fin lift-curve slope, per radian, computed rather than assumed.
+   *
+   * THIS WAS A FLAT 2.8 AND ITS JUSTIFICATION HAD THE SIGN BACKWARDS. The
+   * comment said the tail sits in a thick hull boundary layer whose local
+   * dynamic pressure is below free stream, and then used that to argue for a
+   * value TWICE the geometric one. A loss makes a number smaller.
+   *
+   * The real reason a fin on a body beats its own aspect ratio is the
+   * REFLECTION PLANE: the hull acts as an end plate, so the exposed surface
+   * behaves like half of a wing of twice the span, and the effective aspect
+   * ratio doubles. That is worth roughly the factor the old constant claimed,
+   * and the boundary-layer loss then comes off it rather than being folded into
+   * it backwards.
+   *
+   * @source Helmbold's low-aspect-ratio lift-curve slope at the effective
+   * aspect ratio, which is the same relation the hull aerodynamics use.
    */
-  const finLiftSlope = 2.8
+  const exposedAspectRatio = fins.span ** 2 / (fins.area / 4)
+  /** @source The hull is an end plate, so the exposed fin behaves as half a wing. */
+  const REFLECTION_PLANE_FACTOR = 2
+  const effectiveAspectRatio = exposedAspectRatio * REFLECTION_PLANE_FACTOR
+  /**
+   * @source Local dynamic pressure at the tail, as a fraction of free stream.
+   * The fin sits inside a boundary layer that is metres thick on a hull this
+   * long, and airship practice puts the loss at 10 to 20 percent.
+   */
+  const TAIL_DYNAMIC_PRESSURE_RATIO = 0.85
+  const finLiftSlope =
+    ((2 * Math.PI * effectiveAspectRatio) /
+      (2 + Math.sqrt(effectiveAspectRatio ** 2 + 4))) *
+    TAIL_DYNAMIC_PRESSURE_RATIO
+
   const minimumFinArea =
     (2 * MUNK_REAL_FLUID_FACTOR * geometry.volume * (k2 - k1)) / (finLiftSlope * finArm)
-  const staticMargin = fins.area / minimumFinArea
+
+  /**
+   * ONLY THE VERTICAL PAIR MAKES A YAW RESTORING MOMENT. This compared all four
+   * surfaces of the cruciform against the minimum, which counts the horizontal
+   * tailplane as if it stabilised the vehicle in yaw. Between that and the
+   * doubled lift slope the reported margin was four times the real one, and the
+   * vehicle it described was directionally divergent at every speed.
+   */
+  const yawFinArea = fins.area / 2
+  const staticMargin = yawFinArea / minimumFinArea
   /** @source Airship practice wants 1.3 to 1.8 in yaw. Below 1 the vehicle diverges. */
   const MINIMUM_YAW_STATIC_MARGIN = 1.3
   findings.push({
@@ -869,7 +906,7 @@ export const validateArrangement = (
     severity:
       staticMargin >= MINIMUM_YAW_STATIC_MARGIN ? 'pass' : staticMargin >= 1 ? 'warn' : 'fail',
     rule: `Fin area at least ${MINIMUM_YAW_STATIC_MARGIN} times the minimum that balances the Munk moment.`,
-    detail: `${fins.area.toFixed(0)} m2 of fin against a ${minimumFinArea.toFixed(0)} m2 minimum on a ${finArm.toFixed(1)} m arm: a static margin of ${staticMargin.toFixed(2)}. The Munk moment is certain and the fin effectiveness is not, because the tail sits in a thick hull boundary layer, so the margin is the honest part of this number.`,
+    detail: `${yawFinArea.toFixed(0)} m2 of VERTICAL fin, half of the ${fins.area.toFixed(0)} m2 cruciform, against a ${minimumFinArea.toFixed(0)} m2 minimum on a ${finArm.toFixed(1)} m arm: a static margin of ${staticMargin.toFixed(2)}. The lift slope is ${finLiftSlope.toFixed(2)} per radian, from an exposed aspect ratio of ${exposedAspectRatio.toFixed(2)} doubled by the hull acting as an end plate and then knocked down ${((1 - TAIL_DYNAMIC_PRESSURE_RATIO) * 100).toFixed(0)} percent for the boundary layer the tail sits in. The Munk moment is certain and the fin effectiveness is not, so the margin is the honest part of this number.`,
   })
 
   // ---- habitability ------------------------------------------------------

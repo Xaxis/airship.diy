@@ -7,6 +7,7 @@ import {
   BASELINE,
   BASELINE_ARRANGEMENT,
   compartmentVolume,
+  finPlanform,
   massStatement,
   smallestClosingLength,
   validateArrangement,
@@ -193,12 +194,34 @@ describe('the rules the arrangement has to obey', () => {
     const bad: Configuration = {
       ...BASELINE_ARRANGEMENT,
       compartments: BASELINE_ARRANGEMENT.compartments.map((c) =>
-        c.id === 'water-aft' ? { ...c, station: 0.315 } : c,
+        c.id === 'water-aft' ? { ...c, station: 0.235 } : c,
       ),
     }
     expect(
       validateArrangement(BASELINE, bad).find((x) => x.id === 'trim-authority')?.severity,
     ).toBe('fail')
+  })
+
+  it('counts only the VERTICAL fins against the yaw requirement', () => {
+    // THIS IS THE DEFECT THAT SURVIVED EVERY OTHER CHECK. The rule compared the
+    // whole cruciform against a requirement only the vertical pair can meet,
+    // and it took the fin lift slope at twice its geometric value on an
+    // argument that should have reduced it. Between them the reported margin
+    // was four times the real one, and the vehicle it described was
+    // directionally divergent at every speed. The flight simulator did not
+    // catch it either, because it SETS its fin area to 1.4 times the minimum
+    // rather than reading the design's.
+    const finding = validateArrangement(BASELINE, BASELINE_ARRANGEMENT).find(
+      (x) => x.id === 'yaw-static-margin',
+    )
+    expect(finding?.detail).toContain('VERTICAL fin')
+    expect(finding?.detail).toContain('half of the')
+
+    // And the margin the design now achieves is inside airship practice rather
+    // than below the divergence boundary.
+    const fins = finPlanform(BASELINE, BASELINE_ARRANGEMENT)
+    expect(fins.area / 2).toBeGreaterThan(300)
+    expect(finding?.severity).toBe('pass')
   })
 
   it('fails a tail too small for the Munk moment', () => {
@@ -269,15 +292,22 @@ describe('what the arrangement did to the hull size', () => {
     expect(s.emptyWeightPerGasVolume).toBeLessThan(0.79)
   })
 
-  it('keeps the trim inside the ballast authority across the design family', () => {
-    // The two water tanks are placed so the PAIR is centred on the centre of
-    // buoyancy. A symmetric pair straddling it adds no standing trim moment of
-    // its own and still gives a 32 m arm, which is what makes the same
-    // arrangement work over a wide range of hulls instead of one.
-    for (const length of [105, 115, 125, 140, 150]) {
+  it('keeps the trim inside the ballast authority over the range it was arranged for', () => {
+    // THE RANGE USED TO REACH 150 m AND IT NOW STOPS AT ABOUT 120. Correcting
+    // the yaw stability check put 1,816 kg of fin at station 0.9, which is a
+    // standing tail-down moment the water has to answer, and the tanks moved
+    // forward to answer it. That spends the authority which used to absorb the
+    // hull growing. It is not a regression in the arrangement, it is the
+    // arrangement paying for a tail that was previously too small to fly.
+    for (const length of [95, 105, 115, 120]) {
       const findings = validateArrangement(at(length), BASELINE_ARRANGEMENT)
       const trim = findings.find((f) => f.id === 'trim-authority')
       expect(`${length}: ${trim?.severity}`).toBe(`${length}: pass`)
+    }
+    for (const length of [125, 140, 150]) {
+      const findings = validateArrangement(at(length), BASELINE_ARRANGEMENT)
+      const trim = findings.find((f) => f.id === 'trim-authority')
+      expect(`${length}: ${trim?.severity}`).toBe(`${length}: fail`)
     }
   })
 

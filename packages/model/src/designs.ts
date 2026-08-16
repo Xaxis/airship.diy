@@ -68,8 +68,8 @@ export const BASELINE: DesignPoint = {
     // beyond, where the array is heavy enough to drag the centre of gravity aft
     // on its own. The array turns out to be a trim decision as much as an energy
     // one, which is not visible until the masses have positions.
-    arrayForwardStation: 0.06,
-    arrayAftStation: 0.78,
+    arrayForwardStation: 0.04,
+    arrayAftStation: 0.7,
     /**
      * THE EFFICIENCY OF THE MODULE THAT IS ACTUALLY BEING BOUGHT, not a band
      * nominal. It was 0.17 while the areal mass and the price were both taken
