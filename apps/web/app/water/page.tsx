@@ -1,6 +1,14 @@
 import { MarineSimulator } from '../../components/MarineSimulator'
+import { NavigationPolar } from '../../components/NavigationPolar'
 import {
+  Callout,
+  DataTable,
   Section,
+  Stat,
+  StatGrid,
+  Td,
+  Th,
+  Tr,
   fmt,
   pct,
 } from '../../components/site/primitives'
@@ -8,6 +16,7 @@ import { Shell } from '../../components/site/Shell'
 import {
   hullProfile,
   marine,
+  navigation,
 } from '../../lib/model'
 
 export const metadata = { title: 'Water' }
@@ -147,6 +156,101 @@ export default function Page() {
             envelope to {fmt(marine.staticThrust / 1000, 1)} kN of thrust, and the answer to it is
             the bow drogue rather than more power.
           </p>
+        </div>
+      </Section>
+
+      <Section
+        title="Where it can actually go"
+        lede="Everyone answers this with the side area: 2,300 m² of sail against a few tonnes of displacement, so obviously it cannot make way. That reasoning is wrong by a factor of fifty. BOW ON THE HULL IS NOT A SAIL: the complete vehicle's drag coefficient is 0.045 on volume to the two thirds, an equivalent area of 46 m². Beam-on it is 1,851. The vehicle that cannot make way is the one lying across the wind, and one with enough tail never is."
+      >
+        <NavigationPolar
+          polars={navigation.polars}
+          caption={`Speed made good against heading, at the ${fmt(navigation.centreboardArea)} m² of immersed centreboard the arrangement carries. Wind from the top. ${navigation.weathervanesUnaided ? 'The fins hold the vehicle bow-on by themselves, so the propulsors are free to drive rather than to steer.' : 'The fins do not hold it bow-on and the propulsors must, which is most of what they have.'}`}
+        />
+
+        <div className="mt-6">
+          <StatGrid columns={4}>
+            <Stat
+              label="Upwind in 10 m/s"
+              value={(navigation.polars[2]?.upwindSpeed ?? 0).toFixed(1)}
+              unit="m/s"
+              tone="pass"
+              note="Against a 3 m/s requirement"
+            />
+            <Stat
+              label="Leeway at the beam"
+              value={(((navigation.polars[2]?.beamLeeway ?? 0) * 180) / Math.PI).toFixed(0)}
+              unit="°"
+              note="It points here and goes 16° downwind of it"
+            />
+            <Stat
+              label="Centreboard"
+              value={fmt(navigation.centreboardArea)}
+              unit="m²"
+              note="Immersed, retractable. The part that decides it."
+            />
+            <Stat
+              label="Static thrust"
+              value={(navigation.staticThrust / 1000).toFixed(1)}
+              unit="kN"
+              note="Four ducted propulsors at zero airspeed"
+            />
+          </StatGrid>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <Callout tone="pass" title="Fixing the flight stability fixed the boat">
+            <p>
+              The tail on this vehicle grew from 405 m² to 825 m² when the yaw stability check was
+              corrected, and the marine consequence was not the point of that change. With the small
+              tail the propulsors had to hold the heading and had nothing left to drive with. With
+              the corrected one the fins weathervane it unaided and the whole installed thrust goes
+              into making way.
+            </p>
+          </Callout>
+
+          <Callout tone="unknown" title="One part decides whether boat mode exists at all">
+            <p>
+              Holding a heading and travelling along it are different things. At an angle to the
+              wind the envelope makes an enormous side force, and a hull sitting centimetres into
+              the water resists almost none of it. The sensitivity to immersed lateral area is
+              brutal and then it saturates.
+            </p>
+          </Callout>
+        </div>
+
+        <div className="mt-6">
+          <DataTable
+            head={
+              <>
+                <Th>Immersed lateral area</Th>
+                <Th align="right">Leeway at the beam</Th>
+                <Th align="right">Usable cone from dead upwind</Th>
+                <Th align="right">Upwind speed</Th>
+              </>
+            }
+            caption="At 10 m/s of wind. No amount of thrust substitutes: the speed through the water is identical at every row, and what changes is where the vehicle ends up. A retractable board of about 18 m² is what turns a thing that goes upwind or drifts into a boat."
+            minWidth={520}
+          >
+            {navigation.lateralAreaSweep.map((row) => {
+              const cone = (row.usefulCone * 180) / Math.PI
+              return (
+                <Tr key={row.area}>
+                  <Td>
+                    {row.area} m²
+                    {row.area === navigation.centreboardArea ? (
+                      <span className="ml-2 text-xs text-[var(--color-accent)]">fitted</span>
+                    ) : null}
+                  </Td>
+                  <Td align="right">{((row.beamLeeway * 180) / Math.PI).toFixed(0)}°</Td>
+                  <Td align="right" tone={cone > 90 ? 'pass' : cone > 30 ? 'unknown' : 'fail'}>
+                    {cone.toFixed(0)}°
+                  </Td>
+                  <Td align="right">{row.upwindSpeed.toFixed(1)} m/s</Td>
+                </Tr>
+              )
+            })}
+          </DataTable>
         </div>
       </Section>
     </Shell>

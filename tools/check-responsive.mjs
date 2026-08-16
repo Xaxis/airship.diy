@@ -22,6 +22,7 @@ const ROUTES = [
   '/',
   '/ship',
   '/architecture',
+  '/refused',
   '/energy',
   '/structure',
   '/water',

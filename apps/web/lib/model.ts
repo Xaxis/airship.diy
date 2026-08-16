@@ -37,6 +37,16 @@ import {
   waterTouchdown,
   laminate,
   frameSchedule,
+  navigationPolar,
+  hoverCapability,
+  vectoredControl,
+  propulsorOut,
+  wingGeometry,
+  wingPayloadEnvelope,
+  wingSolarAdvantage,
+  wingTrade,
+  SIDE_FORCE_COEFFICIENT_BEAM_ON,
+  DRAG_COEFFICIENT_BOW_ON,
   scheduleAgreement,
   STANDARD_GAS_TEMPERATURE,
 } from '@airship/core'
@@ -60,9 +70,10 @@ import {
   buildVerdict,
   failureModes,
   failureSummary,
+  refusedRequirements,
 } from '@airship/model'
 import { energyBalance, integrateMission, maximumSustainableWind } from '@airship/solvers'
-import { m, m3, kg, N, purity as asPurity } from '@airship/units'
+import { m, m3, kg, N, W, purity as asPurity } from '@airship/units'
 
 /**
  * The site reads the model. It does not restate it.
@@ -1124,4 +1135,275 @@ export const failure = (() => {
     verdict: summary.verdict,
     ballastAvailable: BALLAST_AVAILABLE,
   }
+})()
+
+/**
+ * Where the vehicle can go on the water, and where it cannot.
+ *
+ * The polar is the deliverable. Bow-on the hull is an equivalent area of about
+ * 46 m2 and beam-on it is 1,850, so the vehicle that cannot make way is the one
+ * lying across the wind. What decides whether the rest of the compass is
+ * reachable is not power at all: it is the immersed lateral area, and the
+ * sensitivity to it is brutal and then it saturates.
+ */
+/**
+ * @source The static heaviness the vehicle rests on water at, kg. Set by the
+ * propulsor-out case: three of four units lift 604 kg, and a trim the vehicle
+ * can only leave with every propulsor running turns one failure into a vehicle
+ * that cannot take off again.
+ */
+const LANDING_TRIM = 600
+
+export const navigation = (() => {
+  const shape = hullShapeForPrismatic(BASELINE.hull.prismaticCoefficient)
+  const hull = hullGeometry(m(BASELINE.hull.length), BASELINE.hull.finenessRatio, shape)
+  const air = atmosphere(m(0))
+  const fins = finPlanform(BASELINE, BASELINE_ARRANGEMENT)
+  const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+
+  const propulsors = BASELINE_ARRANGEMENT.propulsors
+  const power = propulsors.reduce((s, p) => s + p.ratedPower, 0)
+  const discArea = propulsors.reduce((s, p) => s + (Math.PI * p.diameter ** 2) / 4, 0)
+  const effectiveDiameter = 2 * Math.sqrt(discArea / propulsors.length / Math.PI)
+  const hover = hoverCapability(
+    propulsors.length,
+    effectiveDiameter,
+    W(power),
+    propulsors.every((p) => p.ducted),
+    kg(statement.total),
+    LANDING_TRIM,
+  )
+
+  const maxRadius = BASELINE.hull.length / BASELINE.hull.finenessRatio / 2
+  const lateralOffset = Math.max(...propulsors.map((p) => Math.abs(p.lateralOffset))) * maxRadius
+  const finSet = {
+    verticalArea: fins.area / 2,
+    momentArm: (BASELINE_ARRANGEMENT.finStation - statement.centreOfBuoyancy.x / BASELINE.hull.length) * BASELINE.hull.length,
+    aspectRatio: fins.span ** 2 / (fins.area / 4),
+  }
+
+  /** @derived Waterline length of the gondola hulls, m. */
+  const WATERLINE = 12
+
+  const at = (wind: number, lateralArea: number) =>
+    navigationPolar(
+      hull,
+      air,
+      wind,
+      N(hover.staticThrust),
+      kg(LANDING_TRIM),
+      m(WATERLINE),
+      propulsors.length,
+      m(lateralOffset),
+      finSet,
+      lateralArea,
+    )
+
+  const board = BASELINE_ARRANGEMENT.centreboardArea
+  const winds = [5, 8, 10, 12, 15]
+
+  return {
+    centreboardArea: board,
+    staticThrust: hover.staticThrust,
+    weathervanesUnaided: at(10, board).weathervanesUnaided,
+    /** The polar at each wind, as points a chart can draw. */
+    polars: winds.map((wind) => {
+      const p = at(wind, board)
+      return {
+        wind,
+        upwindSpeed: p.upwindSpeed,
+        beamLeeway: p.beamLeeway,
+        usefulCone: p.widestUsefulHeading,
+        points: p.points.map((q) => ({
+          heading: q.headingOffWind,
+          speed: q.speed,
+          leeway: q.driftAngle,
+          holdable: q.holdable,
+        })),
+      }
+    }),
+    /** How the usable cone depends on the one part that decides it. */
+    lateralAreaSweep: [0.5, 2, 5, 10, board, 30, 50].map((area) => {
+      const p = at(10, area)
+      return {
+        area,
+        beamLeeway: p.beamLeeway,
+        usefulCone: p.widestUsefulHeading,
+        upwindSpeed: p.upwindSpeed,
+      }
+    }),
+    note: at(10, board).note,
+  }
+})()
+
+/**
+ * What the wings buy, and what they cost every hour they are not buying it.
+ */
+export const wings = (() => {
+  const shape = hullShapeForPrismatic(BASELINE.hull.prismaticCoefficient)
+  const hull = hullGeometry(m(BASELINE.hull.length), BASELINE.hull.finenessRatio, shape)
+  const air = atmosphere(m(BASELINE.mission.altitude))
+  const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+  const power = BASELINE_ARRANGEMENT.propulsors.reduce((s, p) => s + p.ratedPower, 0)
+  /** @source Complete-ship volumetric drag coefficient. */
+  const HULL_DRAG = 0.025
+  /** @source Propulsive efficiency of a large slow propulsor. */
+  const ETA = 0.8
+
+  const fitted = wingGeometry(BASELINE_ARRANGEMENT.wingSpan, BASELINE_ARRANGEMENT.wingArea)
+  const envelope = wingPayloadEnvelope(fitted, hull, air.density, HULL_DRAG, power, ETA)
+  const trade = wingTrade(
+    fitted,
+    hull,
+    statement.total * 9.80665,
+    0.7,
+    BASELINE.mission.stationKeepingWind,
+    air.density,
+    HULL_DRAG,
+    ETA,
+  )
+  const solar = wingSolarAdvantage(
+    BASELINE_ARRANGEMENT.wingArea,
+    BASELINE.power.arrayCoverageHalfAngle,
+    BASELINE.power.moduleArealMass,
+  )
+
+  return {
+    span: fitted.span,
+    area: fitted.area,
+    aspectRatio: fitted.aspectRatio,
+    mass: fitted.mass,
+    bestPayload: envelope.bestPayload,
+    bestSpeed: envelope.bestSpeed,
+    netGain: envelope.bestPayload - fitted.mass,
+    crossoverSpeed: trade.crossoverSpeed,
+    crossoverPower: trade.crossoverPower,
+    crossoverExists: trade.crossoverExists,
+    stationPenalty: trade.stationKeepingPowerPenalty,
+    solarAdvantage: solar.advantage,
+    payloadCurve: envelope.points.map((p) => ({
+      speed: p.speed,
+      payload: p.extraPayload,
+      power: p.power,
+      affordable: p.affordable,
+    })),
+    /** The sizes considered, so the reader can see the trade rather than the answer. */
+    options: [
+      [30, 120],
+      [40, 200],
+      [50, 320],
+      [60, 450],
+    ].map(([span, area]) => {
+      const w = wingGeometry(span!, area!)
+      const e = wingPayloadEnvelope(w, hull, air.density, HULL_DRAG, power, ETA)
+      const t = wingTrade(
+        w,
+        hull,
+        statement.total * 9.80665,
+        0.7,
+        BASELINE.mission.stationKeepingWind,
+        air.density,
+        HULL_DRAG,
+        ETA,
+      )
+      return {
+        span: w.span,
+        area: w.area,
+        mass: w.mass,
+        payload: e.bestPayload,
+        speed: e.bestSpeed,
+        net: e.bestPayload - w.mass,
+        stationPenalty: t.stationKeepingPowerPenalty,
+        fitted: w.span === fitted.span,
+      }
+    }),
+    envelopeNote: envelope.note,
+    tradeNote: trade.verdict,
+    solarNote: solar.note,
+  }
+})()
+
+/**
+ * Vertical take-off on tilting propulsors, and what one failure does to it.
+ */
+export const vectoring = (() => {
+  const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+  const propulsors = BASELINE_ARRANGEMENT.propulsors
+  const power = propulsors.reduce((s, p) => s + p.ratedPower, 0)
+  const discArea = propulsors.reduce((s, p) => s + (Math.PI * p.diameter ** 2) / 4, 0)
+  const effectiveDiameter = 2 * Math.sqrt(discArea / propulsors.length / Math.PI)
+  const ducted = propulsors.every((p) => p.ducted)
+
+  const hover = hoverCapability(
+    propulsors.length,
+    effectiveDiameter,
+    W(power),
+    ducted,
+    kg(statement.total),
+    LANDING_TRIM,
+  )
+  const out = propulsorOut(propulsors.length, hover, LANDING_TRIM)
+  const control = vectoredControl(
+    N(hover.staticThrust),
+    statement.gasVolume,
+    SIDE_FORCE_COEFFICIENT_BEAM_ON,
+    DRAG_COEFFICIENT_BOW_ON,
+  )
+
+  return {
+    count: propulsors.length,
+    diameter: effectiveDiameter,
+    ducted,
+    power,
+    landingTrim: LANDING_TRIM,
+    staticThrust: hover.staticThrust,
+    liftable: hover.liftableHeaviness,
+    heavinessFraction: hover.heavinessFraction,
+    powerAtTrim: hover.powerAtTrim,
+    liftsItsTrim: hover.liftsItsTrim,
+    outRemaining: out.remainingHeaviness,
+    stillLands: out.stillLands,
+    headwindHold: control.headwindHold,
+    crosswindHold: control.crosswindHold,
+    /** The diameter sweep, which is the only design variable that matters here. */
+    diameterSweep: [3, 4, 5, 6, 8].flatMap((d) =>
+      [false, true].map((duct) => {
+        const h = hoverCapability(
+          propulsors.length,
+          d,
+          W(power),
+          duct,
+          kg(statement.total),
+          LANDING_TRIM,
+        )
+        return {
+          diameter: d,
+          ducted: duct,
+          liftable: h.liftableHeaviness,
+          powerAtTrim: h.powerAtTrim,
+          lifts: h.liftsItsTrim,
+          fitted: Math.abs(d - effectiveDiameter) < 0.6 && duct === ducted,
+        }
+      }),
+    ),
+    hoverNote: hover.note,
+    controlNote: control.note,
+    outNote: out.note,
+  }
+})()
+
+/**
+ * The requirements that were asked for and refused, with the arithmetic that
+ * kills each one. A refusal written in prose stops being checked.
+ */
+export const refused = (() => {
+  const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+  return refusedRequirements(BASELINE, statement.liftMargin / statement.grossLift).map((r) => ({
+    id: r.id,
+    requirement: r.requirement,
+    ratio: r.ratio,
+    refused: r.refused,
+    whatWouldReopenIt: r.whatWouldReopenIt,
+    detail: r.detail,
+  }))
 })()

@@ -41,6 +41,14 @@ export const ROUTES: readonly Route[] = [
       'All five on one basis, each calibrated on a vehicle that flew. Three are lighter than the one chosen, and each is lighter for a reason that costs something a liveaboard cannot pay.',
   },
   {
+    href: '/refused',
+    label: 'Refused',
+    title: 'What was asked for and refused',
+    question: 'Which requirements does the physics simply not allow?',
+    summary:
+      'Three things this project was asked to build, and the arithmetic that kills each. Every refusal is computed rather than written down, so a better material or a better tank reopens the question by itself instead of waiting for somebody to remember.',
+  },
+  {
     href: '/energy',
     label: 'Energy',
     title: 'Does the loop close?',
