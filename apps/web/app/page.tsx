@@ -72,19 +72,20 @@ export default function Home() {
       </div>
 
       <section className="py-14">
-        <h2 className="text-xl font-medium tracking-tight">Four findings that decided it</h2>
+        <h2 className="text-xl font-medium tracking-tight">Four things that decide the design</h2>
         <p className="mt-3 max-w-3xl leading-relaxed text-[var(--color-ink-dim)]">
-          Each came out of building the model rather than out of reading about airships, and each
-          reversed something this project had already written down.
+          Each is a constraint the vehicle has to be built around, and each is counterintuitive
+          enough that a design drawn without it looks fine and is not.
         </p>
         <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Callout title="Drawing the arrangement made it 25 m longer" tone="unknown">
+          <Callout title="There is no trade against being heavy" tone="unknown">
             <p>
-              The baseline was 90 m for as long as the mass budget was a <em>fraction</em>. Giving
-              the compartments, the machinery and the array real positions and real masses turned
-              it into a <em>statement</em>, and 90 m came out {fmt(-arrangement.sizing.marginAt90)}{' '}
-              kg heavy. An aeroplane that comes out heavy loses range and still flies. An airship
-              has no such trade: the buoyancy is fixed by the envelope.
+              An aeroplane that comes out overweight loses range and still flies. An airship has no
+              such trade: the buoyancy is fixed by the envelope, so a kilogram over is a kilogram
+              that does not leave the ground. At 90 m this arrangement is{' '}
+              {fmt(-arrangement.sizing.marginAt90)} kg heavy and there is nothing to give up. The
+              hull is {fmt(hullProfile.length)} m because that is the length at which the masses
+              fit.
             </p>
           </Callout>
           <Callout title="A sealed pneumatic float is stiffer than the water" tone="fail">

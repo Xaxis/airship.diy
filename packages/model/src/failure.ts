@@ -180,6 +180,14 @@ export const failureModes = (
       : `Semi-rigid does not even come out lighter at this size on this model, and it still cannot do this.`
 
   const recovery = v(CREW.waterRecoveryFraction)
+  /** @derived Half, for the split-bus consequence. */
+  const HALF = 0.5
+  /**
+   * @source Energy that initiates a hydrogen detonation directly rather than a
+   * deflagration, J. A capacitor bank or an arcing contactor reaches it, which
+   * is why fault energy is bounded at every node and not merely at the bus.
+   */
+  const HYDROGEN_DETONATION_ENERGY = 4300
 
   return [
     {
@@ -228,18 +236,16 @@ export const failureModes = (
     },
     {
       id: 'main-bus',
-      name: 'Main DC bus fault',
+      name: 'One DC bus half faults',
       effect:
-        'A short or an arc on the bus every source and every load meets. Propulsion, the electrolyzer, the habitat and the ventilation all go at once.',
-      severity: 'catastrophic',
-      consequence:
-        'Total loss of propulsion and of the ventilation the hydrogen safety case depends on. And a bus fault is itself an ignition source: 4.3 kJ is enough to initiate a hydrogen detonation directly, which a capacitor bank or an arcing contactor reaches.',
-      detection: 'Instant and total.',
+        'A short or an arc on one half of the split bus. The tie opens, that half is isolated, and everything fed only from it stops.',
+      severity: 'serious',
+      consequence: `THIS WAS THE ONLY CATASTROPHIC MODE IN THE ANALYSIS AND IT IS NOT ONE ANY MORE, because the schematic changed rather than because the probability did. On a single bus a fault took out propulsion and the ventilation the hydrogen safety case depends on in the same instant, and no amount of generating capacity upstream could reach a load. Split into halves with a tie, the ship loses ${(HALF * PERCENT).toFixed(0)} percent of its propulsion and keeps all of its ventilation, because every critical load is fed from both halves and the propulsors are two on each.`,
+      detection: 'Instant on the faulted half, and the tie opening is itself the annunciation.',
       response:
-        'Split the bus and reclose onto the healthy half. That only works if it was split in the first place.',
-      survivable: false,
-      designAnswer:
-        'A SPLIT BUS WITH A TIE, and bounded fault energy at every node. This is the one failure mode the arrangement cannot answer with redundancy of sources, because the sources all meet here. It is the single most consequential component on the vehicle and it is a design requirement rather than a component choice.',
+        'Let the tie open, confirm the fault is isolated, and fly on the healthy half. Two propulsors diagonally opposite is a yaw couple the survivors trim out, and the habitat load is small enough that one half carries it with the array alone.',
+      survivable: true,
+      designAnswer: `SEGREGATION ALL THE WAY DOWN TO THE CABLE ROUTING, because two buses in one conduit are one bus with extra contactors. Every source divides between the halves, every critical load is fed from both, and the electrolyzer is the deliberate exception: it hangs on one side because it is the load that gets shed first and misses nothing. Fault energy is bounded at every node for a separate reason, which is that ${(HYDROGEN_DETONATION_ENERGY / 1000).toFixed(1)} kJ is enough to initiate a hydrogen detonation directly and a capacitor bank reaches it.`,
     },
     {
       id: 'engine',

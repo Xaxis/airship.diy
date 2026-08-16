@@ -37,13 +37,19 @@ describe('the failure modes', () => {
     expect(two.survivable).toBe(true)
   })
 
-  it('finds exactly one mode that is not survivable, and it is the DC bus', () => {
-    // Every source and every load meets on one bus. Propulsion, life support,
-    // the electrolyzer and the fuel cell controls are all downstream of it, and
-    // no amount of generating capacity upstream helps. The answer is a split
-    // bus with a tie, not a probability argument.
-    expect(SUMMARY.catastrophic.map((m) => m.id)).toEqual(['main-bus'])
-    expect(SUMMARY.survivable).toBe(SUMMARY.total - 1)
+  it('has no catastrophic mode left, and the bus is why', () => {
+    // THE ONE CATASTROPHIC MODE WAS THE DC BUS AND IT IS GONE, because the
+    // schematic changed rather than because the probability did. On a single
+    // bus a fault took out propulsion and the ventilation the hydrogen safety
+    // case depends on at the same instant, and no amount of generating
+    // capacity upstream could reach a load. Split into halves with a tie, the
+    // ship loses half its propulsion and keeps all of its ventilation.
+    expect(SUMMARY.catastrophic).toEqual([])
+    expect(SUMMARY.survivable).toBe(SUMMARY.total)
+
+    const bus = MODES.find((m) => m.id === 'main-bus')!
+    expect(bus.survivable).toBe(true)
+    expect(bus.designAnswer).toContain('SEGREGATION ALL THE WAY DOWN')
   })
 
   it('gives every mode a detection, a response and a design answer', () => {

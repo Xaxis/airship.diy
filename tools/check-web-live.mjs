@@ -31,7 +31,6 @@ const ROUTES = [
   { path: '/', minSections: 3, canvases: 1 },
   { path: '/ship', minSections: 2, canvases: 1 },
   { path: '/architecture', minSections: 1 },
-  { path: '/refused', minSections: 3 },
   { path: '/energy', minSections: 3 },
   { path: '/structure', minSections: 2 },
   { path: '/water', minSections: 1, canvases: 1, liveReadouts: true },

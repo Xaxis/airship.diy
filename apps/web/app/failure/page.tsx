@@ -30,7 +30,7 @@ export default function Page() {
     <Shell href="/failure">
       <Section
         title="Eight ways this vehicle fails"
-        lede="The consequence column is computed from the same mass statement that sizes the ship rather than written down. That is the difference between an FMEA and a document: change the design and a mode that used to be survivable stops being survivable, and the page says so."
+        lede="What happens, how you find out, what you do about it, and whether the design already answers it. The consequences are computed from the same mass statement that sizes the ship, so they move when the ship does."
       >
         <StatGrid columns={4}>
           <Stat label="Modes considered" value={fmt(failure.total)} />
@@ -117,37 +117,35 @@ export default function Page() {
       </Section>
 
       <Section
-        title="The one that is not survivable is a wiring diagram"
-        lede="Seven of the eight modes are answered by margin: lift margin, ballast, a spare propulsor, a second way out. The eighth is answered by drawing the schematic differently, which makes it the cheapest fix on this site and the only one that has to happen before anything else is trusted."
+        title="The electrical architecture"
+        lede="Two segregated direct current buses joined by a tie that opens on a fault. Every source divides between them and every critical load is fed from both, so no single node in the schematic can isolate the habitat, the ventilation or the propulsors from every source."
       >
         <div className="grid gap-4 lg:grid-cols-2">
-          <Callout tone="fail" title="Everything meets on one bus">
+          <Callout title="Two halves, segregated to the cable routing">
             <p>
-              The photovoltaic array, the fuel cell, the engine and generator, the battery and the
-              electrolyzer all deliver to a single direct current bus, and propulsion, life support,
-              water treatment and the interstitial ventilation all draw from it. Counting sources
-              says the ship has five. Counting independent PATHS says it has one.
+              The array strings divide between the halves on separate converters and separate runs.
+              The fuel cell and the generator each have two output contactors. The battery is two
+              strings rather than one. The four propulsors are two on each half, diagonally
+              opposite, so losing a half leaves a yaw couple the survivors trim out rather than a
+              pair on one side.
             </p>
             <p>
-              A fault at the bus takes out ventilation in a hull containing{' '}
-              {fmt(arrangement.cellCount)} cells of hydrogen at the same moment it takes out the
-              means of doing anything about it. No amount of generating capacity upstream helps,
-              because none of it can reach a load.
+              Two buses sharing a conduit are one bus with extra contactors, so the segregation runs
+              all the way down: separate routes, separate penetrations, separate fire zones.
             </p>
           </Callout>
 
-          <Callout tone="pass" title="Split it, and tie it">
+          <Callout title="One deliberate exception">
             <p>
-              Two half buses, each with its own share of the sources and its own share of the loads,
-              joined by a tie that opens on a fault. Every critical load is fed from whichever half
-              survives. This is standard marine and aircraft practice and it is not expensive: it
-              costs a contactor, a second set of bars, and the discipline to keep the halves
-              genuinely independent all the way down to the cable routing.
+              The electrolyzer hangs on one half only. It is the largest load and the most
+              interruptible: it exists to turn surplus daylight into hydrogen, so it is the first
+              thing shed and it misses nothing. Duplicating its feed would be mass spent on the one
+              load that does not need it.
             </p>
             <p>
-              The reason it is worth a whole section is that the redundancy check in the systems
-              model only found it because it counts paths rather than sources. Counting sources is
-              the mistake, and it is the one almost every schematic makes.
+              Fault energy is bounded at every node for a separate reason. 4.3 kJ is enough to
+              initiate a hydrogen detonation directly rather than a deflagration, and a capacitor
+              bank or an arcing contactor reaches it.
             </p>
           </Callout>
         </div>
@@ -156,11 +154,11 @@ export default function Page() {
           <Prose>
             <p>
               The other pattern worth naming is how much of the survivability is bought with water.
-              The two cell tears, the cover tear and the loss of a propulsor are all answered partly
-              by dropping ballast, and the ballast is {fmt(failure.ballastAvailable)} kg of the same
-              water the habitat drinks and the electrolyzer splits. Run the model with none aboard
-              and the answers get worse, which is the argument for carrying it stated as a result
-              rather than as a preference.
+              The cell tears, the cover tear and the loss of a propulsor are all answered partly by
+              dropping ballast, and the ballast is {fmt(failure.ballastAvailable)} kg of the same
+              water the habitat drinks and the electrolyzer splits. The ship carries{' '}
+              {fmt(arrangement.cellCount)} gas cells so that no single tear is more than a twelfth
+              of the lift, and the water is what covers the second one.
             </p>
             <p>
               Nothing here is a probability. This is a consequence analysis: what happens, how you
@@ -170,6 +168,7 @@ export default function Page() {
           </Prose>
         </div>
       </Section>
+
     </Shell>
   )
 }

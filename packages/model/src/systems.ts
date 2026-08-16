@@ -148,15 +148,37 @@ export const powerSchematic = (inputs: PowerInputs): SystemSchematic => {
       note: 'The buffer that covers the minutes between a cloud and the fuel cell reaching load. Critical: without it every source transient is a load transient, and the loads include the propulsors holding station.',
     },
     {
-      id: 'bus',
-      name: 'Main DC bus',
+      id: 'bus-a',
+      name: 'DC bus A',
       loop: 'power',
       kind: 'converter',
-      rating: inputs.propulsionRating + inputs.habitatLoad + inputs.electrolyzerRating,
+      rating: (inputs.propulsionRating + inputs.habitatLoad + inputs.electrolyzerRating) / 2,
       unit: 'W',
       mass: 0,
-      critical: true,
-      note: 'EVERY SOURCE AND EVERY LOAD MEETS HERE, which makes it the single most consequential component on the vehicle. A split bus with a tie is the only arrangement that survives a fault at this node, and the hydrogen safety case bounds its fault energy for a separate reason: 4.3 kJ is enough to initiate a detonation directly.',
+      critical: false,
+      note: 'HALF THE BUS, AND THAT IS THE WHOLE POINT. This was one node until the failure analysis found it was the only catastrophic single point on the vehicle: every source and every load met there, so a fault took out propulsion and the ventilation the hydrogen safety case depends on at the same instant, and no amount of generating capacity upstream could reach a load. Split into halves with a tie that opens on a fault, no single bus fault can do that. NOT critical any more, individually, which is the entire achievement.',
+    },
+    {
+      id: 'bus-b',
+      name: 'DC bus B',
+      loop: 'power',
+      kind: 'converter',
+      rating: (inputs.propulsionRating + inputs.habitatLoad + inputs.electrolyzerRating) / 2,
+      unit: 'W',
+      mass: 0,
+      critical: false,
+      note: 'The other half. Segregated from A all the way down to the cable routing, because two buses that share a conduit are one bus with extra contactors. The array strings, the fuel cell and the generator each split between them, and every critical load is fed from both.',
+    },
+    {
+      id: 'tie',
+      name: 'Bus tie',
+      loop: 'power',
+      kind: 'converter',
+      rating: (inputs.propulsionRating + inputs.habitatLoad + inputs.electrolyzerRating) / 2,
+      unit: 'W',
+      mass: 0,
+      critical: false,
+      note: 'Closed in normal operation so either half can carry the whole ship, and OPENS ON A FAULT so a short on one side cannot pull the other down. It is a contactor and a relay, and it is the cheapest fix for the worst failure mode in the analysis. Its fault energy is bounded for a separate reason: 4.3 kJ is enough to initiate a hydrogen detonation directly, which a capacitor bank or an arcing contactor reaches.',
     },
     {
       id: 'electrolyzer',
@@ -178,7 +200,7 @@ export const powerSchematic = (inputs: PowerInputs): SystemSchematic => {
       unit: 'W',
       mass: 0,
       critical: false,
-      note: 'Four independent units on four independent controllers. Losing one is a trim problem rather than a control problem, which is the argument for four rather than two.',
+      note: 'Four independent units on four independent controllers, TWO ON EACH BUS. Losing one unit is a trim problem rather than a control problem, and losing a whole bus half leaves two units diagonally opposite, which is a yaw couple the survivors can trim out.',
     },
     {
       id: 'habitat',
@@ -189,19 +211,47 @@ export const powerSchematic = (inputs: PowerInputs): SystemSchematic => {
       unit: 'W',
       mass: 0,
       critical: true,
-      note: 'Lighting, refrigeration, water processing, computing, ventilation. Small, continuous, and the one load that cannot be shed: the ventilation in it is part of the hydrogen safety case.',
+      note: 'Lighting, refrigeration, water processing, computing, ventilation. Small, continuous, and the one load that cannot be shed: the ventilation in it is part of the hydrogen safety case, which is exactly why it is fed from BOTH halves rather than from whichever was convenient.',
     },
   ]
 
+  /**
+   * EVERY SOURCE SPLITS AND EVERY CRITICAL LOAD IS FED FROM BOTH HALVES.
+   *
+   * A split bus that a source only reaches through one half is not a split bus,
+   * it is a bus with a spare. The array strings divide between A and B, the fuel
+   * cell has two output contactors, the generator has two, and the battery is
+   * two strings rather than one. What is NOT duplicated is the electrolyzer,
+   * because it is the load that gets shed first and misses nothing.
+   */
   const flows: SystemFlow[] = [
-    { from: 'array', to: 'bus', rate: inputs.arrayPeak, note: 'Through MPPT converters.' },
-    { from: 'generator', to: 'bus', rate: inputs.generatorRating },
-    { from: 'fuel-cell', to: 'bus', rate: inputs.fuelCellRating, efficiency: FUEL_CELL_EFFICIENCY },
-    { from: 'battery', to: 'bus', rate: inputs.batteryEnergy / SECONDS_PER_DAY },
-    { from: 'bus', to: 'battery', rate: inputs.batteryEnergy / SECONDS_PER_DAY },
-    { from: 'bus', to: 'electrolyzer', rate: inputs.electrolyzerRating },
-    { from: 'bus', to: 'propulsion', rate: inputs.propulsionRating },
-    { from: 'bus', to: 'habitat', rate: inputs.habitatLoad },
+    { from: 'array', to: 'bus-a', rate: inputs.arrayPeak / 2, note: 'Half the strings, through their own MPPT converters.' },
+    { from: 'array', to: 'bus-b', rate: inputs.arrayPeak / 2, note: 'The other half, on separate converters and separate cable runs.' },
+    { from: 'generator', to: 'bus-a', rate: inputs.generatorRating / 2 },
+    { from: 'generator', to: 'bus-b', rate: inputs.generatorRating / 2 },
+    {
+      from: 'fuel-cell',
+      to: 'bus-a',
+      rate: inputs.fuelCellRating / 2,
+      efficiency: FUEL_CELL_EFFICIENCY,
+    },
+    {
+      from: 'fuel-cell',
+      to: 'bus-b',
+      rate: inputs.fuelCellRating / 2,
+      efficiency: FUEL_CELL_EFFICIENCY,
+    },
+    { from: 'battery', to: 'bus-a', rate: inputs.batteryEnergy / SECONDS_PER_DAY / 2 },
+    { from: 'battery', to: 'bus-b', rate: inputs.batteryEnergy / SECONDS_PER_DAY / 2 },
+    { from: 'bus-a', to: 'battery', rate: inputs.batteryEnergy / SECONDS_PER_DAY / 2 },
+    { from: 'bus-b', to: 'battery', rate: inputs.batteryEnergy / SECONDS_PER_DAY / 2 },
+    { from: 'bus-a', to: 'tie', rate: (inputs.propulsionRating + inputs.habitatLoad) / 2, note: 'Closed normally, opens on a fault.' },
+    { from: 'tie', to: 'bus-b', rate: (inputs.propulsionRating + inputs.habitatLoad) / 2 },
+    { from: 'bus-a', to: 'electrolyzer', rate: inputs.electrolyzerRating, note: 'One side only: the load that gets shed first and misses nothing.' },
+    { from: 'bus-a', to: 'propulsion', rate: inputs.propulsionRating / 2, note: 'Two propulsors.' },
+    { from: 'bus-b', to: 'propulsion', rate: inputs.propulsionRating / 2, note: 'The other two, diagonally opposite.' },
+    { from: 'bus-a', to: 'habitat', rate: inputs.habitatLoad / 2 },
+    { from: 'bus-b', to: 'habitat', rate: inputs.habitatLoad / 2 },
   ]
 
   return { loop: 'power', nodes, flows, unit: 'W' }
@@ -347,36 +397,64 @@ export interface SystemFinding {
 }
 
 /**
- * Every critical load has at least two independent paths to a source.
+ * No single component failure disconnects a critical load from every source.
  *
- * THE CHECK A SPREADSHEET CANNOT MAKE. An energy balance can close perfectly on
- * a vehicle with one bus, one converter and one tank, and a year is long enough
- * that every single point of failure gets its turn.
+ * THE CHECK A SPREADSHEET CANNOT MAKE, and the one that found the worst defect
+ * in this project. An energy balance closes perfectly on a vehicle with one bus,
+ * one converter and one tank, and a year is long enough that every single point
+ * of failure gets its turn.
  *
- * Two PATHS, not two sources. A second generator behind the same contactor is
- * one path, and that is the mistake this counts rather than assumes.
+ * IT USED TO COUNT PATHS ONE LEVEL UP and that was not enough. Counting the
+ * feeders of a load's feeders finds two sources behind a single bus and reports
+ * two paths, which is exactly the arrangement that was catastrophic here: every
+ * source and every load met at one node, so five sources fed one bus and the
+ * check said five. What it has to do instead is DELETE EACH NODE IN TURN and ask
+ * whether the load can still reach a source at all. That is a reachability
+ * question, it is cheap, and it is the only version that would have caught it.
  */
 export const redundancyCheck = (schematic: SystemSchematic): readonly SystemFinding[] => {
   const findings: SystemFinding[] = []
 
+  const sources = new Set(
+    schematic.nodes.filter((n) => n.kind === 'source' || n.kind === 'store').map((n) => n.id),
+  )
+
+  /** Can `target` reach any source with `removed` deleted from the graph? */
+  const reachesASource = (target: string, removed: string): boolean => {
+    if (target === removed) return false
+    const seen = new Set<string>([target])
+    const queue = [target]
+    while (queue.length > 0) {
+      const at = queue.shift()!
+      if (sources.has(at)) return true
+      for (const flow of schematic.flows) {
+        if (flow.to !== at) continue
+        if (flow.from === removed || seen.has(flow.from)) continue
+        seen.add(flow.from)
+        queue.push(flow.from)
+      }
+    }
+    return false
+  }
+
   for (const node of schematic.nodes) {
     if (!node.critical || node.kind !== 'load') continue
 
-    const feeders = schematic.flows.filter((f) => f.to === node.id)
-    // Trace each feeder back one level: two feeders from the same upstream node
-    // are one path, not two.
-    const upstream = new Set(
-      feeders.flatMap((f) => schematic.flows.filter((g) => g.to === f.from).map((g) => g.from)),
-    )
+    // Every node whose removal isolates this load. A load that survives the
+    // deletion of every single node has genuine redundancy; one that does not
+    // has named its own single points of failure.
+    const singlePoints = schematic.nodes
+      .filter((n) => n.id !== node.id && !reachesASource(node.id, n.id))
+      .map((n) => n.name)
 
     findings.push({
       id: `redundancy-${node.id}`,
-      severity: upstream.size >= 2 ? 'pass' : 'fail',
-      rule: `${node.name} has two independent paths to a source.`,
+      severity: singlePoints.length === 0 ? 'pass' : 'fail',
+      rule: `No single component failure isolates ${node.name} from every source.`,
       detail:
-        upstream.size >= 2
-          ? `${upstream.size} independent sources upstream: ${[...upstream].join(', ')}. Losing any one leaves the load fed.`
-          : `Only ${upstream.size} source path. A year is long enough that every single point of failure gets its turn, and this is one.`,
+        singlePoints.length === 0
+          ? `Every node in the schematic can be deleted and ${node.name} still reaches a source. That is the property a split bus buys, and it is checked by deleting each node in turn rather than by counting feeders, because counting feeders reports five paths when five sources meet at one bus.`
+          : `${singlePoints.length} single point${singlePoints.length === 1 ? '' : 's'} of failure: ${singlePoints.join(', ')}. Deleting any one of those leaves ${node.name} with no path to any source. A year is long enough that every single point of failure gets its turn.`,
     })
   }
 
