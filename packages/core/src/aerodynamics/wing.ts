@@ -42,14 +42,29 @@ import { N } from '@airship/units'
  */
 
 export interface WingGeometry {
+  /** Tip to tip, INCLUDING the part that crosses the hull. */
   readonly span: number
+  /** Reference area, including the carryover across the hull. */
   readonly area: number
   readonly aspectRatio: number
   readonly meanChord: number
   /** Root chord, m, at the taper ratio below. */
   readonly rootChord: number
   readonly tipChord: number
-  /** Structural mass, kg. */
+  /**
+   * Area of the EXPOSED panels, outboard of the hull. Less than the reference
+   * area by whatever the hull occupies, and it is the only part that has to be
+   * built, carried and hangared.
+   */
+  readonly exposedArea: number
+  /** Exposed semi-span each side, m. */
+  readonly exposedSemiSpan: number
+  /**
+   * Structural mass, kg: the exposed panels at full areal mass plus the
+   * carry-through beam across the hull at half of it. Charging the whole
+   * reference area overstates it and charging only the exposed area forgets
+   * the most concentrated load path on the vehicle.
+   */
   readonly mass: number
 }
 
@@ -72,6 +87,22 @@ const TAPER_RATIO = 0.4
 const WING_AREAL_MASS = 2.2 * 1.4
 
 /**
+ * What the carryover section costs, as a fraction of the exposed wing's areal
+ * mass.
+ *
+ * NOT ZERO, WHICH IS WHAT A NAIVE EXPOSED-AREA ACCOUNTING CHARGES. The span
+ * inside the hull is not a lifting surface, but it is a spar carry-through: a
+ * beam across the envelope reacting two wing root bending moments into a
+ * structure that is mostly fabric. It is less than a wing per square metre
+ * because it has no skin, no control surfaces and no leading edge, and it is far
+ * from free because it is the single most concentrated load path on the vehicle.
+ *
+ * @source Half the exposed areal mass, which is the usual share for a
+ * carry-through on an aircraft whose wing is not continuous.
+ */
+const CARRY_THROUGH_FRACTION = 0.5
+
+/**
  * Span efficiency of a real wing at moderate aspect ratio.
  *
  * @source 0.85 is the standard figure for a tapered planform without twist
@@ -88,9 +119,28 @@ export const WING_SPAN_EFFICIENCY = 0.85
  */
 export const WING_PROFILE_DRAG_COEFFICIENT = 0.01
 
-export const wingGeometry = (span: number, area: number): WingGeometry => {
+/**
+ * @param hullWidth Beam of the body the wing crosses, m. The part of the span
+ *   inside it is carryover rather than structure, and passing zero gives a
+ *   free-standing wing.
+ *
+ * THE DISTINCTION THIS EXISTS TO MAKE. A 40 m wing on a 23 m hull has 17 m of
+ * exposed span, not 40, and MORE THAN HALF ITS REFERENCE AREA IS FUSELAGE. That
+ * matters twice over. The reference span is the right one for induced drag,
+ * because the body does carry lift across its width and the trailing vortices
+ * leave from the tips; but the MASS follows the exposed panels, because that is
+ * what has to be built. Charging areal mass against the reference area
+ * overstates the wing by the carryover fraction, which here is most of it.
+ *
+ * The drawing showed this before the model did: the wings barely project past
+ * the hull, and the reason is that on a fat body a modest span is mostly body.
+ */
+export const wingGeometry = (span: number, area: number, hullWidth = 0): WingGeometry => {
   const meanChord = area / span
   const rootChord = (2 * meanChord) / (1 + TAPER_RATIO)
+  const exposedSemiSpan = Math.max((span - hullWidth) / 2, 0)
+  /** @derived Exposed area is the reference area less what the hull occupies. */
+  const exposedArea = area * (Math.min(hullWidth, span) > 0 ? 1 - Math.min(hullWidth, span) / span : 1)
   return {
     span,
     area,
@@ -98,7 +148,11 @@ export const wingGeometry = (span: number, area: number): WingGeometry => {
     meanChord,
     rootChord,
     tipChord: rootChord * TAPER_RATIO,
-    mass: area * WING_AREAL_MASS,
+    exposedArea,
+    exposedSemiSpan,
+    mass:
+      exposedArea * WING_AREAL_MASS +
+      (area - exposedArea) * WING_AREAL_MASS * CARRY_THROUGH_FRACTION,
   }
 }
 

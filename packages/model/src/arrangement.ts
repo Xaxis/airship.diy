@@ -425,7 +425,14 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
   const fins = finPlanform(design, config)
 
   // ---- the wing, the board and the gear ----------------------------------
-  const wing = wingGeometry(config.wingSpan, config.wingArea)
+  // The hull beam at the wing station, because more than half of a modest span
+  // on a fat body is fuselage rather than wing, and only the exposed panels
+  // have to be built and carried.
+  const wing = wingGeometry(
+    config.wingSpan,
+    config.wingArea,
+    2 * radiusAt(config.wingStation),
+  )
   const payload = wingPayloadEnvelope(
     wing,
     geometry,
@@ -559,7 +566,7 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
       z: 0,
       volume: 0,
       computed: true,
-      note: `${config.wingArea} m2 at aspect ratio ${wing.aspectRatio.toFixed(1)}. NOT for efficiency: a wing only makes this vehicle more efficient above 34 m/s, where it would need half a megawatt. It is for CARRYING, and it holds up ${payload.bestPayload.toFixed(0)} kg of extra weight at ${payload.bestSpeed.toFixed(0)} m/s on the power already installed. It costs its profile drag every hour it is not doing that, which is the argument for folding it.`,
+      note: `${config.wingArea} m2 of reference area at an aspect ratio of ${wing.aspectRatio.toFixed(1)}, of which only ${wing.exposedArea.toFixed(0)} m2 is EXPOSED PANEL: the hull is ${(2 * radiusAt(config.wingStation)).toFixed(0)} m across at this station and the rest of the span is carryover. The reference span is what sets the induced drag, because the body does carry lift across its width; the exposed area is what has to be built, and the mass follows that. NOT for efficiency: a wing only makes this vehicle more efficient above 34 m/s, where it would need half a megawatt. It is for CARRYING, and it holds up ${payload.bestPayload.toFixed(0)} kg of extra weight at ${payload.bestSpeed.toFixed(0)} m/s on the power already installed. It costs its profile drag every hour it is not doing that, which is the argument for folding it.`,
     },
     {
       id: 'centreboard',

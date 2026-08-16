@@ -35,7 +35,9 @@ const INSTALLED = 72e3
 /** @derived The speed the vehicle spends its life at, m/s. */
 const STATION_SPEED = 8
 
-const WING = wingGeometry(60, 450)
+/** @derived Hull beam at the wing station, m. Most of a modest span is body. */
+const HULL_BEAM = 22
+const WING = wingGeometry(60, 450, HULL_BEAM)
 
 describe('the crossover, which answers the wrong question', () => {
   it('is far faster than the vehicle can be powered to', () => {
@@ -51,7 +53,7 @@ describe('the crossover, which answers the wrong question', () => {
     // size that cost never gets repaid at any speed. The wing that would make
     // the vehicle efficient is smaller than the wing that would make it useful,
     // which is the clearest statement of why efficiency is not the criterion.
-    const big = wingGeometry(80, 800)
+    const big = wingGeometry(80, 800, HULL_BEAM)
     const t = wingTrade(big, HULL, GROSS_WEIGHT, 0.7, STATION_SPEED, AIR.density, HULL_DRAG, ETA)
     expect(t.crossoverExists).toBe(false)
   })
@@ -91,14 +93,45 @@ describe('what the wing actually buys', () => {
   })
 
   it('scales its payload with area but its cost with area too', () => {
-    const small = wingGeometry(30, 120)
-    const large = wingGeometry(60, 450)
+    const small = wingGeometry(30, 120, HULL_BEAM)
+    const large = wingGeometry(60, 450, HULL_BEAM)
     const a = wingPayloadEnvelope(small, HULL, AIR.density, HULL_DRAG, INSTALLED, ETA)
     const b = wingPayloadEnvelope(large, HULL, AIR.density, HULL_DRAG, INSTALLED, ETA)
     expect(b.bestPayload).toBeGreaterThan(a.bestPayload)
     // The net gain still grows, so bigger is better until the lift margin or the
     // shed runs out. It is the arrangement that limits the wing, not the physics.
     expect(b.bestPayload - large.mass).toBeGreaterThan(a.bestPayload - small.mass)
+  })
+})
+
+describe('exposed area against reference area', () => {
+  it('finds that most of a modest span on a fat body is body', () => {
+    // THE DRAWING SHOWED THIS BEFORE THE MODEL DID. A 40 m wing on a 22 m hull
+    // has 18 m of exposed span, not 40, and less than half its reference area
+    // is panel. The reference span is still the right one for induced drag,
+    // because the body does carry lift across its width and the vortices leave
+    // from the tips; but the MASS follows the exposed panels plus a
+    // carry-through, and charging the whole reference area overstates it.
+    const modest = wingGeometry(40, 200, HULL_BEAM)
+    expect(modest.exposedArea / modest.area).toBeLessThan(0.5)
+    expect(modest.exposedSemiSpan).toBeCloseTo(9, 1)
+  })
+
+  it('charges the carry-through rather than pretending the hull span is free', () => {
+    // Charging only the exposed area forgets the single most concentrated load
+    // path on the vehicle: a beam across a fabric envelope reacting two wing
+    // root bending moments.
+    const withBody = wingGeometry(40, 200, HULL_BEAM)
+    const freeStanding = wingGeometry(40, 200, 0)
+    const exposedOnly = withBody.exposedArea * (2.2 * 1.4)
+    expect(withBody.mass).toBeGreaterThan(exposedOnly)
+    expect(withBody.mass).toBeLessThan(freeStanding.mass)
+  })
+
+  it('gets proportionally cheaper as the span grows past the body', () => {
+    const short = wingGeometry(40, 200, HULL_BEAM)
+    const long = wingGeometry(80, 700, HULL_BEAM)
+    expect(long.exposedArea / long.area).toBeGreaterThan(short.exposedArea / short.area)
   })
 })
 

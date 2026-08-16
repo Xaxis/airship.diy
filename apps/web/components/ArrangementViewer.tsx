@@ -50,6 +50,7 @@ export interface ArrangementPropulsor {
   readonly diameter: number
   readonly ratedPower: number
   readonly vectorAuthority: number
+  readonly ducted: boolean
   readonly mass: number
   readonly note: string | null
 }
@@ -98,6 +99,15 @@ export interface ArrangementData {
   }
   readonly compartments: readonly ArrangementCompartment[]
   readonly propulsors: readonly ArrangementPropulsor[]
+  readonly wing: {
+    readonly span: number
+    readonly area: number
+    readonly station: number
+    readonly mass: number
+    readonly payload: number
+    readonly payloadSpeed: number
+  }
+  readonly centreboard: { readonly area: number; readonly mass: number }
   readonly mass: {
     readonly centreOfGravity: { readonly x: number; readonly z: number }
     readonly centreOfBuoyancy: { readonly x: number; readonly z: number }
@@ -710,6 +720,90 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
       }
     }
 
+    // ---- wings ------------------------------------------------------------
+    // Outboard of the hull, at the centre of buoyancy, because induced drag
+    // goes as span SQUARED and not as area: putting area at the extremities is
+    // worth about ten times putting it in a fatter envelope. They sit at the
+    // buoyancy centre so that changing the lift split does not change the trim.
+    if (data.wing.span > 0) {
+      const { span, area, station, mass, payload, payloadSpeed } = data.wing
+      const semiSpan = span / 2
+      const rootR = radiusAt(station) * 0.9
+      const meanChord = area / span
+      /** @derived Root chord at a 0.4 taper ratio, the usual structural compromise. */
+      const rootChord = (2 * meanChord) / 1.4
+      const tipChord = rootChord * 0.4
+      const sweep = rootChord * 0.25
+      const y = xOf(station)
+      const wingMaterial = track(
+        new THREE.MeshStandardMaterial({
+          color: 0x50606e,
+          roughness: 0.55,
+          metalness: 0.16,
+          side: THREE.DoubleSide,
+        }),
+      )
+      for (const side of [-1, 1]) {
+        const at = (r: number, chordOffset: number): [number, number, number] => [
+          side * r,
+          y + chordOffset,
+          -rootR * 0.25,
+        ]
+        const A = at(rootR, -rootChord / 2)
+        const B = at(rootR, rootChord / 2)
+        const C = at(semiSpan, sweep + tipChord / 2)
+        const D = at(semiSpan, sweep - tipChord / 2)
+        const g = track(new THREE.BufferGeometry())
+        g.setAttribute(
+          'position',
+          new THREE.Float32BufferAttribute([...A, ...B, ...C, ...A, ...C, ...D], 3),
+        )
+        g.computeVertexNormals()
+        const mesh = new THREE.Mesh(g, wingMaterial)
+        mesh.add(
+          new THREE.Line(
+            track(
+              new THREE.BufferGeometry().setFromPoints(
+                [A, B, C, D, A].map((q) => new THREE.Vector3(...q)),
+              ),
+            ),
+            track(new THREE.LineBasicMaterial({ color: 0xe6edf3, transparent: true, opacity: 0.3 })),
+          ),
+        )
+        register(
+          mesh,
+          side < 0 ? 'Port wing' : 'Starboard wing',
+          `${span.toFixed(0)} m span · ${area.toFixed(0)} m² · ${mass.toFixed(0)} kg`,
+          `NOT for efficiency: a wing only makes this vehicle more efficient above 34 m/s, where it would need half a megawatt. It is for CARRYING, and it holds up ${payload.toFixed(0)} kg of extra weight at ${payloadSpeed.toFixed(0)} m/s on the power already installed. At the centre of buoyancy so the lift split can change without a trim excursion.`,
+        )
+        tail.add(mesh)
+      }
+    }
+
+    // ---- centreboard --------------------------------------------------------
+    if (data.centreboard.area > 0) {
+      /** @derived A board twice as deep as it is long reads as a board rather than a fin. */
+      const depth = Math.sqrt(data.centreboard.area * 2)
+      const chord = data.centreboard.area / depth
+      const boardStation = data.wing.station
+      const board = new THREE.Mesh(
+        track(new THREE.BoxGeometry(0.18, chord, depth)),
+        track(new THREE.MeshStandardMaterial({ color: 0x2c6f5a, roughness: 0.5 })),
+      )
+      board.position.set(
+        0,
+        xOf(boardStation),
+        -(radiusAt(boardStation) + 3.2 + depth / 2),
+      )
+      register(
+        board,
+        'Retractable centreboard',
+        `${data.centreboard.area.toFixed(0)} m² immersed · ${data.centreboard.mass.toFixed(0)} kg`,
+        'THE PART THAT DECIDES WHETHER BOAT MODE EXISTS. On bare hulls the usable cone from dead upwind is five degrees, because the vehicle points where the fins say and goes where the wind says. At this area it is the whole compass, and no amount of thrust substitutes: the speed through the water is identical either way.',
+      )
+      gondola.add(board)
+    }
+
     // ---- propulsors -------------------------------------------------------
     const propellers: THREE.Object3D[] = []
     for (const p of data.propulsors) {
@@ -748,7 +842,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
       register(
         nacelle,
         `Propulsor, ${p.id.replace('-', ' ')}`,
-        `${(p.ratedPower / 1000).toFixed(0)} kW · ${p.mass.toFixed(0)} kg · ${((p.vectorAuthority * 180) / Math.PI).toFixed(0)}° vectoring`,
+        `${(p.ratedPower / 1000).toFixed(0)} kW · ${p.diameter.toFixed(1)} m${p.ducted ? ' ducted' : ''} · ${p.mass.toFixed(0)} kg · ${((p.vectorAuthority * 180) / Math.PI).toFixed(0)}° vectoring`,
         p.note,
       )
       g.add(nacelle)
@@ -787,6 +881,23 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
           track(new THREE.LineBasicMaterial({ color: 0x6ba8e5, transparent: true, opacity: 0.4 })),
         ),
       )
+      // The duct, which is worth a factor of two in static thrust and is the
+      // reason this installation can lift its own landing trim at all.
+      if (p.ducted) {
+        const duct = new THREE.Mesh(
+          track(new THREE.TorusGeometry(propRadius * 1.04, 0.16, 8, 40)),
+          track(
+            new THREE.MeshStandardMaterial({
+              color: 0x5a6a7a,
+              roughness: 0.5,
+              metalness: 0.3,
+            }),
+          ),
+        )
+        duct.rotation.x = Math.PI / 2
+        disc.add(duct)
+      }
+
       propellers.push(disc)
       g.add(disc)
 

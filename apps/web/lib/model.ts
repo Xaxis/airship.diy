@@ -413,6 +413,18 @@ export const arrangement = (() => {
     arrayForwardStation: BASELINE.power.arrayForwardStation,
     arrayAftStation: BASELINE.power.arrayAftStation,
     fins,
+    wing: {
+      span: BASELINE_ARRANGEMENT.wingSpan,
+      area: BASELINE_ARRANGEMENT.wingArea,
+      station: BASELINE_ARRANGEMENT.wingStation,
+      mass: statement.items.find((i) => i.id === 'wings')?.mass ?? 0,
+      payload: 0,
+      payloadSpeed: 0,
+    },
+    centreboard: {
+      area: BASELINE_ARRANGEMENT.centreboardArea,
+      mass: statement.items.find((i) => i.id === 'centreboard')?.mass ?? 0,
+    },
 
     compartments: BASELINE_ARRANGEMENT.compartments.map((c) => ({
       id: c.id,
@@ -441,6 +453,7 @@ export const arrangement = (() => {
       diameter: p.diameter,
       ratedPower: p.ratedPower,
       vectorAuthority: p.vectorAuthority,
+      ducted: p.ducted,
       mass: p.mass,
       note: p.note ?? null,
     })),
