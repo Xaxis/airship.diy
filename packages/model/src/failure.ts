@@ -1,6 +1,12 @@
+import { CREW, v } from '@airship/data'
+import { atmosphere, hullGeometry, hullShapeForPrismatic, powerRequired } from '@airship/core'
+import { m, mps } from '@airship/units'
+
 import type { Configuration } from './configuration.js'
 import type { DesignPoint } from './design-point.js'
-import { massStatement } from './arrangement.js'
+import { hullBendingMoment, massStatement } from './arrangement.js'
+import { compareArchitecture } from './architecture.js'
+import { RIGID, SEMI_RIGID } from './architectures.js'
 
 /**
  * What happens when it breaks, with numbers.
@@ -19,6 +25,18 @@ import { massStatement } from './arrangement.js'
  * not asserted. A torn gas cell costs one twelfth of the gross lift because the
  * arrangement has twelve cells and the buoyancy module knows what they lift.
  */
+
+/**
+ * The water aboard, all of which can go over the side in seconds.
+ *
+ * Read off the arrangement rather than asserted, because a failure analysis
+ * whose ballast figure is a literal will keep saying a mode is survivable after
+ * the tank that made it survivable has been deleted from the drawing.
+ */
+export const dumpableInventory = (config: Configuration): number =>
+  config.compartments
+    .filter((c) => c.id.startsWith('water-'))
+    .reduce((sum, c) => sum + c.mass, 0)
 
 export type Severity = 'nuisance' | 'degraded' | 'serious' | 'catastrophic'
 
@@ -49,8 +67,14 @@ export interface FailureMode {
 export const failureModes = (
   design: DesignPoint,
   config: Configuration,
-  /** @source The water inventory the arrangement carries, all of it dumpable. */
-  ballastAvailable = 2500,
+  /**
+   * Dumpable inventory, kg. Defaults to the water the arrangement actually
+   * carries, SUMMED FROM THE COMPARTMENTS rather than passed in as a number,
+   * so a design that removes a tank cannot keep claiming the ballast it used to
+   * have. Pass a smaller figure to ask what the vehicle survives after a night
+   * of dumping, or zero to ask what the lift margin alone buys.
+   */
+  ballastAvailable = dumpableInventory(config),
 ): readonly FailureMode[] => {
   const statement = massStatement(design, config)
   const cellCount = design.hull.cellCount
@@ -68,6 +92,16 @@ export const failureModes = (
   const twoCellSurvivable = twoCellLoss <= ballastAvailable + statement.liftMargin
 
   /** @derived One cell out of N, expressed as a percentage. */
+  /** @derived Kilograms in a tonne. */
+  const KG_PER_TONNE = 1000
+  /** @derived A fraction to a percentage. */
+  const PERCENT = 100
+  /**
+   * @source Areal mass of the gas cell film the arrangement carries, kg/m2,
+   * passed to the architecture comparison so both sides use the same film.
+   */
+  const CELL_FILM_AREAL_MASS = 0.21
+
   const ONE_CELL_AS_PERCENT = 100
   /** @derived Two cells out of N, expressed as a percentage. */
   const TWO_CELLS_AS_PERCENT = 200
@@ -80,9 +114,72 @@ export const failureModes = (
   /** @derived Watts to kilowatts. */
   const KW = 1000
 
-  /** @derived Station-keeping power goes as the cube of speed. */
+  /**
+   * The wind the vehicle can still hold after losing one propulsor.
+   *
+   * THE CUBE LAW ALONE IS NOT THE ANSWER, and using it alone was wrong in the
+   * flattering direction. `windSpeed * cbrt(1 - 1/n)` is the speed at which the
+   * REMAINING power equals the power the whole installation was making, which
+   * is only the station-keeping speed if the design wind exactly saturates the
+   * installed propulsors. It does not: the drag model says holding the design
+   * wind takes a fraction of what is installed, and the surplus is what a
+   * vehicle of this kind carries for acceleration, climb and gusts.
+   *
+   * So compute the power actually needed at the design wind, take one unit's
+   * share away from what is installed, and solve the cube law for the speed the
+   * remainder supports. If there is enough margin the answer is that nothing
+   * changes at all, which is the useful thing to know.
+   */
+  const geometry = hullGeometry(
+    m(design.hull.length),
+    design.hull.finenessRatio,
+    hullShapeForPrismatic(design.hull.prismaticCoefficient),
+  )
+  const requiredAtDesignWind = powerRequired(
+    geometry,
+    atmosphere(m(design.mission.altitude)),
+    mps(design.mission.stationKeepingWind),
+  )
+  const remainingPower = propulsorPower * (1 - 1 / propulsors)
+  /** @derived Power goes as the cube of speed, so speed goes as the cube root of power. */
   const windSpeedAfterLoss =
-    design.mission.stationKeepingWind * Math.cbrt(1 - 1 / propulsors)
+    remainingPower >= requiredAtDesignWind
+      ? design.mission.stationKeepingWind
+      : design.mission.stationKeepingWind * Math.cbrt(remainingPower / requiredAtDesignWind)
+
+  /**
+   * What the alternative would have saved, from the architecture module rather
+   * than from memory.
+   *
+   * This said "semi-rigid is 4.8 tonnes lighter" and 4.8 tonnes is the
+   * hybridLift delta: the number had been taken from the wrong row. The
+   * architecture module also refuses to assert a point value for the semi-rigid
+   * saving at all, because its own uncertainty band includes no saving, so the
+   * honest statement carries the band rather than a figure.
+   */
+  const designMoment = hullBendingMoment(design, config).designMoment
+  const compare = (arch: typeof RIGID) =>
+    compareArchitecture(
+      arch,
+      design.hull.length,
+      design.hull.finenessRatio,
+      design.hull.prismaticCoefficient,
+      statement.total,
+      cellCount,
+      CELL_FILM_AREAL_MASS,
+      designMoment,
+    )
+  // STRUCTURE AGAINST STRUCTURE, both through the same function. Comparing the
+  // rigid design's whole empty weight against a semi-rigid STRUCTURE would make
+  // the alternative look twelve tonnes lighter by counting the machinery, the
+  // accommodation and the crew as a structural saving.
+  const semiRigidDelta = compare(RIGID).structure.total - compare(SEMI_RIGID).structure.total
+  const semiRigidVerdict =
+    semiRigidDelta > 0
+      ? `Semi-rigid comes out about ${(semiRigidDelta / KG_PER_TONNE).toFixed(1)} tonnes lighter on this model, and the architecture chapter's own uncertainty band on that saving includes zero, so it is a saving that may not exist. What is certain is that it cannot do this.`
+      : `Semi-rigid does not even come out lighter at this size on this model, and it still cannot do this.`
+
+  const recovery = v(CREW.waterRecoveryFraction)
 
   return [
     {
@@ -97,7 +194,7 @@ export const failureModes = (
         ? 'Dump ballast to restore neutral buoyancy, trim with the water tanks against the asymmetry, and fly home heavy. The vehicle lands on water rather than needing a field.'
         : 'There is no response. The lift loss exceeds everything the vehicle can throw overboard.',
       survivable: cellSurvivable,
-      designAnswer: `THIS IS THE ENTIRE ARGUMENT FOR THE RIGID ARCHITECTURE. Every pressure-stabilised alternative has one gas volume, so the same tear costs not ${(ONE_CELL_AS_PERCENT / cellCount).toFixed(0)} percent of the lift but all of it. Semi-rigid is 4.8 tonnes lighter and it cannot do this.`,
+      designAnswer: `THIS IS THE ENTIRE ARGUMENT FOR THE RIGID ARCHITECTURE. Every pressure-stabilised alternative has one gas volume, so the same tear costs not ${(ONE_CELL_AS_PERCENT / cellCount).toFixed(0)} percent of the lift but all of it. ${semiRigidVerdict}`,
     },
     {
       id: 'two-gas-cells',
@@ -118,7 +215,10 @@ export const failureModes = (
       name: 'One propulsor fails',
       effect: `One of ${propulsors} units stops, whether motor, controller or propeller.`,
       severity: 'degraded',
-      consequence: `${(onePropulsorLoss / KW).toFixed(0)} kW of ${(propulsorPower / KW).toFixed(0)} lost, so station-keeping falls from ${design.mission.stationKeepingWind} m/s to about ${windSpeedAfterLoss.toFixed(1)} m/s of wind, because power goes as the CUBE of speed and losing a quarter of it costs only ten percent of the wind.`,
+      consequence:
+        windSpeedAfterLoss >= design.mission.stationKeepingWind
+          ? `${(onePropulsorLoss / KW).toFixed(0)} kW of ${(propulsorPower / KW).toFixed(0)} lost, and NOTHING CHANGES: holding the design wind of ${design.mission.stationKeepingWind} m/s takes ${(requiredAtDesignWind / KW).toFixed(0)} kW, so the remaining ${(remainingPower / KW).toFixed(0)} kW still covers it. What is lost is the surplus that buys acceleration, climb and gust rejection.`
+          : `${(onePropulsorLoss / KW).toFixed(0)} kW of ${(propulsorPower / KW).toFixed(0)} lost against the ${(requiredAtDesignWind / KW).toFixed(0)} kW station-keeping needs, so the wind limit falls from ${design.mission.stationKeepingWind} m/s to about ${windSpeedAfterLoss.toFixed(1)} m/s. Power goes as the CUBE of speed, which is why a quarter of the power is only a tenth of the wind.`,
       detection: 'Immediate, from the thrust asymmetry and the controller telemetry.',
       response:
         'Trim out the yaw with the opposite unit, and accept the lower wind limit. If the failure is on the mid pair the vehicle loses some of its zero-airspeed yaw authority, which matters at a mooring and nowhere else.',
@@ -176,8 +276,7 @@ export const failureModes = (
       name: 'Water treatment fails',
       effect: 'Greywater recycling stops. Consumption becomes once-through.',
       severity: 'degraded',
-      consequence:
-        'The 85 percent recovery goes to zero, so daily consumption roughly quadruples against the tank. Rain catchment still runs at thirty-three times consumption, so the loop still closes; it closes on catchment instead of recycling, which makes it weather-dependent.',
+      consequence: `Consumption does not change; the NET DRAW ON THE TANK does. At ${(recovery * PERCENT).toFixed(0)} percent recovery the tank sees ${((1 - recovery) * PERCENT).toFixed(0)} percent of demand, and losing recycling takes it to all of it, a factor of ${(1 / (1 - recovery)).toFixed(1)} rather than the four this used to claim. Rain catchment still runs at many times consumption, so the loop still closes; it closes on catchment instead of recycling, which makes it weather-dependent.`,
       detection: 'Tank level falling faster than the model says it should.',
       response:
         'Ration hygiene water, which is the term that dominates and the one that is a behavioural choice rather than a physical need. Land on water and desalinate if it comes to that.',

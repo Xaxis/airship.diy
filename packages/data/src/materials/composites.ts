@@ -211,6 +211,92 @@ export const WET_LAYUP = under('wetLayup', () => ({
  * because it flattered the design. That was the right instinct and it is why the
  * error lasted an hour rather than reaching a laminate schedule.
  */
+/**
+ * MEASURED laminate properties, at a stated fibre volume fraction.
+ *
+ * WHY THIS EXISTS, AND IT IS THE MOST IMPORTANT COMMENT IN THIS FILE.
+ *
+ * Building a woven laminate up from bare fibre with the rule of mixtures and a
+ * crimp knockdown OVER-PREDICTS ITS MODULUS BY MORE THAN HALF. This repository
+ * did exactly that and got 102 GPa for a laminate whose own datasheet says 70,
+ * at a HIGHER fibre volume fraction than the model assumed. The error is not in
+ * the arithmetic: it is that the rule of mixtures does not know a balanced
+ * weave puts only about half its fibre in the load direction. A crimp knockdown
+ * of 0.93 cannot repair a factor of two.
+ *
+ * The right anchor for a woven laminate is a MEASURED WOVEN LAMINATE, scaled by
+ * fibre volume fraction and knocked down for voids. That is what these rows are.
+ * The fibre properties above are still the right anchor for unidirectional tape,
+ * where every fibre is aligned and the rule of mixtures is what it was written
+ * for.
+ *
+ * The consequence is not small and it is in the unflattering direction: at the
+ * corrected modulus a wet-laid woven frame is a little over half as stiff as the
+ * model used to think, which is most of the reason bought pultruded tube wins.
+ */
+export const LAMINATE_ANCHORS = under('laminateAnchor', () => ({
+  /** Balanced 2x2 twill carbon fabric in epoxy, 120 C cure. */
+  woven: {
+    fibreVolumeFraction: measured(0.5, {
+      unit: '1',
+      source: 'performance-composites-properties',
+      relativeUncertainty: 0.04,
+      note: 'The fibre volume fraction the whole fabric row is quoted at.',
+    }),
+    modulus: measured(70e9, {
+      unit: 'Pa',
+      source: 'performance-composites-properties',
+      relativeUncertainty: 0.08,
+      note: 'Against 135 GPa for unidirectional tape at 60 percent fibre volume in the same table. Scaled to a common fibre volume the fabric is 0.52 of the tape, which is the half-the-fibre-is-crosswise result arriving from measurement rather than from theory.',
+    }),
+    tensileStrength: measured(600e6, {
+      unit: 'Pa',
+      source: 'performance-composites-properties',
+      relativeUncertainty: 0.12,
+      note: 'A quarter of what the rule of mixtures on bare fibre gives. Crimp concentrates stress where a tow crosses another, so woven tension loses far more than woven modulus does.',
+    }),
+    compressiveStrength: measured(570e6, {
+      unit: 'Pa',
+      source: 'performance-composites-properties',
+      relativeUncertainty: 0.12,
+      note: 'THE PROPERTY A BUCKLING-CRITICAL FRAME IS SIZED BY, and the one the datasheet chain was furthest wrong about.',
+    }),
+    density: measured(1600, {
+      unit: 'kg/m^3',
+      source: 'performance-composites-properties',
+      relativeUncertainty: 0.03,
+    }),
+  },
+  /** Unidirectional tape in the same table, for the comparison and for tape layups. */
+  unidirectional: {
+    fibreVolumeFraction: measured(0.6, {
+      unit: '1',
+      source: 'performance-composites-properties',
+      relativeUncertainty: 0.04,
+    }),
+    modulus: measured(135e9, {
+      unit: 'Pa',
+      source: 'performance-composites-properties',
+      relativeUncertainty: 0.08,
+    }),
+    tensileStrength: measured(1500e6, {
+      unit: 'Pa',
+      source: 'performance-composites-properties',
+      relativeUncertainty: 0.12,
+    }),
+    compressiveStrength: measured(1200e6, {
+      unit: 'Pa',
+      source: 'performance-composites-properties',
+      relativeUncertainty: 0.12,
+    }),
+    density: measured(1600, {
+      unit: 'kg/m^3',
+      source: 'performance-composites-properties',
+      relativeUncertainty: 0.03,
+    }),
+  },
+}))
+
 export const WOVEN_KNOCKDOWN = under('wovenKnockdown', () => ({
   tension: uncertain({
     low: 0.72,

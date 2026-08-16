@@ -9,6 +9,7 @@ import {
   hullRadiusAt,
   hullShapeForPrismatic,
   pure,
+  DRAG_COEFFICIENT_BOW_ON,
 } from '@airship/core'
 import {
   BUILD_LABOUR,
@@ -40,7 +41,7 @@ import { finPlanform, hullBendingMoment, massStatement } from './arrangement.js'
  *
  *   The materials are expensive but not impossible. They are a house.
  *
- *   The building you need to assemble them in costs six times the materials,
+ *   The building you need to assemble them in costs several times the materials,
  *   cannot be rented because roughly six exist worldwide and all are in use,
  *   and is the reason no individual has built a rigid airship since 1930.
  *
@@ -52,12 +53,14 @@ import { finPlanform, hullBendingMoment, massStatement } from './arrangement.js'
  *   not notice indoors.
  *
  * WHAT IS ACTIONABLE IN HERE is the tube finding. Bought pultruded carbon tube
- * is $262/kg against $115 to $245/kg for retail fabric you then have to laminate
- * yourself at about a square metre an hour, and the bought tube has nearly
- * double the modulus because it was made at production fibre volume fraction in
- * a heated die. Buying the members instead of making them removes the largest
- * single labour line in the build and improves the structure. It does not save
- * the project, but it is the difference between an impossible build and a build
+ * is dearer per kilogram than retail fabric, but the fabric is not the thing you
+ * are comparing: a kilogram of finished laminate is fabric PLUS resin PLUS
+ * single-use bagging consumables PLUS an oven PLUS about an hour of hands per
+ * square metre of ply. The tube also arrives at a modulus a hand wet layup
+ * cannot reach, because it was cured in a heated die at a fibre volume fraction
+ * no bag achieves. Buying the members removes the laminating task, the
+ * consumables line and the tooling that goes with them. It does not save the
+ * project, but it is the difference between an impossible build and a build
  * whose remaining problem is a building.
  */
 
@@ -103,8 +106,11 @@ export interface BillOfMaterials {
 /**
  * @source A build discovers roughly 40 percent more in small parts than it
  * itemises at the start. This is the standard allowance for an estimate at this
- * level of definition, and on a vehicle with 226,000 joints in the frame alone
- * it is more likely low than high.
+ * level of definition, and on a vehicle whose frame alone runs to tens of
+ * thousands of lattice joints, each with its own fittings, it is more likely
+ * low than high. The joint count itself is computed in `labourEstimate` and
+ * reported there rather than restated here, because it varies by more than two
+ * to one across the design points.
  */
 const UNNAMED_ALLOWANCE_FRACTION = 0.4
 
@@ -122,17 +128,6 @@ const CELL_WASTE_FRACTION = 0.15
 
 /** @derived Mean laminate thickness over the frame, m. Set by the minimum practical wall, not by load. */
 const MEAN_LAMINATE_THICKNESS = 0.0015
-
-/**
- * @source Cured thickness of one ply of 200 g/m2 3K twill at the fibre volume
- * fraction a hand wet layup reaches: areal weight over fibre density times Vf.
- *
- * This matters because LABOUR IS PER PLY PLACED, not per square metre of
- * finished laminate. A 1.5 mm wall is six plies, so the hands-on area is six
- * times the surface area of the part, and estimating on part area understates
- * the frame layup by that factor.
- */
-const CURED_PLY_THICKNESS = 0.000247
 
 /**
  * @source Cured density of a hand wet layup at the fibre volume fraction and
@@ -164,25 +159,26 @@ const GIGA = 1e9
 const MINUTES_PER_HOUR = 60
 /** @source Knots per metre per second, exactly 3600/1852. */
 const KNOTS_PER_MS = 1.94384
-/**
- * @source Longitudinal modulus of the woven wet layup this project can achieve:
- * Performance Composites' 70 GPa fabric at Vf 0.50, scaled to the 0.45 a hand
- * layup with a bag reaches and knocked down for 3 percent voids.
- */
-const WET_LAYUP_MODULUS = 61e9
-
 /** @derived Joules in a kilowatt hour. */
 const JOULES_PER_KWH = 3.6e6
 
-/** @source Longitudinal girders around the hull. Akron had 36, Hindenburg 36, R100 16. */
-const LONGITUDINAL_COUNT = 24
+/**
+ * @source Longitudinal girders around the hull, and the ring spacing that goes
+ * with them. THIS IS THE SCHEDULE THE STRUCTURE CHAPTER SELECTS, 16
+ * longitudinals at 8 m, not a second one invented here: the joint count and the
+ * laminating hours are estimates of building THAT frame, and a labour figure
+ * for a frame nobody chose is a labour figure for nothing. Akron had 36
+ * longitudinals, Hindenburg 36 and R100 16.
+ */
+const LONGITUDINAL_COUNT = 16
 
 /**
- * @source Ring spacing for that longitudinal count, m. Chosen in the structure
- * chapter to sit inside the 1.31 to 1.81 panel aspect ratio band that every
- * rigid airship which did not break occupied.
+ * @source Ring spacing for that longitudinal count, m. It puts the panel aspect
+ * ratio inside the 1.31 to 1.81 band that every rigid airship which did not
+ * break occupied, and it is the configuration the structure chapter reports as
+ * chosen.
  */
-const REFERENCE_RING_SPACING = 5.4
+const REFERENCE_RING_SPACING = 8
 
 export const billOfMaterials = (design: DesignPoint, config: Configuration): BillOfMaterials => {
   const mass = massStatement(design, config)
@@ -225,6 +221,24 @@ export const billOfMaterials = (design: DesignPoint, config: Configuration): Bil
   )
   const fillVolume = mass.gasVolume * design.gas.seaLevelFillFraction
   const liftGasMass = fillVolume * liftGasDensity
+
+  /**
+   * @derived Hydrogen the vessels must hold: the electrolyzer's continuous
+   * output over a day, which is the store the energy balance cycles through
+   * rather than the lift gas. The two are the same molecule and completely
+   * different quantities, and pricing the vessels off the lift gas would size
+   * them to hold the whole envelope.
+   */
+  const SECONDS_PER_DAY = 86400
+  /** @source Specific energy input of a PEM electrolyzer, J per kg of hydrogen. */
+  const ELECTROLYZER_ENERGY_PER_KILOGRAM = 55e3 * 3600
+  const storedHydrogen =
+    (design.power.electrolyzerRating * SECONDS_PER_DAY) / ELECTROLYZER_ENERGY_PER_KILOGRAM
+
+  /** Load-bearing shell of the gondola and keel: carbon, and not part of the frame. */
+  const shellMass = config.compartments
+    .filter((c) => c.shell)
+    .reduce((sum, c) => sum + c.mass, 0)
 
   const priceOf = (q: Provenanced<number>): readonly [number, number, number] => [
     v(q),
@@ -347,6 +361,55 @@ export const billOfMaterials = (design: DesignPoint, config: Configuration): Bil
       `${liftGasMass.toFixed(0)} kg fills ${fillVolume.toFixed(0)} m3 at the sea level fill fraction. Helium in the same volume would cost ${((fillVolume * v(MATERIAL_PRICES.heliumPerCubicMetre)) / (liftGasMass * v(MATERIAL_PRICES.hydrogenDelivered))).toFixed(0)} times as much for 8 percent less lift, which is the cost half of an argument the safety chapter makes on other grounds entirely.`,
     ),
     line(
+      'propulsion',
+      'Propulsors: motors, controllers, nacelles and vectoring',
+      config.propulsors.reduce((sum, p) => sum + p.ratedPower, 0) / WATTS_PER_KW,
+      'kW',
+      priceOf(MATERIAL_PRICES.electricPropulsion),
+      'USD/kW',
+      `${config.propulsors.length} units. Built up from retail listings rather than a quotation, and the vectoring gimbal is the part nobody sells off a shelf, which is why the band is wide.`,
+    ),
+    line(
+      'propellers',
+      'Propellers',
+      config.propulsors.length,
+      'off',
+      priceOf(MATERIAL_PRICES.propeller),
+      'USD each',
+      `${config.propulsors[0]?.diameter.toFixed(1) ?? '4'} m diameter. Priced off a two-blade carbon propeller for a light aircraft, which is a fraction of the size, so this is a floor rather than an estimate.`,
+    ),
+    line(
+      'engine-generator',
+      'Engine and generator set',
+      1,
+      'set',
+      [
+        v(MATERIAL_PRICES.engine) + v(MATERIAL_PRICES.generator),
+        bounds(MATERIAL_PRICES.engine)[0] + bounds(MATERIAL_PRICES.generator)[0],
+        bounds(MATERIAL_PRICES.engine)[1] + bounds(MATERIAL_PRICES.generator)[1],
+      ],
+      'USD',
+      'The third leg of the powertrain, and the one the failure analysis leans on when the array and the fuel cell are both unavailable. A certified light-aircraft engine plus a generator of the matching rating.',
+    ),
+    line(
+      'hydrogen-storage',
+      'Hydrogen storage vessels',
+      storedHydrogen,
+      'kg stored',
+      priceOf(MATERIAL_PRICES.hydrogenStorage),
+      'USD/kg',
+      `Sized to hold ${storedHydrogen.toFixed(0)} kg, which is the electrolyzer's output over the longest run of nights the energy balance has to bridge. The DOE cost record is a projected high-volume figure; an individual buying a handful of Type IV cylinders pays more, and how much more is not published.`,
+    ),
+    line(
+      'gondola-keel',
+      'Gondola, keel and compartment structure',
+      shellMass * fibreMassFraction * (1 + FABRIC_WASTE_FRACTION),
+      'kg',
+      priceOf(MATERIAL_PRICES.carbonFabricRetail),
+      'USD/kg',
+      `Fibre only, for the ${shellMass.toFixed(0)} kg of load-bearing shell the arrangement carries in the gondola and keel. It is not part of the frame line, and leaving it out was leaving out the part of the vehicle a person actually stands in.`,
+    ),
+    line(
       'fins',
       'Fin structure and control surfaces',
       finPlanform(design, config).mass * fibreMassFraction * (1 + FABRIC_WASTE_FRACTION),
@@ -418,6 +481,34 @@ const LATTICE_PITCH = 0.25
 /** @derived Roughly two web members per bay of a triangular-section girder, each with two ends. */
 const JOINTS_PER_LATTICE_BAY = 4
 
+/**
+ * @source One-off composite work spends roughly a third of its part hours
+ * building the moulds, jigs and fixtures the parts are made on. Production
+ * tooling is amortised over a run; a single airship amortises over one.
+ */
+const TOOLING_FRACTION = 0.33
+
+/**
+ * @source Ground and flight test labour, hours, for a two-person crew working
+ * an eight-phase build-up from weigh-off through mast trials and tethered hops
+ * to the FAA's 40-hour Phase I. It is a floor: the only comparable modern
+ * programme flew for three and a half years before it was certificated.
+ */
+const COMMISSIONING_HOURS = 4000
+
+/** @derived Everything works first time and the weather cooperates. */
+const COMMISSIONING_BEST_CASE = 0.5
+
+/** @derived Something needs rebuilding after the first inflation, which is normal. */
+const COMMISSIONING_WORST_CASE = 2.5
+
+/**
+ * @derived Systems, fitout and rigging go at half the structural rate per
+ * kilogram, because much of that mass arrives as a finished assembly that is
+ * installed rather than made.
+ */
+const SYSTEMS_RATE_FRACTION = 0.5
+
 /** @source Minutes to fit, jig, bond and inspect one lattice joint, once practised. */
 const MINUTES_PER_JOINT = 6
 
@@ -445,8 +536,24 @@ export const labourEstimate = (design: DesignPoint, config: Configuration): Labo
 
   const frameMass = mass.items.find((i) => i.id === 'frame')?.mass ?? 0
   const filmArea = cellFilmArea(geometry.wettedArea, mass.gasVolume, length, cellCount)
+  // LABOUR IS PER PLY PLACED, not per square metre of finished laminate. A
+  // 1.5 mm wall is several plies, so the hands-on area is that many times the
+  // surface area of the part, and estimating on part area understates the frame
+  // layup by exactly that factor. The ply thickness comes from the laminate
+  // module rather than from a literal here: this file used to carry 0.247 mm,
+  // which is the value at a fibre volume fraction of 0.45, while the repository
+  // works at 0.47 and computes 0.236 mm from the same formula.
+  const material = laminate()
   const laminateArea = frameMass / WET_LAYUP_DENSITY / MEAN_LAMINATE_THICKNESS
-  const plyArea = laminateArea * (MEAN_LAMINATE_THICKNESS / CURED_PLY_THICKNESS)
+  const plyArea = laminateArea * (MEAN_LAMINATE_THICKNESS / material.plyThickness)
+
+  // Everything in the empty weight that is NOT already counted by a task above
+  // and is not bought as a finished item. Subtracting only the frame left the
+  // cover and the gas cells charged twice, and charged the photovoltaic array a
+  // structural build rate for work that is bonding a bought module to a hull.
+  const massOf = (id: string): number => mass.items.find((i) => i.id === id)?.mass ?? 0
+  const systemsMass =
+    mass.emptyWeight - frameMass - massOf('cover') - massOf('gas-cells') - massOf('photovoltaics')
 
   const laminateRate = v(BUILD_LABOUR.laminateRate)
   const fabricRate = v(BUILD_LABOUR.fabricRate)
@@ -468,7 +575,7 @@ export const labourEstimate = (design: DesignPoint, config: Configuration): Labo
     mass.gasVolume,
     LONGITUDINAL_COUNT,
     m(REFERENCE_RING_SPACING),
-    laminate(),
+    material,
   )
   /** @derived Mean radius of a ring, as a fraction of the maximum. A hull tapers. */
   const MEAN_RADIUS_FRACTION = 0.75
@@ -492,7 +599,7 @@ export const labourEstimate = (design: DesignPoint, config: Configuration): Labo
       plyArea / laminateRate,
       plyArea / bounds(BUILD_LABOUR.laminateRate)[1],
       plyArea / bounds(BUILD_LABOUR.laminateRate)[0],
-      `${plyArea.toFixed(0)} m2 of PLY placement, which is ${(MEAN_LAMINATE_THICKNESS / CURED_PLY_THICKNESS).toFixed(0)} plies over ${laminateArea.toFixed(0)} m2 of part. Estimating this on part area rather than ply area understates it by that factor, which is the commonest way a composite build schedule goes wrong. THIS LINE DISAPPEARS IF THE MEMBERS ARE BOUGHT.`,
+      `${plyArea.toFixed(0)} m2 of PLY placement, which is ${(MEAN_LAMINATE_THICKNESS / material.plyThickness).toFixed(0)} plies over ${laminateArea.toFixed(0)} m2 of part. Estimating this on part area rather than ply area understates it by that factor, which is the commonest way a composite build schedule goes wrong. THIS LINE DISAPPEARS IF THE MEMBERS ARE BOUGHT.`,
     ),
     task(
       'frame-assemble',
@@ -508,7 +615,7 @@ export const labourEstimate = (design: DesignPoint, config: Configuration): Labo
       filmArea * fabricRate,
       filmArea * bounds(BUILD_LABOUR.fabricRate)[0],
       filmArea * bounds(BUILD_LABOUR.fabricRate)[1],
-      `${filmArea.toFixed(0)} m2 of film across ${cellCount} cells, plus about ${((filmArea * SEAM_PER_FILM_AREA) / METRES_PER_KM).toFixed(1)} km of seam that must each hold to a defect spacing of one 300 micron hole per 99 m to make the purity budget.`,
+      `${filmArea.toFixed(0)} m2 of film across ${cellCount} cells, plus about ${((filmArea * SEAM_PER_FILM_AREA) / METRES_PER_KM).toFixed(1)} km of seam. EVERY METRE OF IT HAS TO HOLD, and how tightly is an open question rather than a number this model can state: the purity budget is set by nitrogen coming IN through the film, while a cell held a few hundred pascals above ambient loses hydrogen OUT through a defect and purges inward leakage as it does so. The two do not share an arithmetic, and the seam requirement is the leak rate one, which needs the sniff test to answer.`,
     ),
     task(
       'cover',
@@ -519,12 +626,28 @@ export const labourEstimate = (design: DesignPoint, config: Configuration): Labo
       `${geometry.wettedArea.toFixed(0)} m2, done at height on staging over the whole hull.`,
     ),
     task(
+      'tooling',
+      'Moulds, jigs and assembly fixtures',
+      plyArea * TOOLING_FRACTION / laminateRate,
+      (plyArea * TOOLING_FRACTION) / bounds(BUILD_LABOUR.laminateRate)[1],
+      (plyArea * TOOLING_FRACTION) / bounds(BUILD_LABOUR.laminateRate)[0],
+      `YOU CANNOT LAY UP A FRAME WITHOUT THE THINGS THAT SHAPE IT. A mould for every distinct member section, a jig for every ring diameter, and a fixture long enough to hold a longitudinal straight while it cures. One-off composite work spends roughly ${(TOOLING_FRACTION * 100).toFixed(0)} percent of its part hours on tooling, and this task was simply missing until the per-kilogram cross check refused to agree.`,
+    ),
+    task(
+      'commissioning',
+      'Inflation, ground trials and flight test',
+      COMMISSIONING_HOURS,
+      COMMISSIONING_HOURS * COMMISSIONING_BEST_CASE,
+      COMMISSIONING_HOURS * COMMISSIONING_WORST_CASE,
+      `Purge, inflate over about three days, weigh off, mast trials, tethered hops, and then the ${v(BUILD_PRECEDENT.faaPhaseOneHours)} hours of Phase I an amateur-built aircraft must fly solo before it may carry anyone. Zeppelin NT needed ${v(BUILD_PRECEDENT.zeppelinNtHoursToCertificate)} flight hours over three and a half years to reach a type certificate, so this line is a floor and not a plan.`,
+    ),
+    task(
       'systems',
       'Systems, fitout and rigging',
-      (mass.emptyWeight - frameMass) * perKg * 0.5,
-      (mass.emptyWeight - frameMass) * bounds(BUILD_LABOUR.hoursPerKilogram)[0] * 0.5,
-      (mass.emptyWeight - frameMass) * bounds(BUILD_LABOUR.hoursPerKilogram)[1] * 0.5,
-      'Everything that is not hull: gondola, keel, machinery, wiring, plumbing, controls and the accommodation. At half the structural rate per kilogram because much of it is bought as assemblies.',
+      systemsMass * perKg * SYSTEMS_RATE_FRACTION,
+      systemsMass * bounds(BUILD_LABOUR.hoursPerKilogram)[0] * SYSTEMS_RATE_FRACTION,
+      systemsMass * bounds(BUILD_LABOUR.hoursPerKilogram)[1] * SYSTEMS_RATE_FRACTION,
+      `${systemsMass.toFixed(0)} kg of gondola, keel, machinery, wiring, plumbing, controls and accommodation, at half the structural rate per kilogram because much of it is bought as assemblies. THE COVER, THE GAS CELLS AND THE PHOTOVOLTAIC MODULES ARE EXCLUDED: the first two have their own tasks above and would otherwise be charged twice, and the third is bought and bonded rather than built, so charging it a structural rate per kilogram would bill nearly five thousand hours for sticking down a thousand square metres of laminate.`,
     ),
   ]
 
@@ -536,17 +659,33 @@ export const labourEstimate = (design: DesignPoint, config: Configuration): Labo
   /** @source Two people, which is the crew this vehicle is designed around. */
   const CREW = 2
 
-  const crossCheckHours = mass.emptyWeight * perKg
+  /**
+   * THE CROSS CHECK ONLY MEANS SOMETHING IF IT IS INDEPENDENT.
+   *
+   * It was not. The systems task is itself `mass * hoursPerKilogram * 0.5`, and
+   * it was over half the task-by-task total, so the comparison was largely
+   * `hoursPerKilogram` against itself and could not have caught a missing task.
+   *
+   * The honest version compares only the part of the estimate that was built
+   * from AREAS, JOINT COUNTS AND RATES against the per-kilogram figure for the
+   * same mass. Everything derived from `hoursPerKilogram` is excluded from both
+   * sides.
+   */
+  const DERIVED_FROM_PER_KILOGRAM = new Set(['systems'])
+  const independentTasks = tasks.filter((t) => !DERIVED_FROM_PER_KILOGRAM.has(t.id))
+  const independentHours = independentTasks.reduce((s, t) => s + t.hours, 0)
+  const independentMass = frameMass + massOf('cover') + massOf('gas-cells')
+  const crossCheckHours = independentMass * perKg
   /** @source Two independent estimates within a factor of two agree at this level of definition. */
   const AGREEMENT_FACTOR = 2
-  const ratio = total / crossCheckHours
+  const ratio = independentHours / crossCheckHours
   const crossCheckAgrees = ratio > 1 / AGREEMENT_FACTOR && ratio < AGREEMENT_FACTOR
 
   const findings: string[] = []
   findings.push(
     crossCheckAgrees
-      ? `Task by task the build is ${(total / 1000).toFixed(0)} thousand hours; at ${perKg} hours per kilogram of the ${mass.emptyWeight.toFixed(0)} kg empty weight it is ${(crossCheckHours / 1000).toFixed(0)} thousand. A ratio of ${ratio.toFixed(2)}, which is agreement for an estimate of this kind.`
-      : `Task by task the build is ${(total / 1000).toFixed(0)} thousand hours and the per-kilogram cross check says ${(crossCheckHours / 1000).toFixed(0)} thousand, a ratio of ${ratio.toFixed(2)}. THE TWO ESTIMATES DISAGREE, so one of them is missing a task or double counting one.`,
+      ? `The build is ${(total / 1000).toFixed(0)} thousand hours in total. Of that, ${(independentHours / 1000).toFixed(0)} thousand comes from areas, joint counts and rates, against ${(crossCheckHours / 1000).toFixed(0)} thousand from hours per kilogram of the ${independentMass.toFixed(0)} kg of hull those tasks build. A ratio of ${ratio.toFixed(2)}, which is agreement. The systems task is excluded from both sides because it is itself built from the per-kilogram figure, and comparing a constant with itself is not a check.`
+      : `The independent tasks come to ${(independentHours / 1000).toFixed(0)} thousand hours against ${(crossCheckHours / 1000).toFixed(0)} thousand from the per-kilogram figure for the same ${independentMass.toFixed(0)} kg, a ratio of ${ratio.toFixed(2)}. THE TWO ESTIMATES DISAGREE, so one of them is missing a task or double counting one.`,
   )
   findings.push(
     `${(total / (perPerson * CREW)).toFixed(1)} years for two people working ${perPerson} hours each every year, which nobody building in their own time achieves. At evenings and weekends it is ${(total / (perPerson * 0.5 * CREW)).toFixed(0)} years.`,
@@ -605,7 +744,8 @@ export const facilityRequirement = (
 
   // The tallest thing about the vehicle is the fin tip, and the fins are set
   // well aft where the hull has narrowed, so the tip stands proud of the crown.
-  // Sizing the shed on hull diameter would put the doorway 4 m too low.
+  // Sizing the shed on hull diameter puts the doorway short by the difference,
+  // which the finding below reports rather than asserting here.
   const finRootRadius = hullRadiusAt(m(length), finenessRatio, config.finStation, shape)
   const vehicleHeight = 2 * (finRootRadius + fins.span)
 
@@ -615,9 +755,36 @@ export const facilityRequirement = (
 
 
   const escalation = v(FACILITY.escalation1981)
-  const rigidHangarCost = v(FACILITY.rigidHangarCost1981) * escalation
-  const completeBaseCost = v(FACILITY.completeBaseCost1981) * escalation
-  const airSupportedCost = v(FACILITY.airSupportedCost1981) * escalation
+
+  /**
+   * THE BUILDING HAS TO SCALE WITH THE SHIP OR THE MODEL IS LYING.
+   *
+   * These three costs used to be the 1981 constants times CPI, full stop, which
+   * meant every design point got the same $22.4M shed and the module's own
+   * "build it smaller" mitigation bought exactly nothing. A 65 m ship needs a
+   * 75 m building and that building does not cost what a 130 m one costs.
+   *
+   * @source The Goodyear quotation was for a 425 by 150 by 128 ft building,
+   * which is 129.5 by 45.7 by 39.0 m. A clear-span building's cost tracks the
+   * ENCLOSED SURFACE rather than the floor area, because the frame, the
+   * cladding and the wind load all live on the envelope, and the span exponent
+   * on a portal frame is close to unity over this range.
+   */
+  /** @source Goodyear's quotation was for 425 ft clear. */
+  const REFERENCE_LENGTH = 129.5
+  /** @source 150 ft clear. */
+  const REFERENCE_WIDTH = 45.7
+  /** @source 128 ft clear. */
+  const REFERENCE_HEIGHT = 39.0
+  const enclosedSurface = (l: number, w: number, h: number): number =>
+    2 * (l * w) + 2 * (l * h) + 2 * (w * h)
+  const sizeRatio =
+    enclosedSurface(clearLength, clearWidth, clearHeight) /
+    enclosedSurface(REFERENCE_LENGTH, REFERENCE_WIDTH, REFERENCE_HEIGHT)
+
+  const rigidHangarCost = v(FACILITY.rigidHangarCost1981) * escalation * sizeRatio
+  const completeBaseCost = v(FACILITY.completeBaseCost1981) * escalation * sizeRatio
+  const airSupportedCost = v(FACILITY.airSupportedCost1981) * escalation * sizeRatio
 
   const lateralWindLoad = v(FACILITY.lateralWindPressure) * clearLength * clearHeight
   /** @derived Hectares per square metre. */
@@ -636,6 +803,11 @@ export const facilityRequirement = (
       `The building alone is ${(rigidHangarCost / bom.total).toFixed(1)} times the entire bill of materials, and the complete base is ${(completeBaseCost / bom.total).toFixed(1)} times. THE AIRSHIP IS THE CHEAP PART.`,
     )
   }
+  findings.push(
+    sizeRatio < 1
+      ? `That is ${(sizeRatio * 100).toFixed(0)} percent of the enclosed surface of the building the 1981 quotation was for, so the costs below are scaled down by that. The shed is the one part of this project that a smaller ship genuinely makes cheaper, and it scales with the SURFACE of the building rather than its floor, because the frame, the cladding and the wind load all live on the envelope.`
+      : `That is ${(sizeRatio * 100).toFixed(0)} percent of the enclosed surface of the building the 1981 quotation was for, so the costs below are scaled up by that.`,
+  )
   findings.push(
     `An air-supported fabric shed is ${(rigidHangarCost / airSupportedCost).toFixed(1)} times cheaper and depends on a blower running continuously for the length of the build, which makes the building itself a single point of failure over a decade.`,
   )
@@ -678,9 +850,6 @@ export interface HandlingLimits {
   readonly findings: readonly string[]
 }
 
-/** @derived Bare hull drag coefficient on volume to the two thirds, NACA TR-432, low speed. */
-const BARE_HULL_DRAG_ON_VOLUME = 0.0235
-
 export const handlingLimits = (design: DesignPoint, config: Configuration): HandlingLimits => {
   const { length, finenessRatio, prismaticCoefficient } = design.hull
   const shape = hullShapeForPrismatic(prismaticCoefficient)
@@ -711,8 +880,14 @@ export const handlingLimits = (design: DesignPoint, config: Configuration): Hand
   const broadsideCoefficient = 0.5 * airDensity * cd * sideArea
   const twoPersonBroadsideLimit = Math.sqrt((CREW * pull) / broadsideCoefficient)
 
+  // THE COMPLETE VEHICLE, NOT THE BARE HULL. This used to carry its own copy of
+  // the 0.0235 bare-hull figure, which is a smooth body of revolution in free
+  // air. A ship on a mast has fins, a gondola, propulsors and mooring gear, and
+  // the marine module already says in terms that using the bare-hull number
+  // here understates the load. Reading core's value also keeps the uncertainty
+  // band propagating instead of stopping at a literal.
   const volumeToTwoThirds = geometry.volume ** (2 / 3)
-  const bowOnCoefficient = 0.5 * airDensity * BARE_HULL_DRAG_ON_VOLUME * volumeToTwoThirds
+  const bowOnCoefficient = 0.5 * airDensity * DRAG_COEFFICIENT_BOW_ON * volumeToTwoThirds
   const twoPersonBowOnLimit = Math.sqrt((CREW * pull) / bowOnCoefficient)
 
   const dockingLimit = v(GROUND_HANDLING.navyDockingLimit)
@@ -818,8 +993,9 @@ export const buildVerdict = (design: DesignPoint, config: Configuration): BuildV
   const tube = v(MATERIAL_PRICES.pultrudedTube)
   const fabric = v(MATERIAL_PRICES.carbonFabricRetail)
   const laminateTask = labour.tasks.find((t) => t.id === 'frame-laminate')
+  const toolingTask = labour.tasks.find((t) => t.id === 'tooling')
   mitigations.push(
-    `BUY THE MEMBERS, DO NOT LAY THEM UP. Pultruded tube is $${tube.toFixed(0)}/kg against $${fabric.toFixed(0)}/kg for retail fabric you then have to laminate, and it arrives at ${(v(MATERIAL_PRICES.pultrudedTubeModulus) / GIGA).toFixed(0)} GPa rather than the ${(WET_LAYUP_MODULUS / GIGA).toFixed(0)} GPa a hand wet layup reaches. It removes ${((laminateTask?.hours ?? 0) / 1000).toFixed(0)} thousand hours of laminating, the whole bagging consumables line, and the oven. It is the only change in this module that improves cost, schedule and structure at once.`,
+    `BUY THE MEMBERS, DO NOT LAY THEM UP. Pultruded tube is $${tube.toFixed(0)}/kg against $${fabric.toFixed(0)}/kg for the fabric alone, which is ${(tube / fabric).toFixed(1)} times as much and is the wrong comparison: a kilogram of finished laminate is that fabric plus resin plus single-use consumables plus tooling plus about an hour of hands per square metre of ply, and it arrives at ${(v(MATERIAL_PRICES.pultrudedTubeModulus) / GIGA).toFixed(0)} GPa rather than the ${(laminate().modulus / GIGA).toFixed(0)} GPa a hand wet layup reaches. It removes ${(((laminateTask?.hours ?? 0) + (toolingTask?.hours ?? 0)) / 1000).toFixed(0)} thousand hours of laminating and tooling, which is ${((((laminateTask?.hours ?? 0) + (toolingTask?.hours ?? 0)) / labour.total) * 100).toFixed(0)} percent of the build, plus the whole bagging consumables line and the oven. It is the only change in this module that improves cost, schedule and structure at once.`,
   )
   mitigations.push(
     `MOOR IT ON WATER. A ship that never comes ashore never needs the mooring circle, the mules or the ground crew, and it weathervanes off a bow drogue by itself. The water landing requirement is not a feature bolted on to this design, it is what replaces $${((facility.completeBaseCost - facility.rigidHangarCost) / MEGA).toFixed(1)}M of ground equipment.`,

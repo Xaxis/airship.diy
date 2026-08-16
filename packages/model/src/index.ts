@@ -82,7 +82,7 @@ export type { RoomAssessment, HabitatAssessment } from './habitat.js'
 export { assessRoom, assessHabitat } from './habitat.js'
 
 export type { Severity as FailureSeverity, FailureMode, FailureSummary } from './failure.js'
-export { failureModes, failureSummary } from './failure.js'
+export { dumpableInventory, failureModes, failureSummary } from './failure.js'
 
 export type {
   BomLine,

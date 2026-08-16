@@ -131,13 +131,26 @@ export const PHOTOVOLTAIC = under('photovoltaic', () => ({
    * Thin-film CIGS module efficiency. Flexible, tolerant of the hull's compound
    * curvature, and available in laminates that can be bonded to a cover.
    */
-  cigsEfficiency: uncertain({
-    low: 0.15,
-    nominal: 0.17,
-    high: 0.19,
+  cigsEfficiency: measured(0.1446, {
     unit: '1',
-    reason: 'Commercial flexible CIGS spans this band. Record cells do better and are not purchasable in area.',
-    resolvedBy: 'Select a specific product and use its datasheet.',
+    source: 'miasole-flex-03n',
+    relativeUncertainty: 0.05,
+    note: 'THIS WAS AN UNCERTAIN SPANNING 0.15 TO 0.19 AND ITS OWN resolvedBy SAID "select a specific product and use its datasheet". The product was selected, for its areal mass and for its price, and the efficiency was left at the generic band nominal of 0.17. The result was an array rated at 17 percent in the energy model and bought at 14.46 percent in the bill of materials, and the site reported a peak output of 108 percent of the nameplate of the hardware it was buying, after cosine losses over a doubly curved hull and after the temperature derate. 130 W over 0.899 m2 of module is 144.6 W/m2, which is 14.46 percent at the 1,000 W/m2 rating condition. Correcting it took the worst-day energy margin from 1.62 to 1.23. The loop still closes; it closes by a third less than this project used to claim.',
+  }),
+
+  /**
+   * The irradiance a module's nameplate rating is quoted at.
+   *
+   * @source Standard Test Conditions, IEC 61215: 1,000 W/m2, AM1.5G spectrum,
+   * 25 C cell temperature. Every W/m2 figure quoted for a module is this
+   * irradiance times its efficiency, and mixing a nameplate watt with a real
+   * watt is how a solar budget quietly gains a third.
+   */
+  standardTestIrradiance: measured(1000, {
+    unit: 'W/m^2',
+    source: 'miasole-flex-03n',
+    relativeUncertainty: 0,
+    note: 'Exact by definition of the rating condition, not a measurement.',
   }),
 
   /**

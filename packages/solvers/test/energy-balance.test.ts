@@ -22,21 +22,27 @@ describe('phase 2 gate: Regime A closes', () => {
    * The stretch ship does NOT close as specified, and it is kept that way
    * deliberately rather than tuned until it passes.
    *
-   * It fails on day 354 by 16 percent, with a comfortable 12.5 percent annual
-   * surplus, which is precisely the trap a day-by-day balance exists to catch:
-   * the annual average says yes and December says no.
+   * IT USED TO FAIL ONLY ON THE WORST DAY, with a 12.5 percent annual surplus,
+   * and that was the neat version of the story: the annual average says yes and
+   * December says no. Correcting the module efficiency from a band nominal of
+   * 0.17 to the 0.1446 of the product actually being bought took the annual
+   * margin negative as well, so it now fails on both. The lesson survives the
+   * correction and is sharper for it: the ship was never as close as it looked.
    *
-   * The cause is not hull size and not array area. It is the battery. On the
-   * shortest day the 300 kWh pack saturates and 252 kWh of night demand spills
-   * over into the hydrogen path at 32 percent round trip, so each of those
-   * kilowatt hours costs 3.1 kWh of collection instead of 1.06. The overflow is
-   * what eats the margin.
+   * The cause is still not hull size and not array area. It is the battery. On
+   * the shortest day the 300 kWh pack saturates and the night demand spills over
+   * into the hydrogen path at 32 percent round trip, so each of those kilowatt
+   * hours costs about three times what one through the battery costs. Enlarging
+   * the pack alone still turns both margins positive, which is the proof.
    */
-  it('the stretch design does not close, and the battery is why', () => {
+  it('the stretch design does not close, and the battery is still why', () => {
     const asSpecified = energyBalance(STRETCH)
     expect(asSpecified.closes).toBe(false)
-    expect(asSpecified.annualMargin).toBeGreaterThan(0)
     expect(asSpecified.worstDayMargin).toBeLessThan(0)
+    // It is now negative on the year as well, but only just: the battery
+    // overflow is expensive enough to swallow a surplus that looked comfortable.
+    expect(asSpecified.annualMargin).toBeLessThan(0)
+    expect(asSpecified.annualMargin).toBeGreaterThan(-0.2)
 
     // The battery is saturated on the binding day.
     const worst = asSpecified.days[asSpecified.worstDay - 1]

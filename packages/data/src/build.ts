@@ -21,19 +21,25 @@ import { measured, uncertain, under } from './citation.js'
 
 /**
  * Materials, per kilogram or per unit, at prices an individual can actually be
- * charged. Wholesale is not available to one person and quoting it would flatter
- * the answer by a factor of about seven on the largest line.
+ * charged.
+ *
+ * Wholesale is not available to one person, and the gap is large: the carbon
+ * fabric line is several times the commodity tow index below it, entirely in
+ * weaving, converting, warehousing and the fact that nobody sells four tonnes of
+ * fabric to a person with a garage. The bill of materials computes that multiple
+ * from these two values rather than restating it here, because a number written
+ * in prose and also derived by the solver is a number that will eventually
+ * disagree with itself.
  */
 export const MATERIAL_PRICES = under('build.materials', () => ({
   /**
    * Retail woven carbon fabric. This is the number an individual pays, and it
-   * is seven times the commodity tow index below, entirely in weaving,
-   * converting, warehousing and the fact that nobody sells 4 tonnes of fabric
-   * to a person with a garage.
+   * is several times the commodity tow index below. The multiple is computed
+   * from the two values where it is reported, not asserted here.
    */
   carbonFabricRetail: measured(115.7, {
     unit: 'USD/kg',
-    source: 'fibre-glast-catalogue',
+    source: 'retail-listings-2026',
     relativeUncertainty: 0.35,
     note: 'Rock West Composites 12K 2x2 twill, 670 gsm, 50 in wide, $89.99 per linear yard, August 2026. Buying full 100-yard rolls of lighter 3K twill drops it to about $89/kg, and Fibre Glast retail on small cuts runs to $245/kg. The spread is the ordering strategy, not the material.',
   }),
@@ -54,14 +60,14 @@ export const MATERIAL_PRICES = under('build.materials', () => ({
     unit: 'USD/kg',
     source: 'dragonplate-pultruded',
     relativeUncertainty: 0.3,
-    note: 'DragonPlate FDPT.240x.150x48 at $8.80, August 2026. Small sections carry the worst price per kilogram; larger sections are cheaper. The comparison that matters is against retail fabric at $115 to $245/kg PLUS resin, consumables, tooling and 1 m2 per hour of labour.',
+    note: 'DragonPlate FDPT.240x.150x48 at $8.80, August 2026. Small sections carry the worst price per kilogram and larger sections are cheaper. The comparison that matters is not against the fabric price alone but against fabric plus resin plus single-use consumables plus tooling plus the hours, and that comparison belongs in the model, which is where it is made.',
   }),
   /** Modulus of that bought tube, for the trade against laying it up. */
   pultrudedTubeModulus: measured(103e9, {
     unit: 'Pa',
-    source: 'gurit-guide-to-composites',
-    relativeUncertainty: 0.1,
-    note: 'Standard-modulus unidirectional carbon/epoxy at production fibre volume fraction. Compare 61 GPa for the woven wet layup this repository models, which is the other half of the argument for buying tube.',
+    source: 'performance-composites-properties',
+    relativeUncertainty: 0.15,
+    note: 'Standard-modulus unidirectional carbon/epoxy as pultruded. It sits between the 135 GPa the measured-laminate table gives for unidirectional tape at 60 percent fibre volume and the 64 GPa the woven wet layup in packages/core reaches, which is where a pultrusion belongs: aligned fibre, but a resin-rich surface and a die that does not consolidate like an autoclave. The comparison against the wet layup is the other half of the argument for buying tube.',
   }),
   /**
    * Laminating epoxy in bulk. US retail on gallon kits is $90/kg and EU hobby
@@ -77,7 +83,7 @@ export const MATERIAL_PRICES = under('build.materials', () => ({
       'US retail (Aircraft Spruce, MGS LR285 with H285 hardener, $89.80/kg mixed) and EU hobby pricing (Hoellein, EPIKOTE LR285, $40.10/kg mixed) differ by more than a factor of two on the same resin system. Neither is a 3 tonne quotation.',
     resolvedBy:
       'A quotation for 3,000 kg of an aerospace laminating epoxy in drums, which is the quantity this build needs and a quantity no listed price covers.',
-    source: 'proset-lam125',
+    source: 'retail-listings-2026',
   }),
   /** Vacuum bagging film, peel ply, breather, tape and tubing, per square metre bagged. */
   baggingConsumables: measured(16, {
@@ -92,7 +98,7 @@ export const MATERIAL_PRICES = under('build.materials', () => ({
    */
   coverFabric: measured(40, {
     unit: 'USD/m2',
-    source: 'khoury-airship-technology',
+    source: 'retail-listings-2026',
     relativeUncertainty: 0.4,
     note: 'Da Vinci (Costa Rica) design pages: a 60 m airship envelope uses near 2,000 m2 of external fabric at under $40 per m2. A builder\'s figure, not a mill quotation, and the closest thing to a published airship cover price that exists.',
   }),
@@ -107,7 +113,7 @@ export const MATERIAL_PRICES = under('build.materials', () => ({
     high: 120,
     unit: 'USD/m2',
     reason:
-      'No supplier publishes a price for a 0.21 kg/m2 para-aramid plus metallised-PET airship cell laminate at 15,000 m2. The nominal is Ripstop by the Roll\'s 1.43 oz Dyneema composite fabric at $45.05/m2, matched on areal mass rather than on function.',
+      'No supplier publishes a price for a 0.21 kg/m2 para-aramid plus metallised-PET airship cell laminate at 15,000 m2. The nominal is Ripstop by the Roll\'s 1.43 oz Dyneema composite fabric at $45.05/m2. IT IS NOT MATCHED ON AREAL MASS: that fabric is 48.5 g/m2 against the cell film\'s 210, a factor of 4.3. What it is matched on is MANUFACTURING KIND, a multi-layer film-and-fibre laminate made in small quantities by a converter for a technical market, which is the only property of it that says anything about price. The band spans a factor of six because that is what one unmatched proxy is worth.',
     resolvedBy:
       'A quotation from a barrier film converter for 15,000 m2 of the selected laminate. This is the single largest line in the bill of materials and it is the one with no price.',
   }),
@@ -121,7 +127,7 @@ export const MATERIAL_PRICES = under('build.materials', () => ({
   /** PEM fuel cell stack and balance of plant, per kilowatt. */
   fuelCell: measured(5300, {
     unit: 'USD/kW',
-    source: 'doe-fuel-cell-records',
+    source: 'retail-listings-2026',
     relativeUncertainty: 0.2,
     note: 'Fuel Cell Store retail, August 2026: Horizon 2 kW at $5,211/kW and a 5 kW unit at $5,395/kW. Automotive stacks at volume are two orders of magnitude below this and are not for sale to individuals.',
   }),
@@ -135,7 +141,7 @@ export const MATERIAL_PRICES = under('build.materials', () => ({
   /** Lithium iron phosphate storage, retail, per kilowatt hour. */
   battery: measured(230, {
     unit: 'USD/kWh',
-    source: 'bnef-battery-survey-2025',
+    source: 'retail-listings-2026',
     relativeUncertainty: 0.2,
     note: 'Signature Solar EG4 WallMount 14.3 kWh at $3,290, 2025. The BloombergNEF global average pack price the same year was $108/kWh, less than half, and it is a price no individual is offered.',
   }),
@@ -150,6 +156,53 @@ export const MATERIAL_PRICES = under('build.materials', () => ({
     resolvedBy: 'A delivered quotation from an industrial gas supplier for a single 2.4 tonne fill.',
     source: 'doe-h2-delivery-record',
   }),
+  /**
+   * Electric propulsion, per kilowatt of shaft power: motor, controller, mount
+   * and the share of the wiring that belongs to it. NOT the propeller.
+   */
+  electricPropulsion: uncertain({
+    low: 250,
+    nominal: 450,
+    high: 800,
+    unit: 'USD/kW',
+    reason:
+      'Built from retail listings rather than a quotation: an EMRAX 208 medium-voltage motor at about $2,474 for a 40 kW continuous rating is $62/kW, and an MGM COMPRO HBCi 400400 aircraft controller at $12,000 for 50 to 100 kW is $120 to $240/kW. Adding the nacelle, the mount and the vectoring gimbal roughly doubles it again, and the gimbal is the part nobody sells off a shelf.',
+    resolvedBy:
+      'A quotation for four vectoring nacelles at the rating the propulsion model settles on, which is also the point at which the tilt mechanism stops being a sketch.',
+  }),
+  /** A large carbon propeller, each. */
+  propeller: measured(4071, {
+    unit: 'USD',
+    source: 'retail-listings-2026',
+    relativeUncertainty: 0.4,
+    note: 'E-Props two-blade carbon propeller for a Lycoming O-360 class engine, as reported by builders. The propellers this vehicle wants are several times that diameter and there is no listed price for one, so this is a floor and it is labelled as such by its uncertainty.',
+  }),
+  /** A certified light-aircraft engine, complete. */
+  engine: measured(17600, {
+    unit: 'USD',
+    source: 'rotax-912',
+    relativeUncertainty: 0.15,
+    note: 'Rans Designs list price for a 100 hp Rotax 912 ULS, March 2025. The 912 iS Sport is about $24,500.',
+  }),
+  /** A marine generator set of the size this vehicle would pair with it. */
+  generator: measured(18000, {
+    unit: 'USD',
+    source: 'retail-listings-2026',
+    relativeUncertainty: 0.25,
+    note: 'Depco Power listing for a Lugger L844L2 20 kW marine generator set. Quoted here only to size the line; a bespoke lightweight generator on the engine above would be different hardware at a different price.',
+  }),
+  /** Compressed hydrogen storage, per kilogram of hydrogen stored at 350 bar. */
+  hydrogenStorage: uncertain({
+    low: 400,
+    nominal: 700,
+    high: 1200,
+    unit: 'USD/kg stored',
+    reason:
+      'The DOE Hydrogen Program record ST235 (Houchins 2023) gives $9.3 to $17.1 per kWh for a 350 bar system, which at 33.3 kWh/kg is $310 to $570/kg of hydrogen at PROJECTED HIGH VOLUME. An individual buying a handful of Type IV cylinders pays more, and how much more is not published.',
+    resolvedBy: 'A quotation for the cylinder count the energy model settles on.',
+    source: 'doe-h2-storage-targets',
+  }),
+
   /**
    * Helium, for the comparison the project must keep making. Priced per cubic
    * metre because that is how it is sold and because the point is the volume.
@@ -222,7 +275,7 @@ export const FACILITY = under('build.facility', () => ({
     unit: 'USD1981',
     source: 'nasa-cr-166258',
     relativeUncertainty: 0.2,
-    note: 'An ESI quotation at $6/ft2 for 255,000 ft2, plus $325,000 for the foundation pad. A quarter the price of steel and it depends on a blower running continuously, which makes the building itself a single point of failure over a multi-year build.',
+    note: 'An ESI quotation at $5/ft2 for 255,000 ft2, plus $325,000 for the foundation pad, which reconstructs the $1,600,000 to the dollar. The $6/ft2 this note used to quote does not: it gives $1,855,000, and a note whose own arithmetic does not reproduce the value beside it is a note that will be believed over the value. A quarter the price of steel, and it depends on a blower running continuously, which makes the building itself a single point of failure over a multi-year build.',
   }),
   /** Bringing 1981 dollars to now. */
   escalation1981: measured(3.6735, {
@@ -346,11 +399,14 @@ export const BUILD_LABOUR = under('build.labour', () => ({
     resolvedBy: 'Building one cell.',
   }),
   /** Hours one person works on the project in a year, sustained. */
-  hoursPerPersonYear: measured(2000, {
+  hoursPerPersonYear: uncertain({
+    low: 500,
+    nominal: 2000,
+    high: 2500,
     unit: 'h/year',
-    source: 'faa-experimental-operating-limitations',
-    relativeUncertainty: 0.25,
-    note: 'Full time. Nobody building an aircraft in their own time achieves this, and the sensitivity is linear: at 1,000 h/year every schedule below doubles.',
+    reason:
+      'THIS IS NOT A CITED FIGURE AND IT USED TO CLAIM TO BE ONE, pointing at the FAA operating limitations, which govern flight testing and say nothing about how many hours a person works. 2,000 is a full working year. Nobody building an aircraft alongside a life achieves it, and the low bound of 500 is evenings and weekends. The sensitivity is linear and the range is a factor of five, which makes this the widest band in the whole build model.',
+    resolvedBy: 'Keep a timesheet for the first bay and multiply.',
   }),
 }))
 

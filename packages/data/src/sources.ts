@@ -378,6 +378,18 @@ export const SOURCES: readonly Source[] = [
     note: 'SECONDARY. Blau gas volume, cell count, and the buoyancy-neutrality claim. The exact Blau gas composition needs a primary source and is currently an Uncertain in the fuel module.',
   },
   {
+    id: 'retail-listings-2026',
+    title: 'Retail and marketplace listings, read August 2026',
+    note: 'NOT A PUBLICATION. A catch-all for prices read off vendor pages and marketplace listings: Rock West Composites and Fibre Glast for fabric, DragonPlate for pultruded tube, Aircraft Spruce and Hoellein for epoxy, E-Props via builder reports for propellers, Signature Solar for lithium iron phosphate, Depco Power for generator sets, eBay for the EMRAX motor and brushlessgimbal.ca for the MGM COMPRO controller. Every one of them is a price with a date on it and none is a quotation for the quantity this project needs. Values sourced here should be re-read rather than trusted.',
+  },
+  {
+    id: 'performance-composites-properties',
+    title: 'Mechanical Properties of Carbon Fibre Composite Materials, fibre / epoxy resin 120 C cure',
+    author: 'Performance Composites Ltd',
+    url: 'http://www.performance-composites.com/carbonfibre/mechanicalproperties_2.asp',
+    note: 'A table of MEASURED LAMINATE properties, not fibre properties, quoted at a stated fibre volume fraction for standard carbon fabric, unidirectional tape and quasi-isotropic layups. It is the anchor the woven laminate in this repository is scaled from, because building a woven laminate up from bare fibre with a crimp knockdown over-predicts its modulus by more than half: a balanced weave puts only about half its fibre in the load direction and the rule of mixtures does not know that.',
+  },
+  {
     id: 'nasa-cr-166258',
     title: 'Feasibility Study of Modern Airships, Phase III: Airport Feasibility Study',
     author: 'Goodyear Aerospace for NASA Ames',

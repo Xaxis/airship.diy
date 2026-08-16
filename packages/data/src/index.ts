@@ -39,6 +39,7 @@ export {
   RESIN_SYSTEMS,
   WET_LAYUP,
   WOVEN_KNOCKDOWN,
+  LAMINATE_ANCHORS,
   TEMPERATURE_LIMITS,
   maximumOperatingTemperature,
 } from './materials/composites.js'

@@ -1,3 +1,5 @@
+import { PHOTOVOLTAIC, v } from '@airship/data'
+
 import type { DesignPoint } from './design-point.js'
 
 /**
@@ -68,7 +70,16 @@ export const BASELINE: DesignPoint = {
     // one, which is not visible until the masses have positions.
     arrayForwardStation: 0.06,
     arrayAftStation: 0.78,
-    moduleEfficiency: 0.17,
+    /**
+     * THE EFFICIENCY OF THE MODULE THAT IS ACTUALLY BEING BOUGHT, not a band
+     * nominal. It was 0.17 while the areal mass and the price were both taken
+     * from the MiaSole FLEX-03N datasheet, so the energy model rated an array at
+     * 17 percent that the bill of materials was buying at 14.46. The site then
+     * reported a peak output above the nameplate of the hardware, which is not
+     * possible. Reading it from the data means the three specifications cannot
+     * drift apart again.
+     */
+    moduleEfficiency: v(PHOTOVOLTAIC.cigsEfficiency),
     /**
      * 2.6 kg/m2, not the 1.2 this design point carried until the bill of
      * materials was priced.

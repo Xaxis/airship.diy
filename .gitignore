@@ -32,3 +32,8 @@ test-report.json
 # `git add -A` will otherwise sweep them in and fail lint on the next run.
 /chk*.mjs
 /scratch*.mjs
+/_chk*.mjs
+/_*.mjs
+/.scratch*.mjs
+/.verify*.mjs
+/*.py

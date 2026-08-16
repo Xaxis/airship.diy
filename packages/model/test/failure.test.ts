@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BASELINE,
   BASELINE_ARRANGEMENT,
+  dumpableInventory,
   failureModes,
   failureSummary,
   massStatement,
@@ -55,14 +56,39 @@ describe('the failure modes', () => {
     }
   })
 
-  it('turns a mode catastrophic when the ballast to answer it is taken away', () => {
-    // The point of computing consequences is that they move. With no ballast
-    // aboard, the cell tears stop being survivable, which is the argument for
-    // carrying water rather than an assertion that water is nice to have.
+  it('reads its ballast off the arrangement rather than being told', () => {
+    // A failure analysis whose ballast figure is a literal will keep saying a
+    // mode is survivable after the tank that made it survivable has been
+    // deleted from the drawing. Summing the water compartments is what makes
+    // this a check on the design rather than a description of one.
+    const fromDrawing = dumpableInventory(BASELINE_ARRANGEMENT)
+    const tanks = BASELINE_ARRANGEMENT.compartments.filter((c) => c.id.startsWith('water-'))
+    expect(tanks.length).toBeGreaterThan(1)
+    expect(fromDrawing).toBe(tanks.reduce((s, c) => s + c.mass, 0))
+  })
+
+  it('is saved by the lift margin, not by the ballast, and says which', () => {
+    // THIS TEST USED TO CLAIM THE OPPOSITE and it could never fail, because it
+    // asserted only that a dry ship survives no MORE modes than a wet one.
+    // Running it with no ballast at all changes nothing: the lift margin alone
+    // covers a two-cell loss, so the water is not what makes the cell tears
+    // survivable. Saying otherwise was crediting the ballast with work the
+    // margin was doing.
     const dry = failureModes(BASELINE, BASELINE_ARRANGEMENT, 0)
-    const wet = failureModes(BASELINE, BASELINE_ARRANGEMENT, 2500)
-    const drySurvivable = dry.filter((m) => m.survivable).length
-    const wetSurvivable = wet.filter((m) => m.survivable).length
-    expect(drySurvivable).toBeLessThanOrEqual(wetSurvivable)
+    expect(dry.filter((m) => m.survivable).length).toBe(SUMMARY.survivable)
+  })
+
+  it('finds the loss where the ballast does decide, and it is the third cell', () => {
+    // The ballast earns its place further out than the listed modes go. Two
+    // cells is inside the margin; three is outside the margin and inside margin
+    // plus water. That is the honest statement of what the water buys, and it
+    // is one more cell.
+    const mass = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+    const perCell = mass.grossLift / BASELINE.hull.cellCount
+    const ballast = dumpableInventory(BASELINE_ARRANGEMENT)
+
+    expect(2 * perCell).toBeLessThan(mass.liftMargin)
+    expect(3 * perCell).toBeGreaterThan(mass.liftMargin)
+    expect(3 * perCell).toBeLessThan(mass.liftMargin + ballast)
   })
 })
