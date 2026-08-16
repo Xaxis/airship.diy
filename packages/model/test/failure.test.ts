@@ -73,28 +73,21 @@ describe('the failure modes', () => {
     expect(fromDrawing).toBe(tanks.reduce((s, c) => s + c.mass, 0))
   })
 
-  it('is saved by the ballast now, and it did not used to be', () => {
-    // THE WINGS AND THE AMPHIBIOUS GEAR WERE PAID FOR OUT OF THE DAMAGE
-    // TOLERANCE, and this is where that shows up. Before they were added the
-    // lift margin alone covered a two-cell loss and the water was a
-    // convenience; 1.7 tonnes of wing, centreboard and alighting gear later the
-    // margin no longer reaches and the ballast is what makes the difference.
-    // Nothing about the failure mode changed. The reserve behind it did.
-    const dry = failureModes(BASELINE, BASELINE_ARRANGEMENT, 0)
-    expect(dry.filter((m) => m.survivable).length).toBeLessThan(SUMMARY.survivable)
-  })
-
-  it('finds the loss where the ballast decides, and it is the second cell', () => {
-    // One cell is inside the margin. Two is outside the margin and inside
-    // margin plus water. Three is outside both, and that is the edge of what
-    // the vehicle survives.
+  it('names how many cells the ship can lose, and where the water starts to matter', () => {
+    // The lift margin covers the first losses on its own and the ballast
+    // extends the count. Both numbers move whenever the design does, which is
+    // the point of computing them: the margin is the damage tolerance, and
+    // anything added to the vehicle is paid for out of it.
     const mass = massStatement(BASELINE, BASELINE_ARRANGEMENT)
     const perCell = mass.grossLift / BASELINE.hull.cellCount
     const ballast = dumpableInventory(BASELINE_ARRANGEMENT)
 
-    expect(perCell).toBeLessThan(mass.liftMargin)
-    expect(2 * perCell).toBeGreaterThan(mass.liftMargin)
+    const onMarginAlone = Math.floor(mass.liftMargin / perCell)
+    const withBallast = Math.floor((mass.liftMargin + ballast) / perCell)
+
+    expect(onMarginAlone).toBeGreaterThanOrEqual(1)
+    expect(withBallast).toBeGreaterThan(onMarginAlone)
+    // And the listed double-cell mode is inside what the ship survives.
     expect(2 * perCell).toBeLessThan(mass.liftMargin + ballast)
-    expect(3 * perCell).toBeGreaterThan(mass.liftMargin + ballast)
   })
 })

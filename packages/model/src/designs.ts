@@ -26,7 +26,18 @@ export const BASELINE: DesignPoint = {
   description:
     'The working design. 115 m at fineness ratio 5, stationed in the trade wind belt at 2,000 m, holding station against 8 m/s for two thirds of the day and drifting the rest. It grew from 90 m when the arrangement was drawn and the compartments, machinery and array acquired real masses and real positions. It nearly grew again when the array was priced and the 1.2 kg/m2 module it assumed turned out not to exist, the lightest anybody sells being 2.6 once the adhesive is counted. Instead the array shrank: it had been carrying 574 percent of the energy the mission needed, and cutting its coverage from 75 degrees to 32 paid for the heavier modules twice over.',
   hull: {
-    length: 115,
+    /**
+     * 118 m, and each of the three metres since 115 was bought by something
+     * specific.
+     *
+     * The hull is not a styling choice: it is the length at which the mass
+     * statement closes with a reserve. It was 90 m while the mass budget was a
+     * fraction, 115 once the compartments had positions, and 118 once the food
+     * was a year rather than five months. Two people eat 584 kg of dry staples
+     * in a year, or 1,530 kg of the same nutrition packaged, and the bay that
+     * was drawn held 560.
+     */
+    length: 118,
     finenessRatio: 5,
     prismaticCoefficient: 0.69,
     cellCount: 12,

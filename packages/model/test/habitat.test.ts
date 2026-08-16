@@ -12,12 +12,13 @@ import { assessHabitat, assessRoom, BASELINE_ARRANGEMENT, FITOUT } from '../src/
 const HABITAT = assessHabitat(BASELINE_ARRANGEMENT, 5)
 
 describe('the rooms', () => {
-  it('gives every one of them standing headroom, but only just', () => {
-    // 2.1 m of structural height less 200 mm of sole and deckhead lining is
-    // exactly 1.9, which is the figure below which a tall person stoops. It is
-    // a constraint that is met rather than one with margin.
+  it('clears the marine accommodation minimum in every space', () => {
+    // 2.3 m of structural height less 200 mm of sole and deckhead lining is
+    // 2.10, against the 2.03 m MLC minimum for a vessel somebody lives on.
+    // 1.9 m is what a boat gets away with for a fortnight; a year is exactly
+    // the case the standard was written for.
     for (const room of HABITAT.rooms) {
-      expect(`${room.name}: ${room.headroom.toFixed(2)}`).toBe(`${room.name}: 1.90`)
+      expect(`${room.name}: ${room.headroom.toFixed(2)}`).toBe(`${room.name}: 2.10`)
     }
   })
 

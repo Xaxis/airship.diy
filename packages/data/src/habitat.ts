@@ -200,3 +200,156 @@ export const CATCHMENT = under('catchment', () => ({
       'Reanalysis precipitation data for the specific station, which the mission module will ingest in phase 5.',
   }),
 }))
+
+
+/**
+ * What a space somebody lives in for a year has to provide.
+ *
+ * THE FIGURES COME FROM TWO WORLDS AND BOTH ARE NEEDED. NASA's HIDH answers
+ * volume, because spacecraft are where volume is the scarcest thing there is and
+ * where the consequences of getting it wrong have been measured. IMO answers
+ * headroom, cabin area and noise, because those are written for a vessel
+ * somebody lives on and they are enforced.
+ *
+ * The two disagree about what is scarce, and that is useful: an airship has
+ * volume and lacks LIFT, which is the opposite of a spacecraft and the opposite
+ * of a ship. So the volume figures are a floor rather than a target, and the
+ * ones that bind here are the ones about mass and about the quality of the space
+ * rather than its size.
+ */
+export const HABITABILITY = under('habitability', () => ({
+  /**
+   * Net habitable volume per crew member for a long mission, m3.
+   *
+   * NOT pressurised volume: NHV is what is left after equipment, stowage and
+   * passageways, which on a real vehicle is roughly half.
+   */
+  netHabitableVolumePerCrew: measured(43, {
+    unit: 'm^3',
+    source: 'nasa-hidh',
+    relativeUncertainty: 0.2,
+    note: 'Scaled to a crew of two from the handbook curve, which gives 115.83 m3 total for four. Per-head volume rises as the crew shrinks, because the fixed spaces do not divide. ISS runs 64.7 m3 per crew and Celentano\'s asymptote is 19, so this sits between a tolerable minimum and a comfortable one.',
+  }),
+
+  /** Clear headroom below which a tall person stoops, m. */
+  minimumHeadroom: measured(2.03, {
+    unit: 'm',
+    source: 'imo-a1047',
+    relativeUncertainty: 0,
+    note: 'The MLC minimum for accommodation spaces, and it is a floor rather than a recommendation: 1.9 m is what a boat gets away with for a fortnight and what a year will not forgive.',
+  }),
+
+  /** Headroom this design targets, m. */
+  targetHeadroom: measured(2.1, {
+    unit: 'm',
+    source: 'imo-a1047',
+    relativeUncertainty: 0,
+    note: 'Above the minimum by enough that a deckhead fitting does not put a space back under it.',
+  }),
+
+  /** Floor area of a single-berth cabin, m2. */
+  singleBerthArea: measured(4.5, {
+    unit: 'm^2',
+    source: 'imo-a1047',
+    relativeUncertainty: 0.1,
+  }),
+
+  /** Mess room floor area per seat, m2. */
+  messAreaPerSeat: measured(1.5, {
+    unit: 'm^2',
+    source: 'imo-a1047',
+    relativeUncertainty: 0.1,
+  }),
+
+  /** Noise limit in a sleeping space, dB(A). */
+  sleepNoiseLimit: measured(49, {
+    unit: 'dB(A)',
+    source: 'nasa-stw-lighting',
+    relativeUncertainty: 0,
+    note: 'IMO allows 60 in a cabin, which is a limit written for a watch system rather than for a year. 49 is the figure that does not cost sleep, and sleep is the thing a long mission loses first.',
+  }),
+
+  /** Vibration limit in a sleeping space, m/s2 RMS. */
+  sleepVibrationLimit: measured(0.1, {
+    unit: 'm/s^2',
+    source: 'imo-a1047',
+    relativeUncertainty: 0,
+    note: 'Which is what puts the propulsor mounts on isolators with a natural frequency near 8 Hz, well below the blade passing frequency.',
+  }),
+
+  /** General ambient illuminance, lux. */
+  ambientIlluminance: measured(350, {
+    unit: 'lx',
+    source: 'nasa-stw-lighting',
+    relativeUncertainty: 0.15,
+  }),
+
+  /** Melanopic equivalent daylight illuminance needed to hold the circadian phase, lux. */
+  wakeMelanopicEdi: measured(250, {
+    unit: 'lx',
+    source: 'nasa-stw-lighting',
+    relativeUncertainty: 0.2,
+    note: 'THE FIGURE A YEAR TURNS ON. Ordinary interior lighting delivers a fraction of this at the eye, and a crew that drifts out of phase loses sleep, then performance, then judgement. Below 8 melanopic lux before sleep, and effectively dark in the berth.',
+  }),
+
+  /** Functional volume an exercise device needs, m3. */
+  exerciseVolume: measured(13.42, {
+    unit: 'm^3',
+    source: 'nasa-hidh',
+    relativeUncertainty: 0.15,
+    note: 'The swept space, not the machine. On a vehicle where the crew are also the maintenance department the activity level is higher than a spacecraft\'s, but a year of low activity still costs bone and muscle and the equipment is the cheapest insurance aboard.',
+  }),
+
+  /** Mass of a resistive exercise device suitable for a small vehicle, kg. */
+  exerciseDeviceMass: measured(54, {
+    unit: 'kg',
+    source: 'nasa-hidh',
+    relativeUncertainty: 0.3,
+    note: 'The Mars transit target, against 544 kg for the ISS ARED. The heavy one is not carryable here and the light one is what the design assumes.',
+  }),
+
+  /** Food as shipped, packaged, per person per day, kg. */
+  foodMassPerPersonDay: measured(2.1, {
+    unit: 'kg',
+    source: 'nasa-bvad',
+    relativeUncertainty: 0.15,
+    note: 'Midpoint of 1.83 to 2.39 for packaged provisions. Bulk staples are 0.8 kg of dry mass and less than half the shipped mass, at the cost of three more hours of galley time a day, which is a real trade on a two-person vehicle.',
+  }),
+
+  /** Specific volume of bulk dry staples, m3/kg. */
+  bulkStapleSpecificVolume: measured(0.00133, {
+    unit: 'm^3/kg',
+    source: 'nasa-bvad',
+    relativeUncertainty: 0.15,
+  }),
+
+  /** Total water per person per day at a mature recycling standard, kg. */
+  waterPerPersonDay: measured(9.12, {
+    unit: 'kg',
+    source: 'nasa-bvad',
+    relativeUncertainty: 0.15,
+    note: 'Drinking 2.5, hygiene and shower 7.7, dishes 3.54, laundry 1.1, before recycling. Hygiene dominates and it is the term that is a behavioural choice rather than a physical need.',
+  }),
+
+  /** Crop area for a full diet, m2 per person. */
+  fullDietCropArea: measured(65.29, {
+    unit: 'm^2',
+    source: 'nasa-bvad',
+    relativeUncertainty: 0.2,
+    note: 'AT 2.6 kW PER SQUARE METRE OF GROWING AREA. Two people would need 170 kW of lighting against 31 kW of annual-average solar, so growing the diet is not a close call. Salad alone is 1.35 m2 per person and 375 W, which is affordable and is a morale item rather than a food one.',
+  }),
+
+  /** Crop area for salad greens only, m2 per person. */
+  saladCropArea: measured(1.35, {
+    unit: 'm^2',
+    source: 'nasa-bvad',
+    relativeUncertainty: 0.2,
+  }),
+
+  /** Electrical power a growing area needs, W/m2. */
+  cropLightingPower: measured(2600, {
+    unit: 'W/m^2',
+    source: 'nasa-bvad',
+    relativeUncertainty: 0.2,
+  }),
+}))

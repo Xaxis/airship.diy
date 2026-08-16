@@ -293,18 +293,17 @@ describe('what the arrangement did to the hull size', () => {
   })
 
   it('keeps the trim inside the ballast authority over the range it was arranged for', () => {
-    // THE RANGE USED TO REACH 150 m AND IT NOW STOPS AT ABOUT 120. Correcting
-    // the yaw stability check put 1,816 kg of fin at station 0.9, which is a
-    // standing tail-down moment the water has to answer, and the tanks moved
-    // forward to answer it. That spends the authority which used to absorb the
-    // hull growing. It is not a regression in the arrangement, it is the
-    // arrangement paying for a tail that was previously too small to fly.
-    for (const length of [95, 105, 115, 120]) {
+    // The arrangement is FIXED and the hull is not, so there is a length past
+    // which the fins, the array and the machinery outrun what the water can
+    // trim out. Where that happens is a property of the arrangement rather
+    // than a bug in it, and it is worth pinning because it moves whenever
+    // anything heavy changes station.
+    for (const length of [95, 105, 115, 120, 125]) {
       const findings = validateArrangement(at(length), BASELINE_ARRANGEMENT)
       const trim = findings.find((f) => f.id === 'trim-authority')
       expect(`${length}: ${trim?.severity}`).toBe(`${length}: pass`)
     }
-    for (const length of [125, 140, 150]) {
+    for (const length of [140, 150]) {
       const findings = validateArrangement(at(length), BASELINE_ARRANGEMENT)
       const trim = findings.find((f) => f.id === 'trim-authority')
       expect(`${length}: ${trim?.severity}`).toBe(`${length}: fail`)

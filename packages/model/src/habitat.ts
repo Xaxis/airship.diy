@@ -1,3 +1,5 @@
+import { HABITABILITY, v } from '@airship/data'
+
 import type { Compartment, Configuration } from './configuration.js'
 import { FITOUT } from './fitout.js'
 import type { Room } from './fitout.js'
@@ -59,13 +61,21 @@ export interface RoomAssessment {
 }
 
 /**
- * @source Standing headroom below which a tall person stoops. 1.9 m is the
- * usual accommodation minimum and 2.0 is comfortable. The sole and the deckhead
- * lining take about 200 mm out of the structural height between them.
+ * @source The sole and the deckhead lining take about 200 mm out of the
+ * structural height between them: floor structure, insulation, cable runs and
+ * the trunking that has to go somewhere.
  */
 const LINING_ALLOWANCE = 0.2
-/** @source The accommodation minimum below which a tall person stoops. */
-const STANDING_HEADROOM = 1.9
+
+/**
+ * The accommodation minimum, m.
+ *
+ * THIS DESIGN CARRIED 1.9 AND THAT IS BELOW THE STANDARD. 1.9 m is what a boat
+ * gets away with for a fortnight; the MLC minimum for a vessel somebody lives on
+ * is 2.03, and a year is exactly the case the standard was written for. The
+ * compartments are 2.3 m structural so the clear height lands above it.
+ */
+const STANDING_HEADROOM = v(HABITABILITY.minimumHeadroom)
 /** @derived Metres to millimetres, for the messages. */
 const MM = 1000
 

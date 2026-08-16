@@ -378,6 +378,27 @@ export const SOURCES: readonly Source[] = [
     note: 'SECONDARY. Blau gas volume, cell count, and the buoyancy-neutrality claim. The exact Blau gas composition needs a primary source and is currently an Uncertain in the fuel module.',
   },
   {
+    id: 'nasa-hidh',
+    title: 'Human Integration Design Handbook, NASA/SP-2010-3407 Rev 1',
+    author: 'NASA',
+    year: 2014,
+    url: 'https://www.nasa.gov/feature/human-integration-design-handbook-hidh',
+    note: 'Net habitable volume against mission duration and crew size, and the distinction that matters: NHV is what is left after equipment, stowage and passageways, not the pressurised volume. Its curves are for spacecraft, where volume is the scarcest thing there is; an airship has volume and lacks lift, so the figures are a floor here rather than a target.',
+  },
+  {
+    id: 'imo-a1047',
+    title: 'IMO Resolution A.1047(27) and MLC 2006 Title 3, crew accommodation',
+    author: 'International Maritime Organization',
+    year: 2011,
+    note: 'The standard that governs a vessel somebody lives on: headroom, cabin floor area per person, mess room area per seat, and the noise limits by space. Written for ships and directly applicable to a vehicle whose accommodation is a gondola.',
+  },
+  {
+    id: 'nasa-stw-lighting',
+    title: 'NASA-STD-3001 Vol 2 Rev C, lighting and acoustics',
+    author: 'NASA',
+    note: 'Illuminance by task, melanopic equivalent daylight illuminance for circadian entrainment, and the sleep-station darkness limit. The circadian figures are the ones that matter for a year: a crew on a badly lit vehicle loses sleep before it loses anything else.',
+  },
+  {
     id: 'retail-listings-2026',
     title: 'Retail and marketplace listings, read August 2026',
     note: 'NOT A PUBLICATION. A catch-all for prices read off vendor pages and marketplace listings: Rock West Composites and Fibre Glast for fabric, DragonPlate for pultruded tube, Aircraft Spruce and Hoellein for epoxy, E-Props via builder reports for propellers, Signature Solar for lithium iron phosphate, Depco Power for generator sets, eBay for the EMRAX motor and brushlessgimbal.ca for the MGM COMPRO controller. Every one of them is a price with a date on it and none is a quotation for the quantity this project needs. Values sourced here should be re-read rather than trusted.',

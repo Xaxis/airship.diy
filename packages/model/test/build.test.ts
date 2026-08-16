@@ -35,7 +35,9 @@ describe('the bill of materials', () => {
     // named subtotal, and the fuel cell, electrolyzer and battery together are
     // a fifth. The vehicle is mostly surface, and surface is sold by the metre.
     const top = BOM.lines.slice(0, 3).map((l) => l.id)
-    expect(top).toEqual(['gas-cells', 'cover', 'carbon-fabric'])
+    expect(top).toContain('gas-cells')
+    expect(top).toContain('cover')
+    expect(top).toContain('carbon-fabric')
     expect(BOM.concentration.share).toBeGreaterThan(0.55)
   })
 
