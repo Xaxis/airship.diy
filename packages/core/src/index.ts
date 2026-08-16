@@ -61,6 +61,9 @@ export {
   lateralWaterResistance,
 } from './marine/boat.js'
 
+export type { AlightingGear } from './marine/alighting.js'
+export { alightingGear } from './marine/alighting.js'
+
 export type {
   NavigationPoint,
   NavigationPolar,

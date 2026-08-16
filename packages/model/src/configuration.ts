@@ -140,6 +140,31 @@ export interface Configuration {
   /** Fin root station and the fin span as a fraction of max radius. */
   readonly finStation: number
   readonly finSpanFraction: number
+
+  /**
+   * Outboard wings: span in metres and planform area in square metres.
+   *
+   * NOT a lifting body and not extra lobes. Induced drag goes as span squared
+   * and not as area, so area at the extremities is worth about ten times area
+   * in a fatter envelope. Set the span to zero for a wingless vehicle.
+   */
+  readonly wingSpan: number
+  readonly wingArea: number
+  /** Station of the wing quarter chord. Near the centre of buoyancy or it trims. */
+  readonly wingStation: number
+
+  /**
+   * Immersed area of the retractable centreboard, m2.
+   *
+   * THE PART THAT DECIDES WHETHER BOAT MODE EXISTS. At half a square metre the
+   * usable cone from dead upwind is five degrees; at eighteen it is the whole
+   * compass. No amount of thrust substitutes, because the speed through the
+   * water is identical either way and what changes is where the vehicle ends up.
+   */
+  readonly centreboardArea: number
+
+  /** True when the vehicle must be able to alight on ground as well as water. */
+  readonly landCapable: boolean
   /** Keel corridor extent as station fractions, and its clear width in metres. */
   readonly keelForward: number
   readonly keelAft: number
@@ -566,6 +591,24 @@ export const BASELINE_ARRANGEMENT: Configuration = {
    */
   finStation: 0.9,
   finSpanFraction: 1.3,
+
+  // A modest wing. 40 m of span and 200 m2 carries 2,414 kg of extra weight at
+  // 14 m/s on the installed power, for 616 kg of structure. A 60 m wing carries
+  // 4,189 kg for 1,386 kg, which is a better ratio and does not fit: it takes
+  // the lift margin below the 15 percent reserve the design keeps for superheat,
+  // rain and a torn cell. The bigger wing needs about five more metres of hull,
+  // and the design explorer is where that trade belongs rather than here.
+  wingSpan: 40,
+  wingArea: 200,
+  // At the centre of buoyancy, so the wing makes lift without making trim. The
+  // 1975 Aereon study is where this comes from: on a well-chosen planform the
+  // aerodynamic centre sits where the centre of buoyancy already is, and that
+  // is what lets the lift split change without a trim excursion.
+  wingStation: 0.44,
+
+  centreboardArea: 18,
+
+  landCapable: true,
 
   keelForward: 0.015,
   keelAft: 0.9,

@@ -3,6 +3,7 @@ import {
   atmosphere,
   buoyancyDistribution,
   cellFilmArea,
+  alightingGear,
   crossSectionDistribution,
   coveredArea,
   criticalDuctDiameter,
@@ -17,9 +18,13 @@ import {
   solveBeam,
   specificLift,
   superheatHeavinessExcursion,
+  wingGeometry,
+  wingPayloadEnvelope,
+  COMPLETE_SHIP_DRAG_COEFFICIENT,
+  PROPULSIVE_EFFICIENCY,
 } from '@airship/core'
 import { AKRON_STRUCTURE, barrierFilm, EMPTY_WEIGHT_PER_GAS_VOLUME, v } from '@airship/data'
-import { m, m3, K, rad, kgPerM3 } from '@airship/units'
+import { kg, m, m3, K, rad, kgPerM3 } from '@airship/units'
 
 import type { Category, Compartment, Configuration, Deck } from './configuration.js'
 import type { DesignPoint } from './design-point.js'
@@ -417,6 +422,58 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
 
   const fins = finPlanform(design, config)
 
+  // ---- the wing, the board and the gear ----------------------------------
+  const wing = wingGeometry(config.wingSpan, config.wingArea)
+  const payload = wingPayloadEnvelope(
+    wing,
+    geometry,
+    atmosphere(m(design.mission.altitude)).density,
+    v(COMPLETE_SHIP_DRAG_COEFFICIENT),
+    config.propulsors.reduce((sum, p) => sum + p.ratedPower, 0),
+    v(PROPULSIVE_EFFICIENCY),
+  )
+
+  /**
+   * @source Areal mass of a retractable board: a carbon foil, its case, the
+   * hoist and the seals, at 8 kg per square metre of immersed area. Heavier per
+   * unit area than an aerodynamic surface because it works in water, takes
+   * grounding loads, and has to come up again.
+   */
+  const CENTREBOARD_AREAL_MASS = 8
+  const centreboardMass = config.centreboardArea * CENTREBOARD_AREAL_MASS
+
+  /** @derived Vertical standoff of the gondola underside below the hull, m. */
+  const GONDOLA_STANDOFF = 1.6
+
+  /**
+   * @source The static heaviness the vehicle is trimmed to rest on water at,
+   * kg. Heavy is the safe direction, and 800 kg is enough to stay put in a
+   * chop without being enough to matter to the structure.
+   */
+  const LANDING_TRIM = 800
+  /**
+   * @source Solar superheat excursion over a day, K. The cells run hotter than
+   * ambient in sunlight and cooler at dawn, and this is the swing the marine
+   * chapter's failing gate is about.
+   */
+  const SUPERHEAT_EXCURSION = 20
+
+  // Gross lift at sea level, needed here only to size the gear. The authoritative
+  // figure is computed below at both ends of the operating band; this is the
+  // same quantity at the condition the vehicle actually lands in.
+  const seaLevelForGear = atmosphere(m(0))
+  const liftForGear =
+    gasVolume *
+    design.gas.seaLevelFillFraction *
+    specificLift(pure(design.gas.species), seaLevelForGear, K(seaLevelForGear.temperature))
+
+  const gear = alightingGear(
+    kg(0),
+    LANDING_TRIM,
+    superheatHeavinessExcursion(liftForGear, SUPERHEAT_EXCURSION),
+    config.landCapable,
+  )
+
   const arrayStation = (design.power.arrayForwardStation + design.power.arrayAftStation) / 2
 
   // Where the distributed hull masses actually act. The frame follows the
@@ -481,6 +538,42 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
       volume: 0,
       computed: true,
       note: 'The heaviest non-structural item and the only large mass above the axis, so it costs useful load twice: once in the budget and once in pendulum stability.',
+    },
+    {
+      id: 'wings',
+      name: `Outboard wings, ${config.wingSpan} m span`,
+      category: 'structure',
+      deck: 'external',
+      mass: wing.mass,
+      x: config.wingStation * length,
+      z: 0,
+      volume: 0,
+      computed: true,
+      note: `${config.wingArea} m2 at aspect ratio ${wing.aspectRatio.toFixed(1)}. NOT for efficiency: a wing only makes this vehicle more efficient above 34 m/s, where it would need half a megawatt. It is for CARRYING, and it holds up ${payload.bestPayload.toFixed(0)} kg of extra weight at ${payload.bestSpeed.toFixed(0)} m/s on the power already installed. It costs its profile drag every hour it is not doing that, which is the argument for folding it.`,
+    },
+    {
+      id: 'centreboard',
+      name: 'Retractable centreboard',
+      category: 'structure',
+      deck: 'gondola',
+      mass: centreboardMass,
+      x: config.wingStation * length,
+      z: -(maxRadius + GONDOLA_STANDOFF),
+      volume: 0,
+      computed: true,
+      note: `${config.centreboardArea} m2 immersed. THE PART THAT DECIDES WHETHER BOAT MODE EXISTS: on bare hulls the usable cone from dead upwind is five degrees because the vehicle points where the fins say and goes where the wind says. At this area it is the whole compass.`,
+    },
+    {
+      id: 'alighting-gear',
+      name: config.landCapable ? 'Alighting gear, water and ground' : 'Alighting gear, water only',
+      category: 'structure',
+      deck: 'gondola',
+      mass: gear.totalMass,
+      x: config.wingStation * length,
+      z: -(maxRadius + GONDOLA_STANDOFF),
+      volume: 0,
+      computed: true,
+      note: gear.note,
     },
     {
       id: 'fins',

@@ -67,28 +67,28 @@ describe('the failure modes', () => {
     expect(fromDrawing).toBe(tanks.reduce((s, c) => s + c.mass, 0))
   })
 
-  it('is saved by the lift margin, not by the ballast, and says which', () => {
-    // THIS TEST USED TO CLAIM THE OPPOSITE and it could never fail, because it
-    // asserted only that a dry ship survives no MORE modes than a wet one.
-    // Running it with no ballast at all changes nothing: the lift margin alone
-    // covers a two-cell loss, so the water is not what makes the cell tears
-    // survivable. Saying otherwise was crediting the ballast with work the
-    // margin was doing.
+  it('is saved by the ballast now, and it did not used to be', () => {
+    // THE WINGS AND THE AMPHIBIOUS GEAR WERE PAID FOR OUT OF THE DAMAGE
+    // TOLERANCE, and this is where that shows up. Before they were added the
+    // lift margin alone covered a two-cell loss and the water was a
+    // convenience; 1.7 tonnes of wing, centreboard and alighting gear later the
+    // margin no longer reaches and the ballast is what makes the difference.
+    // Nothing about the failure mode changed. The reserve behind it did.
     const dry = failureModes(BASELINE, BASELINE_ARRANGEMENT, 0)
-    expect(dry.filter((m) => m.survivable).length).toBe(SUMMARY.survivable)
+    expect(dry.filter((m) => m.survivable).length).toBeLessThan(SUMMARY.survivable)
   })
 
-  it('finds the loss where the ballast does decide, and it is the third cell', () => {
-    // The ballast earns its place further out than the listed modes go. Two
-    // cells is inside the margin; three is outside the margin and inside margin
-    // plus water. That is the honest statement of what the water buys, and it
-    // is one more cell.
+  it('finds the loss where the ballast decides, and it is the second cell', () => {
+    // One cell is inside the margin. Two is outside the margin and inside
+    // margin plus water. Three is outside both, and that is the edge of what
+    // the vehicle survives.
     const mass = massStatement(BASELINE, BASELINE_ARRANGEMENT)
     const perCell = mass.grossLift / BASELINE.hull.cellCount
     const ballast = dumpableInventory(BASELINE_ARRANGEMENT)
 
-    expect(2 * perCell).toBeLessThan(mass.liftMargin)
-    expect(3 * perCell).toBeGreaterThan(mass.liftMargin)
-    expect(3 * perCell).toBeLessThan(mass.liftMargin + ballast)
+    expect(perCell).toBeLessThan(mass.liftMargin)
+    expect(2 * perCell).toBeGreaterThan(mass.liftMargin)
+    expect(2 * perCell).toBeLessThan(mass.liftMargin + ballast)
+    expect(3 * perCell).toBeGreaterThan(mass.liftMargin + ballast)
   })
 })
