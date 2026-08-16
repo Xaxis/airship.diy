@@ -157,6 +157,8 @@ export type { LiftingBodyGeometry, HullLift, HybridLiftPenalty, StationKeepingPo
 export {
   liftCurveSlope,
   liftingBodyGeometry,
+  AIRLANDER_DIMENSION_DISCREPANCY,
+  MINIMUM_LOBED_SECTION_FULLNESS,
   diaphragmArea,
   hullLift,
   minimumFlyingSpeed,

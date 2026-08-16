@@ -68,16 +68,26 @@ const VORTEX_LIFT_FRACTION = 0.6
  * How much of the thin-wing lift curve slope a thick lobed HULL actually
  * achieves.
  *
+ * RECALIBRATED AT THE HULL'S REAL DIMENSIONS. This was 0.31, computed at an
+ * aspect ratio of 0.65 that came from a 50 m "wingspan" row rather than the
+ * hull's 42 m beam. At the real planform the aspect ratio is 0.581, the
+ * Helmbold slope is 0.894 rather than 0.995, and the efficiency that reproduces
+ * the same measured lift is 0.433.
+ *
+ * Note also that the AAIB says the vehicle carried UP TO 40 percent of its
+ * weight aerodynamically, not 40 percent at cruise. The distinction matters
+ * because it makes the anchor an upper bound rather than a design point.
+ *
  * @source Anchored on the Airlander 10, twice, and the two anchors agree.
- * The AAIB records 40 percent of weight carried aerodynamically at cruise, and
+ * The AAIB records up to 40 percent of weight carried aerodynamically, and
  * the manufacturer's loiter speed is 20 knots. A single lift coefficient of
  * 0.07 at 12 degrees reproduces BOTH: 39.6 percent of MTOW at 28 m/s and 5.4
  * percent at 10.29 m/s, because lift goes as the square of speed and the two
  * conditions differ only in dynamic pressure.
  *
- * That coefficient implies an effective lift curve slope of 0.307 per radian,
- * against the 0.995 Helmbold gives for an aspect ratio of 0.65. So a lobed hull
- * achieves 31 percent of what a thin wing of the same aspect ratio would.
+ * That coefficient implies an effective lift curve slope of 0.387 per radian,
+ * against the 0.894 Helmbold gives for an aspect ratio of 0.581. So a lobed
+ * hull achieves 43 percent of what a thin wing of the same aspect ratio would.
  *
  * IT IS NOT A FUDGE, IT IS THE DIFFERENCE BETWEEN A WING AND A BODY. Helmbold
  * describes a thin lifting surface; a hull is a thick body whose planform area
@@ -86,7 +96,7 @@ const VORTEX_LIFT_FRACTION = 0.6
  * hybrid-lift by a factor of three on the term that decides whether it can be
  * afforded, and this module did exactly that in its first version.
  */
-const HULL_LIFT_EFFICIENCY = 0.31
+const HULL_LIFT_EFFICIENCY = 0.433
 
 /** @source Airship hulls run out of usable incidence around 20 degrees. */
 const MAXIMUM_USABLE_INCIDENCE = (20 * Math.PI) / 180
@@ -108,23 +118,62 @@ export interface LiftingBodyGeometry {
 /**
  * Volume coefficient of a multi-lobe hull, V / (L * B * H).
  *
- * @source Calibrated on the Airlander 10: 38,000 m3 inside a 98 m by 50 m by
- * 30 m envelope gives 0.2585. A single ellipsoid of the same bounding box would
- * be pi/6 = 0.5236, so a three-lobe hull encloses only HALF the volume its
- * bounding box suggests.
+ * THIS WAS 0.2585 AND IT IS GEOMETRICALLY IMPOSSIBLE.
  *
- * This is the number a first pass at hybrid-lift geometry gets wrong, and it
- * gets it wrong by 70 percent in the flattering direction. Treating the hull as
- * an ellipsoid of its own bounding dimensions gave 64,654 m3 for a vehicle whose
- * published envelope is 38,000. Everything downstream — lift per unit volume,
- * skin mass, permeation — inherits that error.
+ * A multi-lobe section is a union of equal circles. The section fullness of any
+ * such union, area over the bounding rectangle, has a HARD FLOOR of pi/4 =
+ * 0.7854: it reaches that value both when the lobes are tangent and when they
+ * are fully merged into one circle, and it is higher everywhere in between,
+ * peaking at 0.871 for three lobes. So a trilobe at a prismatic coefficient of
+ * 0.69 cannot have a volume coefficient below 0.69 * 0.7854 = 0.542, for any
+ * lobe count and any overlap. 0.2585 is less than half of that.
  *
- * The published 30 m height probably includes the fins and the gondola, which
- * would make the hull itself fuller than this coefficient says. It is used as
- * published, because guessing which parts of a quoted height are hull is exactly
- * the kind of silent adjustment this repository exists to prevent.
+ * The error is in the inputs, not the arithmetic. 0.2585 came from Airlander
+ * 10's published 38,000 m3 inside "98 m by 50 m by 30 m", and the 50 m is
+ * Wikipedia's WINGSPAN row rather than a hull beam, while the 30 m evidently
+ * includes the fins and the gondola. Using the hull's own dimensions gives
+ * 0.587, which sits where the geometry says it must.
+ *
+ * WHAT THIS COST. Everything downstream inherited it: lift per unit volume,
+ * skin mass, permeating area, and above all the wetted-area penalty of a lobed
+ * hull, which this project computed as 63 percent and used as its central
+ * argument against hybrid lift. At the corrected coefficient the penalty is 4
+ * to 7 percent against a body of revolution at the same volume, and against one
+ * at the drag-optimum fineness the lobed hull is actually BETTER by about 5
+ * percent. The architecture chapter rejected hybrid lift for a reason that was
+ * an artifact of this constant. It is rejected here for other reasons, which
+ * survive.
+ *
+ * @source Airlander 10's hull, 92 m by 42 m, at the published 38,000 m3.
  */
-const MULTI_LOBE_VOLUME_COEFFICIENT = 0.2585
+const MULTI_LOBE_VOLUME_COEFFICIENT = 0.587
+
+/**
+ * Hard geometric floor on the section fullness of a union of equal circles.
+ *
+ * @derived Both limiting cases, tangent lobes and fully merged lobes, give
+ * exactly pi/4; every intermediate overlap is fuller. A model that produces a
+ * lobed hull below this has a dimension that is not what it claims to be, and
+ * saying so is more useful than quietly accepting it.
+ */
+export const MINIMUM_LOBED_SECTION_FULLNESS = Math.PI / 4
+
+/**
+ * Published dimensions for Airlander 10, which do not agree with each other.
+ *
+ * Recorded rather than resolved, per the project rule. The length is quoted as
+ * 91 m (the HAV 304 / LEMV spec table), 92 m (the German Wikipedia article) and
+ * 98 m (the English one). The beam is quoted as 34 m (again HAV 304), 42 m, 43.5
+ * m, and 50 m as a "wingspan" that is almost certainly fin tip to fin tip. The
+ * 33,285 kg MTOW and the AAIB lift measurement belong to the Airlander 10 set,
+ * so mixing in the HAV 304 numbers, which this module did, describes no vehicle
+ * at all.
+ */
+export const AIRLANDER_DIMENSION_DISCREPANCY = {
+  lengthQuoted: [91, 92, 98],
+  beamQuoted: [34, 42, 43.5, 50],
+  note: 'The smallest of each is the HAV 304 spec table, a different configuration. Taking the smallest silently is the choice that flatters every derived coefficient, which is why this is written down instead.',
+} as const
 
 /** @source A single lobe is a body of revolution: pi/6 for an ellipsoid. */
 const SINGLE_LOBE_VOLUME_COEFFICIENT = Math.PI / 6

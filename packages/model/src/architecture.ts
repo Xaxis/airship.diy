@@ -196,15 +196,25 @@ const CELL_NETTING_AREAL_MASS = 0.06
 /**
  * A lobed hull at the proportions the flying example uses.
  *
- * @source Airlander 10: 50 m of beam and 30 m of height on a 98 m hull, so beam
- * is 0.51 of length and height is 0.31. Taken at 0.5 and 0.25, the height
- * rounded down because the published figure probably includes the fins and the
- * gondola and guessing which part of it is hull is the kind of silent
- * adjustment this repository exists to prevent.
+ * THESE CAME FROM THE SAME BAD TRIPLE AS THE VOLUME COEFFICIENT. "98 m by 50 m
+ * by 30 m" mixes the English Wikipedia length with a WINGSPAN row and a height
+ * that includes the fins and the gondola. The hull itself is about 92 m by 42 m,
+ * and its height follows from the published 38,000 m3 at the corrected volume
+ * coefficient: roughly 17 m, not 30.
+ *
+ * The consequence is not cosmetic. At the old numbers a lobed hull came out with
+ * a 63 percent wetted-area penalty against a body of revolution, and that
+ * penalty was this chapter's central argument against hybrid lift. At the
+ * corrected ones the penalty is a few percent either way depending on which
+ * fineness ratio you compare against. Hybrid lift still loses here, and it loses
+ * on the lift split and on the power at low speed rather than on skin friction.
+ *
+ * @source Airlander 10 hull: 42 m of beam on a 92 m hull is 0.457, and 17 m of
+ * height is 0.185.
  */
-const LOBED_BEAM_FRACTION = 0.5
-/** @source The same Airlander calibration, height over length. */
-const LOBED_HEIGHT_FRACTION = 0.25
+const LOBED_BEAM_FRACTION = 0.457
+/** @source The same Airlander calibration, hull height over length. */
+const LOBED_HEIGHT_FRACTION = 0.185
 
 const lobedHull = (length: number, lobes: number) =>
   liftingBodyGeometry(
