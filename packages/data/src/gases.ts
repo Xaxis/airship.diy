@@ -160,6 +160,17 @@ export const HYDROGEN_STORAGE_DENSITY = under('storage', () => ({
    * the complete storage system. The number that actually enters the mass
    * budget, and the one most often quoted wrongly.
    */
+  /**
+   * The DOE's ULTIMATE target for onboard hydrogen storage, which nobody has
+   * met and which is the ceiling any argument about storage has to respect.
+   */
+  doeUltimateSystemGravimetricFraction: measured(0.065, {
+    unit: '1',
+    source: 'doe-h2-storage-targets',
+    relativeUncertainty: 0,
+    note: 'A TARGET, not an achievement, and it is the number that decides whether an airship can ever stow its own lifting gas: break-even for that needs 6.96 percent, which is above this.',
+  }),
+
   type4SystemGravimetricFraction: measured(0.055, {
     unit: '1',
     source: 'doe-h2-storage-targets',
