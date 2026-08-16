@@ -61,6 +61,19 @@ export {
   lateralWaterResistance,
 } from './marine/boat.js'
 
+export type {
+  HoverCapability,
+  VectoredControl,
+  PropulsorOut,
+} from './propulsion/vectoring.js'
+export {
+  hoverCapability,
+  vectoredControl,
+  propulsorOut,
+  VECTORED_THRUST_REALISATION,
+  DUCT_STATIC_THRUST_GAIN,
+} from './propulsion/vectoring.js'
+
 export type { AlightingGear } from './marine/alighting.js'
 export { alightingGear } from './marine/alighting.js'
 

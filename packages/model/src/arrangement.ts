@@ -17,6 +17,8 @@ import {
   pure,
   solveBeam,
   specificLift,
+  hoverCapability,
+  propulsorOut,
   superheatHeavinessExcursion,
   wingGeometry,
   wingPayloadEnvelope,
@@ -24,7 +26,7 @@ import {
   PROPULSIVE_EFFICIENCY,
 } from '@airship/core'
 import { AKRON_STRUCTURE, barrierFilm, EMPTY_WEIGHT_PER_GAS_VOLUME, v } from '@airship/data'
-import { kg, m, m3, K, rad, kgPerM3 } from '@airship/units'
+import { kg, m, m3, K, rad, kgPerM3, W } from '@airship/units'
 
 import type { Category, Compartment, Configuration, Deck } from './configuration.js'
 import type { DesignPoint } from './design-point.js'
@@ -446,11 +448,19 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
   const GONDOLA_STANDOFF = 1.6
 
   /**
-   * @source The static heaviness the vehicle is trimmed to rest on water at,
-   * kg. Heavy is the safe direction, and 800 kg is enough to stay put in a
-   * chop without being enough to matter to the structure.
+   * The static heaviness the vehicle is trimmed to rest on water at, kg.
+   *
+   * IT USED TO BE 800 AND THAT NUMBER CAME FROM NOWHERE: heavy is the safe
+   * direction, and 800 kg is enough to stay put in a chop. Building the hover
+   * model gave it a real owner. Four ducted propulsors at the installed power
+   * lift about 800 kg, and THREE of them lift 604. A trim the vehicle can only
+   * leave with every propulsor running is a trim that turns one failure into a
+   * vehicle that cannot take off again.
+   *
+   * @source Set by the propulsor-out case rather than by the sea state: the
+   * heaviness three of four units can still lift, rounded down.
    */
-  const LANDING_TRIM = 800
+  const LANDING_TRIM = 600
   /**
    * @source Solar superheat excursion over a day, K. The cells run hotter than
    * ambient in sunlight and cooler at dawn, and this is the swing the marine
@@ -1000,6 +1010,32 @@ export const validateArrangement = (
       staticMargin >= MINIMUM_YAW_STATIC_MARGIN ? 'pass' : staticMargin >= 1 ? 'warn' : 'fail',
     rule: `Fin area at least ${MINIMUM_YAW_STATIC_MARGIN} times the minimum that balances the Munk moment.`,
     detail: `${yawFinArea.toFixed(0)} m2 of VERTICAL fin, half of the ${fins.area.toFixed(0)} m2 cruciform, against a ${minimumFinArea.toFixed(0)} m2 minimum on a ${finArm.toFixed(1)} m arm: a static margin of ${staticMargin.toFixed(2)}. The lift slope is ${finLiftSlope.toFixed(2)} per radian, from an exposed aspect ratio of ${exposedAspectRatio.toFixed(2)} doubled by the hull acting as an end plate and then knocked down ${((1 - TAIL_DYNAMIC_PRESSURE_RATIO) * 100).toFixed(0)} percent for the boundary layer the tail sits in. The Munk moment is certain and the fin effectiveness is not, so the margin is the honest part of this number.`,
+  })
+
+  // ---- can it put itself down and pick itself up again? -------------------
+  const totalPropulsorPower = config.propulsors.reduce((sum, p) => sum + p.ratedPower, 0)
+  const totalDiscArea = config.propulsors.reduce(
+    (sum, p) => sum + (Math.PI * p.diameter ** 2) / 4,
+    0,
+  )
+  const effectiveDiameter = 2 * Math.sqrt(totalDiscArea / config.propulsors.length / Math.PI)
+  const allDucted = config.propulsors.every((p) => p.ducted)
+  /** @source The trim the vehicle rests at, from the mass statement's own basis. */
+  const VERTICAL_LANDING_TRIM = 600
+  const hover = hoverCapability(
+    config.propulsors.length,
+    effectiveDiameter,
+    W(totalPropulsorPower),
+    allDucted,
+    kg(statement.total),
+    VERTICAL_LANDING_TRIM,
+  )
+  const outOne = propulsorOut(config.propulsors.length, hover, VERTICAL_LANDING_TRIM)
+  findings.push({
+    id: 'vertical-landing',
+    severity: outOne.stillLands ? 'pass' : hover.liftsItsTrim ? 'warn' : 'fail',
+    rule: 'The propulsors lift the landing trim with one of them stopped.',
+    detail: `${config.propulsors.length} ${allDucted ? 'ducted ' : ''}propulsors at an effective ${effectiveDiameter.toFixed(1)} m lift ${hover.liftableHeaviness.toFixed(0)} kg on ${(totalPropulsorPower / 1000).toFixed(0)} kW, and ${outOne.remainingHeaviness.toFixed(0)} kg with one stopped, against a ${VERTICAL_LANDING_TRIM} kg landing trim. THE TRIM IS SET BY THIS CASE and not by the sea state: a trim the vehicle can only leave with every propulsor running turns one failure into a vehicle that cannot take off again. Diameter is the whole game, because static thrust goes as the four-thirds power of it at fixed power, and the duct is worth a further factor of two.`,
   })
 
   // ---- habitability ------------------------------------------------------

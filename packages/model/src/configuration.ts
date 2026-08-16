@@ -115,8 +115,26 @@ export interface Propulsor {
   readonly lateralOffset: number
   /** Vertical centre as a fraction of local hull radius. Negative is below. */
   readonly heightFraction: number
-  /** Propeller diameter, m. Sized by the thrust it has to make, not by the hull. */
+  /**
+   * Propeller diameter, m.
+   *
+   * THE ONLY VARIABLE IN THE PROPULSION GROUP THAT MATTERS. Momentum theory
+   * gives static thrust proportional to (rho A P^2)^(1/3), so at fixed power it
+   * goes as the FOUR-THIRDS power of diameter: doubling it is worth 2.5 times
+   * the thrust for the same kilowatt. Nothing else in this object comes close,
+   * and it is sized by the heaviness it has to lift rather than by the hull.
+   */
   readonly diameter: number
+  /**
+   * True when the propulsor runs in a duct.
+   *
+   * Worth a FACTOR OF TWO in static thrust at equal power, because the shroud
+   * carries a suction load of its own and stops the tip vortex contracting the
+   * wake. It costs in cruise, where the duct is wetted area doing nothing, so it
+   * is a hover-versus-endurance trade and this vehicle spends its life in the
+   * second regime. It is taken here because without it nothing lifts the trim.
+   */
+  readonly ducted: boolean
   /** Shaft power, W. */
   readonly ratedPower: number
   /** Vectoring authority, radians either side of horizontal. */
@@ -526,21 +544,23 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       station: 0.45,
       lateralOffset: -1.18,
       heightFraction: -0.42,
-      diameter: 4.6,
+      diameter: 6,
+      ducted: true,
       ratedPower: 22000,
       vectorAuthority: Math.PI / 2,
-      mass: 145,
-      note: 'On an outrigger at the widest station, near the centre of mass, so vectored thrust translates the ship instead of pitching it.',
+      mass: 190,
+      note: 'On an outrigger at the widest station, near the centre of mass, so vectored thrust translates the ship instead of pitching it. GREW FROM 4.6 TO 6 m AND GAINED A DUCT when the hover model was built: at 4.6 m open it lifts 340 kg of heaviness against an 800 kg landing trim, and at 6 m ducted it lifts 851 kg on 66 kW of the 72 installed. The duct is 45 kg of the 190.',
     },
     {
       id: 'starboard-mid',
       station: 0.45,
       lateralOffset: 1.18,
       heightFraction: -0.42,
-      diameter: 4.6,
+      diameter: 6,
+      ducted: true,
       ratedPower: 22000,
       vectorAuthority: Math.PI / 2,
-      mass: 145,
+      mass: 190,
       note: 'Full 90 degree vectoring. Differential thrust across this pair is the only yaw authority that works at zero airspeed, which is every mooring and every water landing.',
     },
     {
@@ -548,10 +568,11 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       station: 0.8,
       lateralOffset: -0.78,
       heightFraction: -0.34,
-      diameter: 3.8,
+      diameter: 5,
+      ducted: true,
       ratedPower: 14000,
       vectorAuthority: Math.PI / 3,
-      mass: 105,
+      mass: 140,
       note: 'Aft pair, ahead of the fins and clear of their wake.',
     },
     {
@@ -559,10 +580,11 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       station: 0.8,
       lateralOffset: 0.78,
       heightFraction: -0.34,
-      diameter: 3.8,
+      diameter: 5,
+      ducted: true,
       ratedPower: 14000,
       vectorAuthority: Math.PI / 3,
-      mass: 105,
+      mass: 140,
     },
   ],
 
