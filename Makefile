@@ -13,7 +13,7 @@ SHELL := /bin/bash
 
 .PHONY: help install build type-check lint test validate report uncertainty \
         prose check check-fast clean web web-build web-lint web-type-check \
-        web-responsive-check \
+        web-responsive-check operations \
         web-check deploy
 
 help: ## List available targets
@@ -59,6 +59,13 @@ report: build ## Headless run of the physics. No browser, no bundler, no test ru
 	@node tools/report-lift.mjs
 	@node tools/report-loop.mjs
 	@node tools/report-mission.mjs
+
+operations: build ## Regenerate docs/OPERATIONS.md from the model
+	# An operating limit is a number the model computes, and a manual that
+	# restates it by hand is a manual that will eventually disagree with the
+	# vehicle. The prose lives in the generator; the numbers come from the same
+	# functions the tests call.
+	@node tools/generate-operations.mjs
 
 uncertainty: build ## Every Uncertain value, sorted by how much it moves endurance
 	# The project's research queue. A value here is one nobody has measured yet,
