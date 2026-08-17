@@ -24,7 +24,7 @@ export const BASELINE: DesignPoint = {
   id: 'baseline',
   name: 'Baseline',
   description:
-    'The working design. 115 m at fineness ratio 5, stationed in the trade wind belt at 2,000 m, holding station against 8 m/s for two thirds of the day and drifting the rest. It grew from 90 m when the arrangement was drawn and the compartments, machinery and array acquired real masses and real positions. It nearly grew again when the array was priced and the 1.2 kg/m2 module it assumed turned out not to exist, the lightest anybody sells being 2.6 once the adhesive is counted. Instead the array shrank: it had been carrying 574 percent of the energy the mission needed, and cutting its coverage from 75 degrees to 32 paid for the heavier modules twice over.',
+    'The working design: a fully buoyant rigid hull at fineness ratio 5, stationed in the trade wind belt at 2,000 m, holding station against 8 m/s for two thirds of the day and drifting the rest. It carries four things a conventional airship does not: outboard wings that carry weight rather than buy efficiency, a retractable centreboard that is what makes boat mode exist at all, a seawater ballast loop that tracks the diurnal superheat swing, and four ducted propulsors large enough to lift the vehicle off the water on its own thrust. The length is not a styling choice, it is where the mass statement closes with a reserve, and it has moved twice: once when the compartments acquired real positions and once when the stores bay was sized for a year of food rather than five months.',
   hull: {
     /**
      * 118 m, and each of the three metres since 115 was bought by something

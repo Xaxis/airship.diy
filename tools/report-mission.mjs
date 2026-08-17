@@ -2,17 +2,21 @@
 //
 // The question the energy balance cannot answer. Energy is not the binding
 // constraint; this finds out what is.
-import { DESIGN_POINTS } from '../packages/model/dist/index.js'
+import { BASELINE_ARRANGEMENT, DESIGN_POINTS, consumables } from '../packages/model/dist/index.js'
 import { integrateMission } from '../packages/solvers/dist/index.js'
 
 const pad = (s, n) => String(s).padEnd(n)
 
-// Stores sized for a nominal 400 days, so the food term is visible rather than
-// exactly coincident with the year.
-const storesFor = (design) => ({
-  food: design.loads.crew * 0.62 * 400,
-  water: 3000,
-  waterCapacity: 4000,
+// READ OFF THE ARRANGEMENT. This tool used to invent its own stores, sized for
+// a nominal 400 days, while the vehicle carried something else. An endurance
+// figure computed from provisions the ship does not have is the worst place in
+// the project for two numbers to mean the same thing, because days aloft is the
+// figure of merit and every other trade is measured against it.
+const aboard = consumables(BASELINE_ARRANGEMENT)
+const storesFor = () => ({
+  food: aboard.food,
+  water: aboard.water,
+  waterCapacity: aboard.waterCapacity,
 })
 
 console.log('\n' + '='.repeat(78))
@@ -20,7 +24,7 @@ console.log('WHICH RESOURCE RUNS OUT FIRST')
 console.log('='.repeat(78))
 
 for (const design of DESIGN_POINTS) {
-  const stores = storesFor(design)
+  const stores = storesFor()
   const result = integrateMission(design, stores, 2200)
 
   console.log('\n%s  (%s)', design.name.toUpperCase(), design.id)
