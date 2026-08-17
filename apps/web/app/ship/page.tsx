@@ -13,8 +13,12 @@ import {
 import { Shell } from '../../components/site/Shell'
 import {
   arrangement,
+  heave,
   hullProfile,
   habitat,
+  navigation,
+  vectoring,
+  wings,
 } from '../../lib/model'
 
 export const metadata = { title: 'The ship' }
@@ -155,6 +159,77 @@ export default function Page() {
       </Section>
 
       <Rule />
+
+      <Section
+        title="The four parts that are not an airship's"
+        lede="A conventional rigid airship is a hull, a keel, a gondola, an engine and a tail. This one has four things that are not on that list, and each of them exists because a number said so rather than because it looked right."
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Callout title={`Wings, ${fmt(wings.span)} m span`}>
+            <p>
+              NOT for efficiency. A wing only makes this vehicle more efficient above{' '}
+              {wings.crossoverSpeed.toFixed(0)} m/s, where it would need{' '}
+              {(wings.crossoverPower / 1000).toFixed(0)} kW against {(72).toFixed(0)} installed.
+              It is for <em>carrying</em>: {fmt(wings.bestPayload)} kg of extra weight at{' '}
+              {wings.bestSpeed.toFixed(0)} m/s on the power the vehicle already has, for{' '}
+              {fmt(wings.mass)} kg of structure.
+            </p>
+            <p>
+              Outboard rather than a fatter hull, because induced drag goes as span{' '}
+              <em>squared</em> and not as area, so area at the extremities is worth about ten times
+              area in the envelope. At the centre of buoyancy, so the lift split can change without
+              a trim excursion. And it costs {(wings.stationPenalty * 100).toFixed(1)} percent of
+              the station-keeping power every hour it is not carrying anything, which is the
+              argument for folding it.
+            </p>
+          </Callout>
+
+          <Callout title={`Centreboard, ${fmt(navigation.centreboardArea)} m²`}>
+            <p>
+              The part that decides whether boat mode exists. Holding a heading and travelling along
+              it are different things: at an angle to the wind the envelope makes an enormous side
+              force and a hull sitting centimetres into the water resists almost none of it.
+            </p>
+            <p>
+              On bare hulls the usable cone from dead upwind is five degrees, because the vehicle
+              points where the fins say and goes where the wind says. At this area it is the whole
+              compass, and no amount of thrust substitutes: the speed through the water is identical
+              either way.
+            </p>
+          </Callout>
+
+          <Callout title="A seawater ballast bladder and a 121 W pump">
+            <p>
+              Twenty kelvin of solar superheat moves the lift by more than two tonnes against a{' '}
+              {fmt(heave.landingTrim)} kg landing trim, so the vehicle takes itself off by
+              mid-afternoon and presses two tonnes onto its gear before dawn. No passive device can
+              be sized for a load that swings by that factor twice a day.
+            </p>
+            <p>
+              A vehicle afloat is sitting on unlimited ballast, and moving water costs about a
+              three-thousandth of what compressing lifting gas does. The bladder tracks the
+              superheat instead of fighting it. It works only afloat: in the air there is nothing to
+              pump from.
+            </p>
+          </Callout>
+
+          <Callout title={`Four ducted propulsors at ${vectoring.diameter.toFixed(1)} m`}>
+            <p>
+              Sized to lift the vehicle&rsquo;s residual heaviness rather than its weight, which on
+              a buoyant ship is a few percent and two orders of magnitude less thrust than a
+              helicopter of the same mass would need. They lift {fmt(vectoring.liftable)} kg on{' '}
+              {(vectoring.powerAtTrim / 1000).toFixed(0)} kW of the{' '}
+              {(vectoring.power / 1000).toFixed(0)} installed.
+            </p>
+            <p>
+              Ducted because the shroud is worth a factor of two in static thrust, and{' '}
+              {vectoring.diameter.toFixed(1)} m because thrust goes as the four-thirds power of
+              diameter and nothing else in the propulsion group comes close. Three of them lift{' '}
+              {fmt(vectoring.outRemaining)} kg, which is what sets the landing trim.
+            </p>
+          </Callout>
+        </div>
+      </Section>
 
       <Section
         title="Living in it"
