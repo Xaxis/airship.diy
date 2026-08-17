@@ -396,6 +396,35 @@ const distributedCentroid = (
  * Everything that does not is read from the arrangement. The split is the whole
  * design of this module.
  */
+/**
+ * The wing, sized and traded, for a given design point and arrangement.
+ *
+ * EXPORTED SO THERE IS ONE OF IT. The mass statement needs it, the site needs
+ * it, and the explorer needs it to stay honest while its sliders move. Three
+ * callers deriving the same wing three ways is how a page ends up disagreeing
+ * with the vehicle it describes, and this one has a specific trap: the span
+ * inside the hull is a spar carry-through rather than a lifting panel, so a
+ * caller that forgets the hull width at the wing station understates the mass
+ * of everything it then concludes.
+ */
+export const wingSizing = (design: DesignPoint, config: Configuration) => {
+  const { length, finenessRatio, prismaticCoefficient } = design.hull
+  const shape = hullShapeForPrismatic(prismaticCoefficient)
+  const geometry = hullGeometry(m(length), finenessRatio, shape)
+  const beamAtWing = 2 * hullRadiusAt(m(length), finenessRatio, config.wingStation, shape)
+
+  const wing = wingGeometry(config.wingSpan, config.wingArea, beamAtWing)
+  const payload = wingPayloadEnvelope(
+    wing,
+    geometry,
+    atmosphere(m(design.mission.altitude)).density,
+    v(COMPLETE_SHIP_DRAG_COEFFICIENT),
+    config.propulsors.reduce((sum, p) => sum + p.ratedPower, 0),
+    v(PROPULSIVE_EFFICIENCY),
+  )
+  return { wing, payload, beamAtWing }
+}
+
 export const massStatement = (design: DesignPoint, config: Configuration): MassStatement => {
   const { length, finenessRatio, prismaticCoefficient, cellCount, filmId } = design.hull
   const shape = hullShapeForPrismatic(prismaticCoefficient)
@@ -474,19 +503,7 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
   // The hull beam at the wing station, because more than half of a modest span
   // on a fat body is fuselage rather than wing, and only the exposed panels
   // have to be built and carried.
-  const wing = wingGeometry(
-    config.wingSpan,
-    config.wingArea,
-    2 * radiusAt(config.wingStation),
-  )
-  const payload = wingPayloadEnvelope(
-    wing,
-    geometry,
-    atmosphere(m(design.mission.altitude)).density,
-    v(COMPLETE_SHIP_DRAG_COEFFICIENT),
-    config.propulsors.reduce((sum, p) => sum + p.ratedPower, 0),
-    v(PROPULSIVE_EFFICIENCY),
-  )
+  const { wing, payload } = wingSizing(design, config)
 
   /**
    * @source Areal mass of a retractable board: a carbon foil, its case, the

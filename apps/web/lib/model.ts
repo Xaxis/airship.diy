@@ -57,6 +57,7 @@ import {
   DESIGN_POINTS,
   BASELINE,
   BASELINE_ARRANGEMENT,
+  wingSizing,
   massStatement,
   validateArrangement,
   finPlanform,
@@ -334,14 +335,17 @@ export const diagnostics = (() => {
   })
 
   const cutoffWind =
-    holdingCurve.find((p) => p.hours < 24)?.wind ??
-    holdingCurve[holdingCurve.length - 1]?.wind ??
-    0
+    holdingCurve.find((p) => p.hours < 24)?.wind ?? holdingCurve[holdingCurve.length - 1]?.wind ?? 0
 
   // --- shear and bending moment along the hull ---------------------------
   // Buoyancy follows cross-sectional AREA; weight follows where the heavy
   // things are. The mismatch is what bends the ship.
-  const stations = crossSectionDistribution(m(design.hull.length), design.hull.finenessRatio, 201, shape)
+  const stations = crossSectionDistribution(
+    m(design.hull.length),
+    design.hull.finenessRatio,
+    201,
+    shape,
+  )
   const buoyancy = buoyancyDistribution(stations, 1.1397)
 
   const width = (i: number) => {
@@ -1204,7 +1208,9 @@ export const navigation = (() => {
   const lateralOffset = Math.max(...propulsors.map((p) => Math.abs(p.lateralOffset))) * maxRadius
   const finSet = {
     verticalArea: fins.area / 2,
-    momentArm: (BASELINE_ARRANGEMENT.finStation - statement.centreOfBuoyancy.x / BASELINE.hull.length) * BASELINE.hull.length,
+    momentArm:
+      (BASELINE_ARRANGEMENT.finStation - statement.centreOfBuoyancy.x / BASELINE.hull.length) *
+      BASELINE.hull.length,
     aspectRatio: fins.span ** 2 / (fins.area / 4),
   }
 
@@ -1276,8 +1282,11 @@ export const wings = (() => {
   /** @source Propulsive efficiency of a large slow propulsor. */
   const ETA = 0.8
 
-  const fitted = wingGeometry(BASELINE_ARRANGEMENT.wingSpan, BASELINE_ARRANGEMENT.wingArea)
-  const envelope = wingPayloadEnvelope(fitted, hull, air.density, HULL_DRAG, power, ETA)
+  // From the MODEL, not re-derived here. The hull is wide at the wing station
+  // and the span inside it is carry-through rather than lifting panel, so a
+  // wing sized without that comes out lighter than the one the mass statement
+  // carries and every conclusion drawn from it is optimistic.
+  const { wing: fitted, payload: envelope } = wingSizing(BASELINE, BASELINE_ARRANGEMENT)
   const trade = wingTrade(
     fitted,
     hull,

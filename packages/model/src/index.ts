@@ -22,6 +22,7 @@ export type {
 export {
   compartmentVolume,
   consumables,
+  wingSizing,
   keelEnvelopeVolume,
   LANDING_TRIM,
   finPlanform,
