@@ -774,7 +774,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
           mesh,
           side < 0 ? 'Port wing' : 'Starboard wing',
           `${span.toFixed(0)} m span · ${area.toFixed(0)} m² · ${mass.toFixed(0)} kg`,
-          `NOT for efficiency: a wing only makes this vehicle more efficient above 34 m/s, where it would need half a megawatt. It is for CARRYING, and it holds up ${payload.toFixed(0)} kg of extra weight at ${payloadSpeed.toFixed(0)} m/s on the power already installed. At the centre of buoyancy so the lift split can change without a trim excursion.`,
+          `NOT for efficiency: there is no speed at which a wing makes this vehicle more efficient, because the trade a wing normally wins is taking weight off something that pays induced drag to carry it, and buoyancy carries the whole weight at zero speed for free. It is for CARRYING, and it holds up ${payload.toFixed(0)} kg of extra weight at ${payloadSpeed.toFixed(0)} m/s on the power already installed. At the centre of buoyancy so the lift split can change without a trim excursion.`,
         )
         tail.add(mesh)
       }

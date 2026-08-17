@@ -24,9 +24,16 @@ import { N } from '@airship/units'
  * do it with wings and not by fattening the envelope. That is settled.
  *
  * WHAT IS NOT SETTLED is whether it should carry any of its weight
- * aerodynamically at all, and the arithmetic is unkind. Hull drag saved by
- * flying lighter grows as v^3 while induced drag falls as 1/v^2, so a crossover
- * must exist, and it does: around 33 to 38 m/s for a realistic wing. At that
+ * aerodynamically at all, and the arithmetic is unkind. Note first that the
+ * question only arises at a REDUCED BUOYANCY RATIO. Fully buoyant, the gas
+ * carries the whole weight at zero speed and for free, so there is no weight
+ * for the wing to take off anything and no crossover exists at any speed: the
+ * wing is pure added drag whenever it is not carrying payload. The trade below
+ * therefore describes a vehicle deliberately flown heavy.
+ *
+ * On that footing: hull drag saved by flying lighter grows as v^3 while induced
+ * drag falls as 1/v^2, so a crossover must exist, and it does: around 33 to 38
+ * m/s for a realistic wing at a buoyancy ratio of 0.7. At that
  * speed the vehicle needs of order 870 kW against an annual-average solar
  * harvest of about 31 kW. The crossover is real and it is outside the
  * powerplant by a factor of nearly thirty. Any transit at a reduced buoyancy

@@ -38,7 +38,8 @@ export default function Page() {
             </p>
             <p className="mt-3 text-sm leading-relaxed text-[var(--color-ink-dim)]">
               What happens instead is that a crest tries to LIFT it. The envelope above is fixed in
-              altitude by 30 tonnes of buoyancy and an enormous added mass, so the whole relative
+              altitude by {fmt(marine.grossLift / 1000)} tonnes of buoyancy and an enormous added
+              mass, so the whole relative
               motion goes into the suspension. A rigid hull is a hydrostatic spring with no ceiling:
               in a 0.3 m sea it feeds{' '}
               {fmt((marine.seakeepingComparison[1]?.rigid.load ?? 0) / 1000)} kN up the cables
@@ -157,7 +158,7 @@ export default function Page() {
 
       <Section
         title="It does not slam, and it does not load its suspension"
-        lede="Every intuition about seakeeping comes from hulls that carry their own weight. This one carries 600 kg of a 26 tonne vehicle and floats on 24 mm of draught, so almost any wave lifts it clear and sets it down again at a speed you could not feel."
+        lede={`Every intuition about seakeeping comes from hulls that carry their own weight. This one carries ${fmt(marine.landingHeaviness)} kg of a ${fmt(marine.totalMass / 1000)} tonne vehicle and floats on ${(heave.draught * 1000).toFixed(0)} mm of draught, so almost any wave lifts it clear and sets it down again at a speed you could not feel.`}
       >
         <DataTable
           head={
@@ -256,7 +257,7 @@ export default function Page() {
               label="Leeway at the beam"
               value={(((navigation.polars[2]?.beamLeeway ?? 0) * 180) / Math.PI).toFixed(0)}
               unit="°"
-              note="It points here and goes 16° downwind of it"
+              note="The angle between where it points and where it goes"
             />
             <Stat
               label="Centreboard"

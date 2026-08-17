@@ -730,6 +730,7 @@ export const marine = (() => {
     },
     landingHeaviness,
     totalMass: statement.total,
+    grossLift: statement.grossLift,
     envelopeVolume: statement.gasVolume,
 
     // The EQUIVALENT FLAT-PLATE areas, which are the numbers that decide

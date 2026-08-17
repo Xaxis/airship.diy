@@ -167,9 +167,23 @@ export default function Page() {
         <div className="grid gap-4 lg:grid-cols-2">
           <Callout title={`Wings, ${fmt(wings.span)} m span`}>
             <p>
-              NOT for efficiency. A wing only makes this vehicle more efficient above{' '}
-              {wings.crossoverSpeed.toFixed(0)} m/s, where it would need{' '}
-              {(wings.crossoverPower / 1000).toFixed(0)} kW against {(72).toFixed(0)} installed.
+              NOT for efficiency.{' '}
+              {wings.crossoverExists ? (
+                <>
+                  A wing only makes this vehicle more efficient above{' '}
+                  {wings.crossoverSpeed.toFixed(0)} m/s, where it would need{' '}
+                  {(wings.crossoverPower / 1000).toFixed(0)} kW against{' '}
+                  {(vectoring.power / 1000).toFixed(0)} installed.
+                </>
+              ) : (
+                <>
+                  There is no speed at which it does. The trade a wing normally wins is taking
+                  weight off something that pays induced drag to carry it, and buoyancy does not:
+                  the gas carries the whole weight at zero speed and for free. So the wing adds
+                  profile and induced drag at every airspeed and takes nothing away, and no
+                  crossover exists at any speed the vehicle could reach.
+                </>
+              )}{' '}
               It is for <em>carrying</em>: {fmt(wings.bestPayload)} kg of extra weight at{' '}
               {wings.bestSpeed.toFixed(0)} m/s on the power the vehicle already has, for{' '}
               {fmt(wings.mass)} kg of structure.
