@@ -1240,6 +1240,8 @@ export interface HullGirderLoads {
   readonly staticStation: number
   readonly hogging: boolean
   readonly maximumShear: number
+  /** Station the shear peaks at, m. */
+  readonly maximumShearStation: number
   /** The gust case, which is what actually sizes the girder, N m. */
   readonly gustMoment: number
   /** Incidence the gust puts on the hull, radians. */
@@ -1376,6 +1378,7 @@ export const hullBendingMoment = (design: DesignPoint, config: Configuration): H
     staticStation: beam.maximumMomentStation,
     hogging: beam.hogging,
     maximumShear: Math.abs(beam.maximumShear),
+    maximumShearStation: beam.maximumShearStation as number,
     gustMoment,
     gustIncidence,
     designMoment,
