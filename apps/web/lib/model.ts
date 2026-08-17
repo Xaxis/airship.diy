@@ -3,6 +3,7 @@ import {
   STRUCTURAL_FLEET,
   STRUCTURAL_SCALING,
   SEA_STATE,
+  HABITABILITY,
   barrierFilm,
   allUncertain,
   v,
@@ -1041,6 +1042,11 @@ export const habitat = (() => {
         })),
       }
     }),
+    // The WORST room, not the first one. A habitat is as tall as its lowest
+    // deckhead, and the room that fails is never the one at the top of a list.
+    minimumHeadroom: Math.min(...assessment.rooms.map((r) => r.headroom)),
+    /** The floor a year of occupancy needs, m. IMO A.1047 for accommodation. */
+    headroomStandard: v(HABITABILITY.minimumHeadroom),
     totalFloorArea: assessment.totalFloorArea,
     totalStowage: assessment.totalStowage,
     totalFitoutMass: assessment.totalFitoutMass,

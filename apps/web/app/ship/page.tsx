@@ -248,11 +248,11 @@ export default function Page() {
               />
               <Stat label="Stowage" value={habitat.totalStowage.toFixed(1)} unit="m³" />
               <Stat
-                label="Headroom"
-                value={fmt(habitat.rooms[0] ? habitat.rooms[0].headroom * 1000 : 0)}
+                label="Headroom, lowest room"
+                value={fmt(habitat.minimumHeadroom * 1000)}
                 unit="mm"
-                note="1,900 to stand up in"
-                tone={habitat.rooms[0] && habitat.rooms[0].headroom >= 1.9 ? 'pass' : 'fail'}
+                note={`${fmt(habitat.headroomStandard * 1000)} is the MLC floor for a year aboard`}
+                tone={habitat.minimumHeadroom >= habitat.headroomStandard ? 'pass' : 'fail'}
               />
               <Stat
                 label="Fitout"
