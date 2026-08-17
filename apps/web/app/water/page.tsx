@@ -13,12 +13,7 @@ import {
   pct,
 } from '../../components/site/primitives'
 import { Shell } from '../../components/site/Shell'
-import {
-  heave,
-  hullProfile,
-  marine,
-  navigation,
-} from '../../lib/model'
+import { build, heave, hullProfile, marine, navigation } from '../../lib/model'
 
 export const metadata = { title: 'Water' }
 
@@ -27,7 +22,7 @@ export default function Page() {
     <Shell href="/water">
       <Section
         title="Land it on water"
-        lede="Flotation is trivial and it is not the problem. The load resting on the water is the STATIC HEAVINESS, not the weight: trimmed 800 kg heavy this vehicle displaces 0.8 m³ under a 31,657 m³ envelope. It is a cork with a 115 m sail on it, and every consequence is the opposite of boat intuition."
+        lede={`Flotation is trivial and it is not the problem. The load resting on the water is the STATIC HEAVINESS, not the weight: trimmed ${fmt(marine.landingHeaviness)} kg heavy this vehicle displaces ${(marine.landingHeaviness / 1025).toFixed(2)} m³ under a ${fmt(marine.envelopeVolume)} m³ envelope. It is a cork with a ${fmt(hullProfile.length)} m sail on it, and every consequence is the opposite of boat intuition.`}
       >
         <div className="border border-[var(--color-rule)] bg-[var(--color-panel)]">
           <MarineSimulator data={marine} radii={hullProfile.radii} length={hullProfile.length} />
@@ -241,7 +236,7 @@ export default function Page() {
 
       <Section
         title="Where it can actually go"
-        lede="Everyone answers this with the side area: 2,300 m² of sail against a few tonnes of displacement, so obviously it cannot make way. That reasoning is wrong by a factor of fifty. BOW ON THE HULL IS NOT A SAIL: the complete vehicle's drag coefficient is 0.045 on volume to the two thirds, an equivalent area of 46 m². Beam-on it is 1,851. The vehicle that cannot make way is the one lying across the wind, and one with enough tail never is."
+        lede={`Everyone answers this with the side area: ${fmt(build.handling.sideArea)} m² of sail against a few tonnes of displacement, so obviously it cannot make way. That reasoning is wrong by a factor of ${(marine.beamOnEquivalentArea / marine.bowOnEquivalentArea).toFixed(0)}. BOW ON THE HULL IS NOT A SAIL: the complete vehicle's drag coefficient is 0.045 on volume to the two thirds, an equivalent area of ${fmt(marine.bowOnEquivalentArea)} m². Beam-on it is ${fmt(marine.beamOnEquivalentArea)}. The vehicle that cannot make way is the one lying across the wind, and one with enough tail never is.`}
       >
         <NavigationPolar
           polars={navigation.polars}

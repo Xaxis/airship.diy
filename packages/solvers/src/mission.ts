@@ -34,13 +34,15 @@ import { energyBalance } from './energy-balance.js'
  * the same kilogram twice, which is exactly the error that makes closed-loop
  * schemes look feasible on paper.
  *
- * AND HAVING BUILT THE LEDGER, THE ANSWER IS THAT WATER DOES NOT BIND. A 90 m
- * hull presents about 1,170 m2 of plan area to the rain. In a trade wind belt
- * at a metre of annual rainfall, even a poor 40 percent collection efficiency
- * gathers well over a tonne a day, against a net loss of about nine kilograms a
- * day for two people at 85 percent recycling. Catchment exceeds net loss by more
- * than a hundred times, and at the most pessimistic end of every assumption it
- * still exceeds it by more than fifteen.
+ * AND HAVING BUILT THE LEDGER, THE ANSWER IS THAT WATER DOES NOT BIND. The
+ * hull's plan area is the catchment, and it is enormous because the hull is:
+ * plan area goes as length squared over the fineness ratio while the crew's
+ * demand does not scale at all. In a trade wind belt at a metre of annual
+ * rainfall, even a poor collection efficiency gathers well over a tonne a day
+ * against a net loss of single-figure kilograms for two people at 85 percent
+ * recycling. Catchment exceeds net loss by more than a hundred times, and at
+ * the most pessimistic end of every assumption it still exceeds it by more than
+ * fifteen.
  *
  * The vehicle is water-RICH, not water-poor. Ballast is free, electrolyzer
  * feedstock is free, and the hygiene allowance that looked like the largest
@@ -97,6 +99,8 @@ export interface MissionResult {
   readonly waterBalance: {
     readonly dailyConsumption: number
     readonly dailyRecovered: number
+    /** Plan area the hull presents to the rain, m2. */
+    readonly planArea: number
     readonly dailyCatchment: number
     readonly dailyNet: number
     /** How many times over catchment covers the net loss. */
@@ -261,6 +265,7 @@ export const integrateMission = (
   const waterBalance = {
     dailyConsumption,
     dailyRecovered: recovered,
+    planArea,
     dailyCatchment,
     dailyNet: dailyCatchment - netLoss,
     catchmentMargin: netLoss > 0 ? dailyCatchment / netLoss : Infinity,

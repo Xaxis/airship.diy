@@ -58,6 +58,7 @@ import {
   DESIGN_POINTS,
   BASELINE,
   BASELINE_ARRANGEMENT,
+  LANDING_TRIM,
   wingSizing,
   massStatement,
   validateArrangement,
@@ -577,6 +578,11 @@ export const arrangement = (() => {
  */
 export const marine = (() => {
   const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+  const marineHull = hullGeometry(
+    m(BASELINE.hull.length),
+    BASELINE.hull.finenessRatio,
+    hullShapeForPrismatic(BASELINE.hull.prismaticCoefficient),
+  )
   const gondola = BASELINE_ARRANGEMENT.compartments.find((c) => c.id === 'gondola-structure')
   if (!gondola) throw new Error('The arrangement has no gondola to float on.')
 
@@ -591,20 +597,29 @@ export const marine = (() => {
   const ventArea = reliefVentArea(2, 0.4, reliefPressure)
   const heaveInertia = effectiveHeaveInertia(kg(statement.total), statement.gasVolume)
 
-  /**
-   * Static thrust of the four propulsors by momentum theory.
-   *
-   * @derived T = (2 * rho * A)^(1/3) * P^(2/3), the ideal actuator disc result.
-   * A real propeller reaches about 80 percent of it, and that factor is applied.
-   */
-  const staticThrust = BASELINE_ARRANGEMENT.propulsors.reduce((sum, p) => {
-    const area = Math.PI * (p.diameter / 2) ** 2
-    const ideal = Math.cbrt(2 * 1.225 * area) * Math.pow(p.ratedPower, 2 / 3)
-    return sum + ideal * 0.8
-  }, 0)
+  // Static thrust from hoverCapability, NOT re-derived here. This used to apply
+  // its own 0.8 realisation factor to the ideal actuator-disc result, which is
+  // the figure momentum theory promises and not the one certified airship
+  // installations achieve. The measured realisation is 0.37, and a duct is
+  // worth a factor of two on top; assuming 0.8 open flatters every marine
+  // number downstream of it.
+  const marinePropulsors = BASELINE_ARRANGEMENT.propulsors
+  const marineDiscArea = marinePropulsors.reduce(
+    (sum, p) => sum + (Math.PI * p.diameter ** 2) / 4,
+    0,
+  )
+  const staticThrust = hoverCapability(
+    marinePropulsors.length,
+    2 * Math.sqrt(marineDiscArea / marinePropulsors.length / Math.PI),
+    W(marinePropulsors.reduce((sum, p) => sum + p.ratedPower, 0)),
+    marinePropulsors.every((p) => p.ducted),
+    kg(statement.total),
+    LANDING_TRIM,
+  ).staticThrust
 
-  /** The trim the ship lands at: deliberately heavy, so it stays put. */
-  const landingHeaviness = 800
+  // The trim the ship lands at, from the model. It is set by what THREE of the
+  // four propulsors can lift, so it is not free to differ between pages.
+  const landingHeaviness = LANDING_TRIM
 
   const rigid = { kind: 'rigid' as const, waterplaneArea }
   const sealed = {
@@ -649,6 +664,16 @@ export const marine = (() => {
     landingHeaviness,
     totalMass: statement.total,
     envelopeVolume: statement.gasVolume,
+
+    // The EQUIVALENT FLAT-PLATE areas, which are the numbers that decide
+    // whether this thing can make way. Everybody reaches for the side area and
+    // concludes it cannot, and the side area is the wrong quantity: a hull
+    // bow-on is a streamlined body, not a sail.
+    // Referenced on the HULL's displaced volume, which is what the coefficients
+    // are defined against, not on the gas volume. The cells do not fill the
+    // hull and the two differ by more than a thousand cubic metres.
+    bowOnEquivalentArea: DRAG_COEFFICIENT_BOW_ON * marineHull.volume ** (2 / 3),
+    beamOnEquivalentArea: SIDE_FORCE_COEFFICIENT_BEAM_ON * marineHull.volume ** (2 / 3),
     hullSpeed: hullSpeed(m(waterlineLength)),
     porpoisingSpeed: porpoisingSpeed(m(waterlineLength)),
 
@@ -966,6 +991,7 @@ export const systems = (() => {
   const waterInputs = {
     dailyConsumption: w.dailyConsumption,
     dailyRecovered: w.dailyRecovered,
+    planArea: w.planArea,
     dailyCatchment: w.dailyCatchment,
     fuelCellProduct: waterCirculated,
     electrolyzerDemand: waterCirculated,
@@ -1182,14 +1208,6 @@ export const failure = (() => {
  * reachable is not power at all: it is the immersed lateral area, and the
  * sensitivity to it is brutal and then it saturates.
  */
-/**
- * @source The static heaviness the vehicle rests on water at, kg. Set by the
- * propulsor-out case: three of four units lift 604 kg, and a trim the vehicle
- * can only leave with every propulsor running turns one failure into a vehicle
- * that cannot take off again.
- */
-const LANDING_TRIM = 600
-
 export const navigation = (() => {
   const shape = hullShapeForPrismatic(BASELINE.hull.prismaticCoefficient)
   const hull = hullGeometry(m(BASELINE.hull.length), BASELINE.hull.finenessRatio, shape)

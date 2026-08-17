@@ -429,7 +429,7 @@ export function MarineSimulator({ data, radii, length }: MarineSimulatorProps) {
       const width = container.clientWidth || 1
       const height = container.clientHeight || 1
       camera.aspect = width / height
-      // Far enough back that the whole 115 m hull fits across the frame: the
+      // Far enough back that the whole hull fits across the frame: the
       // ship is what gives the sea its scale, and a cropped hull gives none.
       camera.position.set(length * 0.7, cameraTargetY + maxRadius * 0.5, length * 0.92)
       camera.lookAt(0, cameraTargetY, 0)

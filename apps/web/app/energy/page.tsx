@@ -307,8 +307,9 @@ export default function Page() {
         <div className="mt-6 border-l-2 border-[var(--color-pass)] bg-[var(--color-panel)] p-5">
           <h3 className="font-medium">Water was expected to bind. It does not.</h3>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
-            A 90 m hull presents about 1,170 m² of plan area to the rain. In the trade wind belt at a
-            metre of annual rainfall, even a poor 40 percent collection efficiency gathers{' '}
+            The hull presents {fmt(mission.water.planArea)} m² of plan area to the rain, and that
+            area grows with the ship while two people&rsquo;s demand does not. In the trade wind belt
+            at a metre of annual rainfall, even a poor 40 percent collection efficiency gathers{' '}
             <span className="num text-[var(--color-ink)]">
               {fmt(mission.water.dailyCatchment)} kg/day
             </span>{' '}

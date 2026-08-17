@@ -1022,7 +1022,7 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     // across where a body of revolution is 23, and a camera distance tuned for
     // one crops the other in half.
     // The bounding diagonal, not the length: seen from three-quarters on, a
-    // 115 by 57 m lobed hull projects wider than a 115 m body of revolution
+    // lobed hull projects wider than the body of revolution of the same length
     // does, and a distance tuned for one crops the other in half.
     const span = Math.hypot(length, variant.beam) * 1.05
 
