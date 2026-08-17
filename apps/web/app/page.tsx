@@ -3,7 +3,15 @@ import Link from 'next/link'
 import { ArrangementViewer } from '../components/ArrangementViewer'
 import { Callout, Prose, Stat, StatGrid, fmt, pct } from '../components/site/primitives'
 import { ROUTES } from '../lib/routes'
-import { arrangement, baseline, build, heave, hullProfile, marine, mission } from '../lib/model'
+import {
+  arrangement,
+  ballast,
+  baseline,
+  build,
+  hullProfile,
+  marine,
+  mission,
+} from '../lib/model'
 
 /**
  * The landing page.
@@ -99,16 +107,17 @@ export default function Home() {
           </Callout>
           <Callout title="The ocean is the ballast" tone="pass">
             <p>
-              Twenty kelvin of superheat moves lift by more than two tonnes against a{' '}
-              {fmt(heave.landingTrim)} kg landing trim. The vehicle takes itself off by mid-afternoon
-              and presses two tonnes onto its gear before dawn, and no passive device can be sized
-              for a load that swings by that factor twice a day.
+              {ballast.superheat} kelvin of superheat moves lift by {fmt(ballast.excursion)} kg
+              against a {fmt(ballast.landingTrim)} kg landing trim. The vehicle takes itself off by
+              mid-afternoon and presses that onto its gear before dawn, and no passive device can be
+              sized for a load that swings by {(ballast.excursion / ballast.landingTrim).toFixed(1)}{' '}
+              times the trim, twice a day.
             </p>
             <p>
               A vehicle afloat is sitting on unlimited ballast, and moving water costs about a
-              three-thousandth of what compressing lifting gas does. A 2.4 m&sup3; bladder and a
-              121 W pump track the swing, which is the cheapest fix in the design and closed the
-              last gate that was failing.
+              three-thousandth of what compressing lifting gas does. A {ballast.tankVolume.toFixed(1)}{' '}
+              m&sup3; bladder and a {ballast.pumpPower.toFixed(0)} W pump track the swing, which is
+              the cheapest fix in the design and closed the last gate that was failing.
             </p>
           </Callout>
           <Callout title="The building costs more than the airship" tone="fail">

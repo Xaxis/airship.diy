@@ -145,8 +145,7 @@ export const LANDING_TRIM = 600
  * the figure of merit.
  */
 export const consumables = (config: Configuration) => {
-  const massOf = (id: string): number =>
-    config.compartments.find((c) => c.id === id)?.mass ?? 0
+  const massOf = (id: string): number => config.compartments.find((c) => c.id === id)?.mass ?? 0
   const water = config.compartments
     .filter((c) => c.id.startsWith('water-'))
     .reduce((sum, c) => sum + c.mass, 0)
@@ -291,9 +290,8 @@ export interface MassStatement {
  * passed by making the ship bigger rather than by arranging it, which is
  * exactly backwards.
  */
-export const compartmentVolume = (
-  c: Pick<Compartment, 'width' | 'height' | 'extent'>,
-): number => c.width * c.height * c.extent
+export const compartmentVolume = (c: Pick<Compartment, 'width' | 'height' | 'extent'>): number =>
+  c.width * c.height * c.extent
 
 /**
  * Vertical centre of a compartment, m from the hull axis. Negative is below.
@@ -341,7 +339,14 @@ export const finPlanform = (design: DesignPoint, config: Configuration): FinPlan
   const span = config.finSpanFraction * (length / finenessRatio / 2)
   /** @derived Trapezoid area, four surfaces in a cruciform tail. */
   const area = 4 * 0.5 * (rootChord + tipChord) * span
-  return { rootChord, tipChord, span, area, station: config.finStation, mass: area * FIN_AREAL_MASS }
+  return {
+    rootChord,
+    tipChord,
+    span,
+    area,
+    station: config.finStation,
+    mass: area * FIN_AREAL_MASS,
+  }
 }
 
 /**
@@ -516,7 +521,6 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
 
   /** @derived Vertical standoff of the gondola underside below the hull, m. */
   const GONDOLA_STANDOFF = 1.6
-
 
   /**
    * @source Solar superheat excursion over a day, K. The cells run hotter than
@@ -933,13 +937,8 @@ export const validateArrangement = (
   })
 
   // ---- the keel has to actually contain what is in it -------------------
-  const keelBays = config.compartments.filter(
-    (c) => c.deck === 'keel' && c.id !== 'keel-structure',
-  )
-  const bayVolume = keelBays.reduce(
-    (s, c) => s + compartmentVolume(c),
-    0,
-  )
+  const keelBays = config.compartments.filter((c) => c.deck === 'keel' && c.id !== 'keel-structure')
+  const bayVolume = keelBays.reduce((s, c) => s + compartmentVolume(c), 0)
   const overflowing = keelBays.filter(
     (c) =>
       c.station - c.extent / 2 / length < config.keelForward ||
@@ -1043,8 +1042,7 @@ export const validateArrangement = (
    */
   const TAIL_DYNAMIC_PRESSURE_RATIO = 0.85
   const finLiftSlope =
-    ((2 * Math.PI * effectiveAspectRatio) /
-      (2 + Math.sqrt(effectiveAspectRatio ** 2 + 4))) *
+    ((2 * Math.PI * effectiveAspectRatio) / (2 + Math.sqrt(effectiveAspectRatio ** 2 + 4))) *
     TAIL_DYNAMIC_PRESSURE_RATIO
 
   const minimumFinArea =
@@ -1158,9 +1156,7 @@ export const validateArrangement = (
   })
 
   const propellerTipRadius = Math.max(
-    ...config.propulsors.map(
-      (p) => Math.abs(p.lateralOffset) * maxRadius + p.diameter / 2,
-    ),
+    ...config.propulsors.map((p) => Math.abs(p.lateralOffset) * maxRadius + p.diameter / 2),
   )
   const clearance = propellerTipRadius - maxRadius
   findings.push({
@@ -1217,7 +1213,6 @@ export const smallestClosingLength = (
   return high
 }
 
-
 // --------------------------------------------------------------------------
 // The hull girder, loaded by the arrangement rather than by a guess
 // --------------------------------------------------------------------------
@@ -1251,6 +1246,24 @@ export interface HullGirderLoads {
   readonly gustIncidence: number
   /** The larger of the two, for anything that needs a design moment. */
   readonly designMoment: number
+  /**
+   * Shear and moment along the hull, so a diagram of them can be drawn from
+   * the same solve that produced the scalars above rather than from a second
+   * one with its own point loads.
+   */
+  readonly distribution: readonly {
+    readonly x: number
+    readonly shear: number
+    readonly moment: number
+    readonly buoyancy: number
+    readonly weight: number
+  }[]
+  /** The discrete masses hung on the girder, for labelling the diagram. */
+  readonly pointLoads: readonly {
+    readonly name: string
+    readonly x: number
+    readonly mass: number
+  }[]
   readonly note: string
 }
 
@@ -1270,10 +1283,7 @@ export interface HullGirderLoads {
  */
 const DESIGN_GUST = 7.5
 
-export const hullBendingMoment = (
-  design: DesignPoint,
-  config: Configuration,
-): HullGirderLoads => {
+export const hullBendingMoment = (design: DesignPoint, config: Configuration): HullGirderLoads => {
   const { length, finenessRatio, prismaticCoefficient } = design.hull
   const shape = hullShapeForPrismatic(prismaticCoefficient)
   const statement = massStatement(design, config)
@@ -1369,6 +1379,14 @@ export const hullBendingMoment = (
     gustMoment,
     gustIncidence,
     designMoment,
+    distribution: beam.stations.map((station, i) => ({
+      x: station.x as number,
+      shear: station.shear as number,
+      moment: station.moment as number,
+      buoyancy: loads[i]?.buoyancy ?? 0,
+      weight: loads[i]?.weight ?? 0,
+    })),
+    pointLoads: pointLoads.map((p) => ({ name: p.name, x: p.x as number, mass: p.mass })),
     note:
       gustMoment > Math.abs(beam.maximumMoment)
         ? `The static case is ${(Math.abs(beam.maximumMoment) / MN).toFixed(2)} MN m and the gust case is ${(gustMoment / MN).toFixed(2)} MN m, so the gust sizes the girder. A ${DESIGN_GUST} m/s vertical gust at ${design.mission.stationKeepingWind} m/s of forward speed is ${((gustIncidence * 180) / Math.PI).toFixed(0)} degrees of incidence, and the Munk moment peaks at 45. An airship's gust case gets WORSE as it slows down, which is the reverse of an aeroplane's and is why station-keeping is the structural design condition.`

@@ -77,6 +77,20 @@ export default tseslint.config(
     },
   },
 
+  // THE WEB BRIDGE IS PHYSICS-ADJACENT AND GETS THE SAME RULE. apps/web/lib is
+  // where the site's numbers come from, and its job is to READ the model rather
+  // than to have opinions of its own. Left unchecked it accumulated a second
+  // landing trim, a third static-thrust calculation with its own realisation
+  // factor, and a hand-written drag coefficient, each of which quietly
+  // disagreed with the model the same page claimed to be reporting.
+  {
+    files: ['apps/web/lib/**/*.ts'],
+    plugins: { airship },
+    rules: {
+      'airship/no-uncited-constant': 'error',
+    },
+  },
+
   // The named design points and the arrangement are the two places numbers are
   // CHOICES rather than measurements. "90 m hull" is not a fact about the world
   // that could have a source; it is a decision, and the sizing sweep exists to

@@ -81,7 +81,8 @@ const ticksFor = (min: number, max: number, count = 4): number[] => {
  * precision change means anything.
  */
 const tickFormatter = (ticks: readonly number[]) => {
-  const step = ticks.length > 1 ? Math.abs((ticks[1] ?? 0) - (ticks[0] ?? 0)) : Math.abs(ticks[0] ?? 1)
+  const step =
+    ticks.length > 1 ? Math.abs((ticks[1] ?? 0) - (ticks[0] ?? 0)) : Math.abs(ticks[0] ?? 1)
   const magnitude = Math.max(...ticks.map(Math.abs), Math.abs(step))
 
   if (magnitude >= 1e6) return (n: number) => `${(n / 1e6).toFixed(step >= 1e6 ? 0 : 1)}M`
@@ -232,7 +233,14 @@ function LineChart({
         <path d={areaPath} fill={colour} opacity={0.1} />
       ) : null}
 
-      <path d={path} fill="none" stroke={colour} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <path
+        d={path}
+        fill="none"
+        stroke={colour}
+        strokeWidth={2}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
 
       {/* Sparing direct labels: only the points that carry the story.
           A label that will not fit is FLIPPED to the other side of its marker
@@ -261,7 +269,14 @@ function LineChart({
               strokeWidth={1}
               opacity={0.5}
             />
-            <circle cx={px(point.x)} cy={py(point.y)} r={4} fill={colour} stroke={SURFACE} strokeWidth={2} />
+            <circle
+              cx={px(point.x)}
+              cy={py(point.y)}
+              r={4}
+              fill={colour}
+              stroke={SURFACE}
+              strokeWidth={2}
+            />
             <text
               x={flip ? px(point.x) - 8 : px(point.x) + 8}
               y={labelY}
@@ -287,7 +302,14 @@ function LineChart({
             stroke={INK_DIM}
             strokeWidth={1}
           />
-          <circle cx={px(hover.x)} cy={py(hover.y)} r={4} fill={colour} stroke={SURFACE} strokeWidth={2} />
+          <circle
+            cx={px(hover.x)}
+            cy={py(hover.y)}
+            r={4}
+            fill={colour}
+            stroke={SURFACE}
+            strokeWidth={2}
+          />
           <text
             x={Math.min(px(hover.x) + 10, FRAME.width - 150)}
             y={FRAME.padTop + 14}
@@ -342,12 +364,37 @@ export interface DiagnosticsProps {
   readonly hullLength: number
   readonly beam: {
     readonly stations: readonly { x: number; shear: number; moment: number }[]
+    readonly pointLoads: readonly { name: string; x: number; mass: number }[]
     readonly maximumMoment: number
     readonly maximumMomentStation: number
     readonly maximumShear: number
     readonly maximumShearStation: number
     readonly hogging: boolean
+    readonly gustMoment: number
+    readonly gustIncidence: number
+    readonly designMoment: number
+    readonly note: string
   }
+}
+
+function Figure({
+  label,
+  value,
+  note,
+}: {
+  readonly label: string
+  readonly value: string
+  readonly note: string
+}) {
+  return (
+    <div className="border border-[var(--color-rule)] bg-[var(--color-panel)] p-3">
+      <div className="text-[11px] uppercase tracking-wider text-[var(--color-ink-faint)]">
+        {label}
+      </div>
+      <div className="num mt-1 text-lg text-[var(--color-ink)]">{value}</div>
+      <div className="mt-1 text-[11px] text-[var(--color-ink-faint)]">{note}</div>
+    </div>
+  )
 }
 
 export function Diagnostics({
@@ -385,13 +432,15 @@ export function Diagnostics({
           yLabel="hours/day"
           colour={ACCENT}
           format={(p) => `${p.x.toFixed(1)} m/s → ${p.y.toFixed(1)} h/day`}
-          markers={[{ x: cutoffWind, label: `${cutoffWind.toFixed(1)} m/s: below this it holds all day` }]}
+          markers={[
+            { x: cutoffWind, label: `${cutoffWind.toFixed(1)} m/s: below this it holds all day` },
+          ]}
         />
       </Panel>
 
       <Panel
         title="Shear force along the hull"
-        lede="Buoyancy is distributed in proportion to cross-sectional area and weight is distributed wherever the heavy things are. Those two do not match, and the running difference is shear. The steps are the gondola, the engines and the fin roots."
+        lede={`Buoyancy is distributed in proportion to cross-sectional area and weight is distributed wherever the heavy things are. Those two do not match, and the running difference is shear. Every step is a real item: the arrangement hangs ${beam.pointLoads.length} discrete masses on this girder, and the ship is trimmed with water to neutral buoyancy before it is loaded, because the lift margin is not spare capacity in flight.`}
       >
         <LineChart
           points={beam.stations.map((s) => ({ x: s.x, y: s.shear / 1000 }))}
@@ -411,7 +460,7 @@ export function Diagnostics({
 
       <Panel
         title="Bending moment along the hull"
-        lede="The primary structural output, and what every laminate schedule downstream gets sized against. Warm above the line is hogging, ends down and middle up; cool below is sagging. This ship does both: it hogs forward of the gondola and sags aft of it, and it does so in still air at exact global equilibrium, because buoyancy and weight are never distributed the same way."
+        lede="Warm above the line is hogging, ends down and middle up; cool below is sagging. This ship does both, in still air at exact global equilibrium, because buoyancy and weight are never distributed the same way. But the still-air case is NOT what sizes the girder, and the panel below says what does."
       >
         <LineChart
           points={beam.stations.map((s) => ({ x: s.x, y: s.moment / 1e6 }))}
@@ -438,6 +487,34 @@ export function Diagnostics({
             },
           ]}
         />
+      </Panel>
+
+      <Panel
+        title="What actually sizes the girder"
+        lede="An aeroplane's gust case gets worse as it flies faster. An airship's gets worse as it SLOWS, because the load is the Munk moment and incidence from a vertical gust is atan(w/V). This vehicle spends its life at station-keeping speed, which is the worst place to be."
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Figure
+            label="Still air"
+            value={`${(beam.maximumMoment / 1e6).toFixed(2)} MN·m`}
+            note={beam.hogging ? 'hogging' : 'sagging'}
+          />
+          <Figure
+            label="Gust"
+            value={`${(beam.gustMoment / 1e6).toFixed(2)} MN·m`}
+            note={`${((beam.gustIncidence * 180) / Math.PI).toFixed(0)}° of incidence`}
+          />
+          <Figure
+            label="Design moment"
+            value={`${(beam.designMoment / 1e6).toFixed(2)} MN·m`}
+            note={
+              beam.gustMoment > beam.maximumMoment ? 'the gust governs' : 'the static case governs'
+            }
+          />
+        </div>
+        <p className="mt-4 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+          {beam.note}
+        </p>
       </Panel>
     </div>
   )

@@ -13,7 +13,7 @@ import {
 import { Shell } from '../../components/site/Shell'
 import {
   arrangement,
-  heave,
+  ballast,
   hullProfile,
   habitat,
   navigation,
@@ -198,18 +198,22 @@ export default function Page() {
             </p>
           </Callout>
 
-          <Callout title="A seawater ballast bladder and a 121 W pump">
+          <Callout
+            title={`A ${ballast.tankVolume.toFixed(1)} m³ seawater bladder and a ${ballast.pumpPower.toFixed(0)} W pump`}
+          >
             <p>
-              Twenty kelvin of solar superheat moves the lift by more than two tonnes against a{' '}
-              {fmt(heave.landingTrim)} kg landing trim, so the vehicle takes itself off by
-              mid-afternoon and presses two tonnes onto its gear before dawn. No passive device can
-              be sized for a load that swings by that factor twice a day.
+              {ballast.superheat} kelvin of solar superheat moves the lift by{' '}
+              {fmt(ballast.excursion)} kg against a {fmt(ballast.landingTrim)} kg landing trim, so
+              the vehicle takes itself off by mid-afternoon and presses that onto its gear before
+              dawn. No passive device can be sized for a load that swings by{' '}
+              {(ballast.excursion / ballast.landingTrim).toFixed(1)} times the trim, twice a day.
             </p>
             <p>
               A vehicle afloat is sitting on unlimited ballast, and moving water costs about a
-              three-thousandth of what compressing lifting gas does. The bladder tracks the
-              superheat instead of fighting it. It works only afloat: in the air there is nothing to
-              pump from.
+              three-thousandth of what compressing lifting gas does. The pump moves{' '}
+              {ballast.transferRate.toFixed(0)} kg a minute for {pct(ballast.shareOfHabitatLoad, 2)}{' '}
+              of what the habitat draws in a day, and it tracks the superheat instead of fighting
+              it. It works only afloat: in the air there is nothing to pump from.
             </p>
           </Callout>
 

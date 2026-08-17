@@ -4,6 +4,7 @@ import {
   STRUCTURAL_SCALING,
   SEA_STATE,
   HABITABILITY,
+  CONSTANTS,
   barrierFilm,
   allUncertain,
   v,
@@ -15,14 +16,13 @@ import {
   specificLift,
   pure,
   hullGeometry,
+  ballastLoop,
+  superheatHeavinessExcursion,
   hullShapeForPrismatic,
   hullRadiusAt,
   massFractionAt,
   benchmark,
   rankedByLiftCost,
-  crossSectionDistribution,
-  buoyancyDistribution,
-  solveBeam,
   powerRequired,
   hullSpeed,
   porpoisingSpeed,
@@ -73,6 +73,7 @@ import {
   waterLoopCheck,
   assessHabitat,
   consumables,
+  dumpableInventory,
   FITOUT,
   buildVerdict,
   failureModes,
@@ -81,6 +82,22 @@ import {
 } from '@airship/model'
 import { energyBalance, integrateMission, maximumSustainableWind } from '@airship/solvers'
 import { m, m3, kg, N, W, purity as asPurity } from '@airship/units'
+
+/**
+ * @derived How far the mission integrator looks, days. About six years, which
+ * is past the stretch goal and past the point where unmodelled component life
+ * dominates the answer.
+ */
+const MISSION_HORIZON_DAYS = 2200
+
+/** @derived Points on the power and station-keeping curves: half-metre steps to 20 m/s, which resolves a cube law smoothly and stays small enough to ship in the page. */
+const CURVE_POINTS = 41
+/** @derived Top of both curves, m/s. Past this the vehicle is not station keeping. */
+const CURVE_TOP_SPEED = 20
+/** @derived Hours in a day, for turning an energy budget into holding time. */
+const HOURS_PER_DAY = 24
+/** @derived Seconds in an hour. */
+const SECONDS_PER_HOUR = 3600
 
 /**
  * The site reads the model. It does not restate it.
@@ -188,6 +205,7 @@ export const baseline = designs.find((d) => d.id === 'baseline')
 export const hullProfile = (() => {
   const shape = hullShapeForPrismatic(BASELINE.hull.prismaticCoefficient)
   const geometry = hullGeometry(m(BASELINE.hull.length), BASELINE.hull.finenessRatio, shape)
+  /** @derived Stations along the hull for the profile drawing. 96 is smooth at any width a phone or a desktop will render it at. */
   const stations = 96
 
   return {
@@ -235,13 +253,33 @@ export const uncertainties = allUncertain()
  */
 export const massFractionExponents = [
   STRUCTURAL_SCALING.allShipsExponent,
+  // @derived Intermediate exponents spanning the range the fleet cannot
+  // distinguish, between the fitted value and the theoretical area law. They
+  // are not measurements; they are the width of the uncertainty.
   1.0,
+  // @derived
   0.9,
+  // @derived
   0.8,
   STRUCTURAL_SCALING.theoreticalAreaLaw,
 ] as const
 
-export const massFractionVolumes = [5953, 15803, 37458, 80000, 200000] as const
+/**
+ * @derived A geometric sweep from a small ship to the largest one ever built,
+ * five points. The top of the range is Hindenburg's gas volume from the
+ * structural fleet rather than a round number, because that is where the
+ * scaling is anchored and where every exponent has to agree.
+ */
+export const massFractionVolumes = (() => {
+  const top = STRUCTURAL_FLEET.reduce((a, b) => (b.gasVolume > a.gasVolume ? b : a)).gasVolume
+  /** @derived The bottom of the range: a ship too small to carry two people. */
+  const bottom = 6000
+  /** @derived Five points inclusive of both ends. */
+  const points = 5
+  return Array.from({ length: points }, (_, i) =>
+    Math.round(bottom * (top / bottom) ** (i / (points - 1))),
+  )
+})()
 
 export const massFractionTable = massFractionVolumes.map((volume) => ({
   volume,
@@ -286,7 +324,7 @@ export const mission = (() => {
     water: aboard.water,
     waterCapacity: aboard.waterCapacity,
   }
-  const result = integrateMission(BASELINE, stores, 2200)
+  const result = integrateMission(BASELINE, stores, MISSION_HORIZON_DAYS)
   return {
     stores,
     physicalEnduranceDays: result.physicalEnduranceDays,
@@ -317,64 +355,46 @@ export const diagnostics = (() => {
   const energy = energyBalance(design)
 
   // --- power required against airspeed, the cube law ---------------------
-  const powerCurve = Array.from({ length: 41 }, (_, i) => {
-    const speed = (i / 40) * 20
+  /** @derived 41 points from rest to 20 m/s: half-metre steps, which resolves a cube law smoothly and stays small enough to ship in the page. */
+  const powerCurve = Array.from({ length: CURVE_POINTS }, (_, i) => {
+    /** @derived Fraction of the way along the grid, times the top of the range. */
+    const speed = (i / (CURVE_POINTS - 1)) * CURVE_TOP_SPEED
     return { speed, power: speed === 0 ? 0 : powerRequired(hull, air, speed as never) }
   })
 
   // --- hours of station keeping per day, against wind --------------------
   // The brief calls this one of the most important operational numbers: above
   // some wind the ship cannot hold position at all and must drift.
-  const dailyEnergy = energy.annualGenerated / 365.2425
-  const otherLoads = (energy.habitatEnergy + energy.liftMakeupEnergy) / 365.2425
+  /** @derived Mean days in a year, Gregorian, spreading annual energy over a day. */
+  const DAYS_PER_YEAR = 365.2425
+  const dailyEnergy = energy.annualGenerated / DAYS_PER_YEAR
+  const otherLoads = (energy.habitatEnergy + energy.liftMakeupEnergy) / DAYS_PER_YEAR
   const available = Math.max(dailyEnergy - otherLoads, 0)
 
-  const holdingCurve = Array.from({ length: 41 }, (_, i) => {
-    const wind = (i / 40) * 20
+  /** @derived The same 41-point grid over wind, so the two curves share an axis. */
+  const holdingCurve = Array.from({ length: CURVE_POINTS }, (_, i) => {
+    /** @derived The same grid, over wind rather than airspeed. */
+    const wind = (i / (CURVE_POINTS - 1)) * CURVE_TOP_SPEED
     const power = wind === 0 ? 0 : powerRequired(hull, air, wind as never)
-    const hours = power <= 0 ? 24 : Math.min(available / power / 3600, 24)
+    const hours =
+      power <= 0 ? HOURS_PER_DAY : Math.min(available / power / SECONDS_PER_HOUR, HOURS_PER_DAY)
     return { wind, hours }
   })
 
   const cutoffWind =
-    holdingCurve.find((p) => p.hours < 24)?.wind ?? holdingCurve[holdingCurve.length - 1]?.wind ?? 0
+    holdingCurve.find((p) => p.hours < HOURS_PER_DAY)?.wind ??
+    holdingCurve[holdingCurve.length - 1]?.wind ??
+    0
 
   // --- shear and bending moment along the hull ---------------------------
-  // Buoyancy follows cross-sectional AREA; weight follows where the heavy
-  // things are. The mismatch is what bends the ship.
-  const stations = crossSectionDistribution(
-    m(design.hull.length),
-    design.hull.finenessRatio,
-    201,
-    shape,
-  )
-  const buoyancy = buoyancyDistribution(stations, 1.1397)
-
-  const width = (i: number) => {
-    const previous = stations[i - 1]
-    const next = stations[i + 1]
-    const here = stations[i]
-    if (!here) return 0
-    return (previous ? (here.x - previous.x) / 2 : 0) + (next ? (next.x - here.x) / 2 : 0)
-  }
-
-  // Cover and frame mass follows surface area, so weight per unit length goes
-  // as radius rather than as area. That is the mismatch.
-  const radii = stations.map((s) => Math.sqrt(s.area / Math.PI))
-  const radiusIntegral = radii.reduce((a, r, i) => a + r * width(i), 0)
-  const distributedWeightForce = energy.grossLiftAvailable * 9.80665 * 0.45
-
-  const loads = stations.map((station, i) => ({
-    x: station.x,
-    buoyancy: buoyancy[i]?.buoyancy ?? 0,
-    weight: ((radii[i] ?? 0) / radiusIntegral) * distributedWeightForce,
-  }))
-
-  const beam = solveBeam(loads, [
-    { name: 'gondola', x: m(design.hull.length * 0.3), mass: 3200 },
-    { name: 'engines', x: m(design.hull.length * 0.62), mass: 900 },
-    { name: 'fins', x: m(design.hull.length * 0.88), mass: 700 },
-  ])
+  // FROM THE MODEL. This used to solve its own beam with a distributed weight
+  // taken as 45 percent of gross lift and three invented point loads: a 3,200
+  // kg gondola at station 0.30, 900 kg of engines at 0.62, 700 kg of fins at
+  // 0.88. None of those are the vehicle. The arrangement knows where every
+  // mass actually is, it trims the ship with water before loading the girder,
+  // and it compares the static case against the gust case that really sizes
+  // the structure.
+  const girder = hullBendingMoment(BASELINE, BASELINE_ARRANGEMENT)
 
   return {
     powerCurve,
@@ -383,13 +403,49 @@ export const diagnostics = (() => {
     designWind: design.mission.stationKeepingWind,
     hullLength: design.hull.length,
     beam: {
-      stations: beam.stations.map((s) => ({ x: s.x, shear: s.shear, moment: s.moment })),
-      maximumMoment: beam.maximumMoment,
-      maximumMomentStation: beam.maximumMomentStation,
-      maximumShear: beam.maximumShear,
-      maximumShearStation: beam.maximumShearStation,
-      hogging: beam.hogging,
+      stations: girder.distribution.map((d) => ({ x: d.x, shear: d.shear, moment: d.moment })),
+      pointLoads: girder.pointLoads,
+      maximumMoment: girder.staticMoment,
+      maximumMomentStation: girder.staticStation,
+      maximumShear: girder.maximumShear,
+      // The shear peaks where the biggest point load hangs, so report that
+      // station rather than carrying a separate scan for it.
+      maximumShearStation:
+        girder.pointLoads.reduce((a, b) => (b.mass > a.mass ? b : a), girder.pointLoads[0]!)?.x ??
+        0,
+      hogging: girder.hogging,
+      // The case that actually sizes the girder, which is not the static one.
+      gustMoment: girder.gustMoment,
+      gustIncidence: girder.gustIncidence,
+      designMoment: girder.designMoment,
+      note: girder.note,
     },
+  }
+})()
+
+/**
+ * The seawater ballast loop, which answers the diurnal superheat swing.
+ *
+ * Both the home page and the ship page were quoting its bladder volume and
+ * pump power as prose. It is a computed result like everything else.
+ */
+export const ballast = (() => {
+  const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+  /** @source The superheat excursion the gate is written against, K. */
+  const SUPERHEAT = 20
+  const excursion = superheatHeavinessExcursion(statement.grossLift, SUPERHEAT)
+  const loop = ballastLoop(excursion, LANDING_TRIM, BASELINE.loads.habitatPower)
+  return {
+    superheat: SUPERHEAT,
+    excursion,
+    landingTrim: LANDING_TRIM,
+    tankVolume: loop.tankVolume,
+    transferRate: loop.transferRate,
+    pumpPower: loop.pumpPower,
+    dailyEnergy: loop.dailyEnergy,
+    shareOfHabitatLoad: loop.shareOfHabitatLoad,
+    systemMass: loop.systemMass,
+    note: loop.note,
   }
 })()
 
@@ -543,6 +599,7 @@ export const arrangement = (() => {
         lobes: a.lobes,
         /** Beam and height as fractions of length, from the Airlander calibration. */
         beam: lobed ? length * 0.5 : length / BASELINE.hull.finenessRatio,
+        /** @source Height as a quarter of length for a lobed hull, from the Airlander calibration in packages/model/src/architectures.ts. */
         height: lobed ? length * 0.25 : length / BASELINE.hull.finenessRatio,
         cellCount: a.containment === 'independent-cells' ? BASELINE.hull.cellCount : 1,
         ballonetFraction: a.ballonetFraction,
@@ -561,6 +618,7 @@ export const arrangement = (() => {
     sizing: {
       closesExactly: smallestClosingLength(BASELINE, BASELINE_ARRANGEMENT, 0),
       withGrowthAllowance: smallestClosingLength(BASELINE, BASELINE_ARRANGEMENT),
+      /** @derived The length the baseline held before the arrangement was drawn, kept as the comparison that shows why it moved. */
       marginAt90: massStatement(
         { ...BASELINE, hull: { ...BASELINE.hull, length: 90 } },
         BASELINE_ARRANGEMENT,
@@ -592,8 +650,14 @@ export const marine = (() => {
   const waterplaneArea = gondola.width * waterlineLength * 0.75
   const gondolaMass = statement.byDeck.gondola
   /** @source Gondola weight times a gust factor: what the suspension is sized by. */
-  const suspensionDesignLoad = gondolaMass * 9.80665 * 2.5
+  /**
+   * @source Water-impact dynamic factor of 2.5 on the gondola's static weight,
+   * the same factor the alighting gear is sized to.
+   */
+  const WATER_IMPACT_FACTOR = 2.5
+  const suspensionDesignLoad = gondolaMass * v(CONSTANTS.g0) * WATER_IMPACT_FACTOR
   const reliefPressure = reliefPressureFor(N(suspensionDesignLoad), waterplaneArea)
+  /** @source Two relief vents at a discharge coefficient of 0.4, typical of a flapper valve on a flexible duct. */
   const ventArea = reliefVentArea(2, 0.4, reliefPressure)
   const heaveInertia = effectiveHeaveInertia(kg(statement.total), statement.gasVolume)
 
@@ -637,8 +701,11 @@ export const marine = (() => {
   /** Can an air cushion even make a cushion at this weight? It cannot. */
   const cushion = cushionFeasibility(
     kg(landingHeaviness),
+    // @source Cushion planform is 1.4 times the waterplane, because a skirt
+    // extends beyond the hull it hangs from.
     waterplaneArea * 1.4,
     2 * (waterlineLength + gondola.width),
+    // @source Skirt clearance, m: a small-craft value.
     0.3,
   )
 
@@ -710,6 +777,7 @@ export const marine = (() => {
     maximumSeaStateVented: maximumSeaState(vented, N(suspensionDesignLoad), heaveInertia),
 
     /** Speed made good against wind, which decides whether marine mode is an escape. */
+    /** @derived Wind speeds spanning calm to the point where the vehicle stops making way, closely spaced where the curve bends. */
     windward: [0, 3, 5, 8, 10, 12, 15, 18, 20].map((wind) => {
       const p = windwardSpeed(
         N(staticThrust),
@@ -726,6 +794,7 @@ export const marine = (() => {
         aerodynamicFraction: p.resistance.aerodynamicFraction,
       }
     }),
+    /** @derived Evaluated at 5 m/s of wind, a working breeze, to find where thrust stops overcoming windage. */
     stallWind: windwardSpeed(
       N(staticThrust),
       5,
@@ -735,12 +804,14 @@ export const marine = (() => {
     ).stallWind,
 
     /** Touchdown at a range of arrival rates. */
+    /** @derived Arrival rates from a gentle set-down to a hard one, m/s. */
     touchdown: [0.5, 1.0, 1.5, 2.0, 3.0].map((rate) => {
       const t = waterTouchdown(
         rate,
         waterplaneArea,
         kg(landingHeaviness),
         kg(statement.total),
+        /** @source Depth of the gondola hull below the waterline plane, m. */
         m(1.8),
       )
       return {
@@ -926,8 +997,8 @@ export const systems = (() => {
   const energy = energyBalance(BASELINE)
   const missionResult = integrateMission(
     BASELINE,
-    { food: BASELINE.loads.crew * 0.62 * 400, water: 3000, waterCapacity: 4000 },
-    2200,
+    consumables(BASELINE_ARRANGEMENT),
+    MISSION_HORIZON_DAYS,
   )
   const w = missionResult.waterBalance
 
@@ -940,6 +1011,7 @@ export const systems = (() => {
    * surface: most of it is at a large incidence to the sun at any moment, so the
    * peak is far below area times efficiency times irradiance.
    */
+  /** @derived Day of year of the June solstice, when the array peaks in the northern hemisphere. */
   const solstice = 172
   const arrayPeak = (() => {
     const shape = hullShapeForPrismatic(BASELINE.hull.prismaticCoefficient)
@@ -995,7 +1067,8 @@ export const systems = (() => {
     dailyCatchment: w.dailyCatchment,
     fuelCellProduct: waterCirculated,
     electrolyzerDemand: waterCirculated,
-    tankCapacity: 2500,
+    // The tanks the arrangement actually carries, not a round number.
+    tankCapacity: dumpableInventory(BASELINE_ARRANGEMENT),
   }
   const water = waterSchematic(waterInputs)
 
@@ -1256,12 +1329,15 @@ export const navigation = (() => {
     )
 
   const board = BASELINE_ARRANGEMENT.centreboardArea
+  /** @derived True wind speeds for the polar: a working range from a breeze to the point where the cone shuts. */
   const winds = [5, 8, 10, 12, 15]
+  /** @derived The wind everything else in this block is reported at, m/s. */
+  const MARINE_DESIGN_WIND = 10
 
   return {
     centreboardArea: board,
     staticThrust: hover.staticThrust,
-    weathervanesUnaided: at(10, board).weathervanesUnaided,
+    weathervanesUnaided: at(MARINE_DESIGN_WIND, board).weathervanesUnaided,
     /** The polar at each wind, as points a chart can draw. */
     polars: winds.map((wind) => {
       const p = at(wind, board)
@@ -1279,8 +1355,9 @@ export const navigation = (() => {
       }
     }),
     /** How the usable cone depends on the one part that decides it. */
+    /** @derived Immersed lateral areas from a bare skeg to a deep keel, m2, with the fitted board among them. */
     lateralAreaSweep: [0.5, 2, 5, 10, board, 30, 50].map((area) => {
-      const p = at(10, area)
+      const p = at(MARINE_DESIGN_WIND, area)
       return {
         area,
         beamLeeway: p.beamLeeway,
@@ -1288,7 +1365,7 @@ export const navigation = (() => {
         upwindSpeed: p.upwindSpeed,
       }
     }),
-    note: at(10, board).note,
+    note: at(MARINE_DESIGN_WIND, board).note,
   }
 })()
 
@@ -1310,12 +1387,15 @@ export const wings = (() => {
   // and the span inside it is carry-through rather than lifting panel, so a
   // wing sized without that comes out lighter than the one the mass statement
   // carries and every conclusion drawn from it is optimistic.
-  const { wing: fitted, payload: envelope } = wingSizing(BASELINE, BASELINE_ARRANGEMENT)
+  const { wing: fitted, payload: envelope, beamAtWing } = wingSizing(BASELINE, BASELINE_ARRANGEMENT)
   const trade = wingTrade(
     fitted,
     hull,
-    statement.total * 9.80665,
-    0.7,
+    N(statement.total * v(CONSTANTS.g0)),
+    // FULLY BUOYANT. The gas carries the whole weight, which is what makes this
+    // vehicle not a hybridLift design: at 0.7 the trade would be describing a
+    // ship that flies a third of its weight on the wing.
+    1,
     BASELINE.mission.stationKeepingWind,
     air.density,
     HULL_DRAG,
@@ -1347,19 +1427,22 @@ export const wings = (() => {
       affordable: p.affordable,
     })),
     /** The sizes considered, so the reader can see the trade rather than the answer. */
+    /** @derived Span and area pairs at roughly constant aspect ratio, spanning smaller and larger than the fitted wing. */
     options: [
       [30, 120],
       [40, 200],
       [50, 320],
       [60, 450],
     ].map(([span, area]) => {
-      const w = wingGeometry(span!, area!)
+      // Same hull beam at the wing station the fitted wing is sized against,
+      // so the comparison is between wings rather than between conventions.
+      const w = wingGeometry(span!, area!, beamAtWing)
       const e = wingPayloadEnvelope(w, hull, air.density, HULL_DRAG, power, ETA)
       const t = wingTrade(
         w,
         hull,
-        statement.total * 9.80665,
-        0.7,
+        N(statement.total * v(CONSTANTS.g0)),
+        1,
         BASELINE.mission.stationKeepingWind,
         air.density,
         HULL_DRAG,
@@ -1425,6 +1508,7 @@ export const vectoring = (() => {
     headwindHold: control.headwindHold,
     crosswindHold: control.crosswindHold,
     /** The diameter sweep, which is the only design variable that matters here. */
+    /** @derived Propulsor diameters from a size that plainly cannot lift the trim to one that plainly can, m. */
     diameterSweep: [3, 4, 5, 6, 8].flatMap((d) =>
       [false, true].map((duct) => {
         const h = hoverCapability(
@@ -1441,6 +1525,7 @@ export const vectoring = (() => {
           liftable: h.liftableHeaviness,
           powerAtTrim: h.powerAtTrim,
           lifts: h.liftsItsTrim,
+          /** @derived Within 0.6 m of the fitted equal-disc-area diameter counts as the fitted row. */
           fitted: Math.abs(d - effectiveDiameter) < 0.6 && duct === ducted,
         }
       }),
@@ -1482,6 +1567,7 @@ export const heave = (() => {
   /** @source A stiff suspension, N/m, which is the right answer here. */
   const STIFF = 1e6
 
+  /** @derived Sea states from a ripple to a fully developed gale, the range the vehicle might sit out. */
   const states = [2, 3, 4, 5, 6]
 
   return {
@@ -1507,6 +1593,7 @@ export const heave = (() => {
       }
     }),
     /** Softening the suspension drags the resonance up into a real chop. */
+    /** @derived Suspension stiffnesses spanning four decades, N/m, to show that the choice barely moves the load. */
     stiffnessSweep: [5e4, 1e5, 3e5, 1e6, 5e6].map((k) => ({
       stiffness: k,
       resonantWaveHeight: resonantWaveHeight(kg(GONDOLA), k, WATERPLANE),
