@@ -74,6 +74,15 @@ export {
   DUCT_STATIC_THRUST_GAIN,
 } from './propulsion/vectoring.js'
 
+export type { HeaveResponse, EmergenceVerdict } from './marine/heave.js'
+export {
+  heaveResponse,
+  resonantSuspensionStiffness,
+  resonantWaveHeight,
+  quasiStaticSuspensionLoad,
+  emergence,
+} from './marine/heave.js'
+
 export type { AlightingGear } from './marine/alighting.js'
 export { alightingGear } from './marine/alighting.js'
 

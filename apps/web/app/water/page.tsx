@@ -14,6 +14,7 @@ import {
 } from '../../components/site/primitives'
 import { Shell } from '../../components/site/Shell'
 import {
+  heave,
   hullProfile,
   marine,
   navigation,
@@ -156,6 +157,85 @@ export default function Page() {
             envelope to {fmt(marine.staticThrust / 1000, 1)} kN of thrust, and the answer to it is
             the bow drogue rather than more power.
           </p>
+        </div>
+      </Section>
+
+      <Section
+        title="It does not slam, and it does not load its suspension"
+        lede="Every intuition about seakeeping comes from hulls that carry their own weight. This one carries 600 kg of a 26 tonne vehicle and floats on 24 mm of draught, so almost any wave lifts it clear and sets it down again at a speed you could not feel."
+      >
+        <DataTable
+          head={
+            <>
+              <Th>Sea state</Th>
+              <Th align="right">Hs</Th>
+              <Th align="right">Wave period</Th>
+              <Th align="right">Relative motion</Th>
+              <Th align="right">Suspension</Th>
+              <Th align="right">Re-entry</Th>
+            </>
+          }
+          caption={`The gondola's own heave period is ${(heave.bySeaState[2]?.naturalPeriod ?? 1).toFixed(1)} s against wave periods of four to nine, so the forcing is far slower than the vehicle can respond and it rides quasi-statically. The load is then the gondola's mass times the wave's ACCELERATION, and a fully developed sea has a modal period going as the square root of its height, so that acceleration is nearly constant. Sea state 6 loads the suspension no harder than sea state 2.`}
+          minWidth={620}
+        >
+          {heave.bySeaState.map((s) => (
+            <Tr key={s.code}>
+              <Td>{s.code}</Td>
+              <Td align="right">{s.significantWaveHeight.toFixed(2)} m</Td>
+              <Td align="right">{s.wavePeriod.toFixed(1)} s</Td>
+              <Td align="right">{(s.relativeMotion * 1000).toFixed(0)} mm</Td>
+              <Td align="right" tone="pass">
+                {(s.suspensionLoad / 1000).toFixed(1)} kN
+              </Td>
+              <Td align="right">{(s.reentryVelocity * 1000).toFixed(0)} mm/s</Td>
+            </Tr>
+          ))}
+        </DataTable>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <Callout tone="pass" title="A seaplane slams because it is heavy">
+            <p>
+              A floatplane is limited to about 0.3 m of wave because several tonnes have to be
+              stopped in a hull length and the deceleration breaks things. This vehicle puts{' '}
+              {fmt(heave.landingTrim)} kg on {fmt(heave.waterplaneArea)} m² of waterplane, which is{' '}
+              {(heave.draught * 1000).toFixed(0)} mm of draught. It comes clear of the water on
+              every wave in every sea state, and re-enters at millimetres per second.
+            </p>
+            <p>
+              The peak impact pressure that produces is under a pascal. The load case on a vehicle
+              this light is not immersion and it is not impact.
+            </p>
+          </Callout>
+
+          <Callout tone="unknown" title="So stiffen the suspension, not soften it">
+            <p>
+              Vibration isolation says soften the mount to put the natural frequency below the
+              forcing. Here every wave frequency is already <em>below</em> the gondola&rsquo;s
+              natural one, so softening drags the resonance <em>up</em> into the sea states the
+              vehicle will actually meet.
+            </p>
+            <ul className="num space-y-1 text-xs">
+              {heave.stiffnessSweep.map((k) => (
+                <li key={k.stiffness} className="flex justify-between gap-4">
+                  <span>{(k.stiffness / 1e6).toFixed(2)} MN/m</span>
+                  <span
+                    className={
+                      k.resonantWaveHeight > 0.2
+                        ? 'text-[var(--color-fail)]'
+                        : 'text-[var(--color-ink-dim)]'
+                    }
+                  >
+                    resonates at {(k.resonantWaveHeight * 1000).toFixed(0)} mm
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p>
+              A soft suspension puts the resonance on a common chop. A stiff one puts it on a
+              ripple whose amplitude is nothing. The cables are sized by flight loads and by
+              handling, and the sea does not enter.
+            </p>
+          </Callout>
         </div>
       </Section>
 

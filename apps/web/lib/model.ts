@@ -38,6 +38,9 @@ import {
   laminate,
   frameSchedule,
   navigationPolar,
+  heaveResponse,
+  emergence,
+  resonantWaveHeight,
   hoverCapability,
   vectoredControl,
   propulsorOut,
@@ -1419,4 +1422,54 @@ export const refused = (() => {
     whatWouldReopenIt: r.whatWouldReopenIt,
     detail: r.detail,
   }))
+})()
+
+/**
+ * What the sea does to a vehicle that floats on millimetres.
+ *
+ * Every intuition about seakeeping comes from hulls that carry their own
+ * weight. This one carries 600 kg of a 26 tonne vehicle, and almost everything
+ * follows from that.
+ */
+export const heave = (() => {
+  /** @source Gondola, contents and the water's added mass on the immersed hull, kg. */
+  const GONDOLA = 4000
+  /** @source Waterplane area of the gondola hulls, m2. */
+  const WATERPLANE = 24
+  /** @source A stiff suspension, N/m, which is the right answer here. */
+  const STIFF = 1e6
+
+  const states = [2, 3, 4, 5, 6]
+
+  return {
+    gondolaMass: GONDOLA,
+    waterplaneArea: WATERPLANE,
+    landingTrim: LANDING_TRIM,
+    draught: emergence(4, kg(LANDING_TRIM), kg(GONDOLA), STIFF, WATERPLANE).draught,
+    bySeaState: states.map((code) => {
+      const r = heaveResponse(code, kg(GONDOLA), STIFF, WATERPLANE)
+      const e = emergence(code, kg(LANDING_TRIM), kg(GONDOLA), STIFF, WATERPLANE)
+      return {
+        code,
+        significantWaveHeight: r.waveAmplitude * 2,
+        wavePeriod: r.wavePeriod,
+        naturalPeriod: r.naturalPeriod,
+        frequencyRatio: r.frequencyRatio,
+        relativeMotion: r.relativeMotion,
+        suspensionLoad: r.suspensionLoad,
+        regime: r.regime,
+        emerges: e.emerges,
+        reentryVelocity: e.reentryVelocity,
+        impactPressure: e.impactPressure,
+      }
+    }),
+    /** Softening the suspension drags the resonance up into a real chop. */
+    stiffnessSweep: [5e4, 1e5, 3e5, 1e6, 5e6].map((k) => ({
+      stiffness: k,
+      resonantWaveHeight: resonantWaveHeight(kg(GONDOLA), k, WATERPLANE),
+      load: heaveResponse(4, kg(GONDOLA), k, WATERPLANE).suspensionLoad,
+    })),
+    note: heaveResponse(4, kg(GONDOLA), STIFF, WATERPLANE).note,
+    emergenceNote: emergence(4, kg(LANDING_TRIM), kg(GONDOLA), STIFF, WATERPLANE).note,
+  }
 })()
