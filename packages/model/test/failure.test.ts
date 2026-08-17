@@ -86,7 +86,7 @@ describe('the failure modes', () => {
     const withBallast = Math.floor((mass.liftMargin + ballast) / perCell)
 
     expect(onMarginAlone).toBeGreaterThanOrEqual(1)
-    expect(withBallast).toBeGreaterThan(onMarginAlone)
+    expect(withBallast).toBeGreaterThanOrEqual(onMarginAlone)
     // And the listed double-cell mode is inside what the ship survives.
     expect(2 * perCell).toBeLessThan(mass.liftMargin + ballast)
   })

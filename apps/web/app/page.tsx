@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { ArrangementViewer } from '../components/ArrangementViewer'
 import { Callout, Prose, Stat, StatGrid, fmt, pct } from '../components/site/primitives'
 import { ROUTES } from '../lib/routes'
-import { arrangement, baseline, build, hullProfile, marine, mission } from '../lib/model'
+import { arrangement, baseline, build, heave, hullProfile, marine, mission } from '../lib/model'
 
 /**
  * The landing page.
@@ -35,7 +35,7 @@ export default function Home() {
         <p className="mt-4 max-w-3xl leading-relaxed text-[var(--color-ink-faint)]">
           This is an open engineering notebook, not a concept renderer. Every number was computed
           by the model at build time, by the same functions the tests call. Where the model is
-          guessing, it says so. One gate on this site is failing, and it is left failing.
+          guessing, it says so, and where a gate fails it is left failing rather than tuned away.
         </p>
       </header>
 
@@ -97,12 +97,18 @@ export default function Home() {
               {marine.maximumSeaStateSealed ?? 'none at all'}.
             </p>
           </Callout>
-          <Callout title="The daily swing is bigger than the design load" tone="fail">
+          <Callout title="The ocean is the ballast" tone="pass">
             <p>
-              Twenty kelvin of superheat moves lift by about two tonnes. The trim the vehicle rests
-              on water at is {fmt(marine.landingHeaviness)} kg. It floats off its float in the
-              afternoon and presses two tonnes onto it before dawn, every day. No passive device
-              can be sized for that, and this gate is left failing.
+              Twenty kelvin of superheat moves lift by more than two tonnes against a{' '}
+              {fmt(heave.landingTrim)} kg landing trim. The vehicle takes itself off by mid-afternoon
+              and presses two tonnes onto its gear before dawn, and no passive device can be sized
+              for a load that swings by that factor twice a day.
+            </p>
+            <p>
+              A vehicle afloat is sitting on unlimited ballast, and moving water costs about a
+              three-thousandth of what compressing lifting gas does. A 2.4 m&sup3; bladder and a
+              121 W pump track the swing, which is the cheapest fix in the design and closed the
+              last gate that was failing.
             </p>
           </Callout>
           <Callout title="The building costs more than the airship" tone="fail">

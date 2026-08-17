@@ -81,7 +81,7 @@ export function Footer() {
         <p className="max-w-3xl text-sm leading-relaxed text-[var(--color-ink-faint)]">
           Every number on this site is computed at build time by the same functions the tests call
           and the report tool calls. There is no figure typed into a page. Where the model is
-          guessing it says so, and where a gate is failing it is left failing.
+          guessing it says so, and where a gate fails it is left failing rather than tuned away.
         </p>
         <p className="mt-3 text-xs text-[var(--color-ink-faint)]">
           <a

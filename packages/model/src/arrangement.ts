@@ -4,6 +4,7 @@ import {
   buoyancyDistribution,
   cellFilmArea,
   alightingGear,
+  ballastLoop,
   crossSectionDistribution,
   coveredArea,
   criticalDuctDiameter,
@@ -117,6 +118,26 @@ const CELL_NETTING_AREAL_MASS = 0.06
  * fitting. 2.2 kg/m2 is at the heavy end of sailplane practice, which is the
  * right end for a surface that is 70 m2 and cantilevered off a monocoque it is
  * not built into.
+ */
+/**
+ * The static heaviness the vehicle is trimmed to rest on water at, kg.
+ *
+ * IT USED TO BE 800 AND THAT NUMBER CAME FROM NOWHERE: heavy is the safe
+ * direction, and 800 kg is enough to stay put in a chop. Building the hover
+ * model gave it a real owner. Four ducted propulsors at the installed power
+ * lift about 800 kg, and THREE of them lift 604. A trim the vehicle can only
+ * leave with every propulsor running is a trim that turns one failure into a
+ * vehicle that cannot take off again.
+ *
+ * @source Set by the propulsor-out case rather than by the sea state: the
+ * heaviness three of four units can still lift, rounded down.
+ */
+export const LANDING_TRIM = 600
+
+/**
+ * @source Areal mass of a carbon-framed, film-covered control surface of this
+ * size, including its hinges, its actuation and the local reinforcement where
+ * it meets the hull.
  */
 const FIN_AREAL_MASS = 2.2
 
@@ -454,20 +475,7 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
   /** @derived Vertical standoff of the gondola underside below the hull, m. */
   const GONDOLA_STANDOFF = 1.6
 
-  /**
-   * The static heaviness the vehicle is trimmed to rest on water at, kg.
-   *
-   * IT USED TO BE 800 AND THAT NUMBER CAME FROM NOWHERE: heavy is the safe
-   * direction, and 800 kg is enough to stay put in a chop. Building the hover
-   * model gave it a real owner. Four ducted propulsors at the installed power
-   * lift about 800 kg, and THREE of them lift 604. A trim the vehicle can only
-   * leave with every propulsor running is a trim that turns one failure into a
-   * vehicle that cannot take off again.
-   *
-   * @source Set by the propulsor-out case rather than by the sea state: the
-   * heaviness three of four units can still lift, rounded down.
-   */
-  const LANDING_TRIM = 600
+
   /**
    * @source Solar superheat excursion over a day, K. The cells run hotter than
    * ambient in sunlight and cooler at dawn, and this is the swing the marine
@@ -1066,17 +1074,31 @@ export const validateArrangement = (
    * uses for its worked example.
    */
   const DESIGN_SUPERHEAT = 20
-  /** @source The trim a vehicle lands on water at: heavy enough to stay put. */
-  const LANDING_HEAVINESS = 800
   const excursion = superheatHeavinessExcursion(statement.grossLift, DESIGN_SUPERHEAT)
+
+  /**
+   * The active ballast loop, if the arrangement carries one.
+   *
+   * THE GATE USED TO ASSERT THAT NO PASSIVE DEVICE COULD BE SIZED FOR THIS, and
+   * that is still true and still the point. What changed is that it now checks
+   * whether the vehicle carries the ACTIVE loop it was asking for, instead of
+   * failing permanently and calling itself the largest unresolved item.
+   */
+  const ballastBay = config.compartments.find((c) => c.id === 'ballast-loop')
+  const ballastCapacity = ballastBay ? compartmentVolume(ballastBay) : 0
+  const loop = ballastLoop(excursion, LANDING_TRIM, design.loads.habitatPower)
+  const covered = ballastCapacity >= loop.tankVolume
+
   findings.push({
     id: 'superheat-against-landing-trim',
-    severity: excursion <= LANDING_HEAVINESS ? 'pass' : 'fail',
-    rule: `The daily superheat lift excursion is smaller than the trim the vehicle rests on water at.`,
+    severity: excursion <= LANDING_TRIM ? 'pass' : covered ? 'pass' : 'fail',
+    rule: `The daily superheat lift excursion is answered, by a trim that swallows it or by a ballast loop that tracks it.`,
     detail:
-      excursion <= LANDING_HEAVINESS
-        ? `${DESIGN_SUPERHEAT} K of superheat moves lift by ${excursion.toFixed(0)} kg against a ${LANDING_HEAVINESS} kg landing trim, so a passive float can be sized for it.`
-        : `${DESIGN_SUPERHEAT} K of superheat moves lift by ${excursion.toFixed(0)} kg, which is ${(excursion / LANDING_HEAVINESS).toFixed(1)} times the ${LANDING_HEAVINESS} kg the vehicle rests on water at. The ship floats off its float in the afternoon and presses ${(excursion / 1000).toFixed(1)} tonnes onto it before dawn, every day. NO PASSIVE WATER-CONTACT DEVICE CAN BE SIZED FOR A LOAD THAT SWINGS BY THAT FACTOR TWICE A DAY: a relief valve set for the trim is bypassed at the night load and useless at the day load. Either the marine architecture carries an active ballast loop that tracks the superheat, or the vehicle does not rest on the surface at all. This is the largest single unresolved item in the marine case.`,
+      excursion <= LANDING_TRIM
+        ? `${DESIGN_SUPERHEAT} K of superheat moves lift by ${excursion.toFixed(0)} kg against a ${LANDING_TRIM} kg landing trim, so a passive float can be sized for it.`
+        : covered
+          ? `${DESIGN_SUPERHEAT} K of superheat moves lift by ${excursion.toFixed(0)} kg, which is ${(excursion / LANDING_TRIM).toFixed(1)} times the ${LANDING_TRIM} kg the vehicle rests on water at, so NO PASSIVE WATER-CONTACT DEVICE CAN BE SIZED FOR IT: a relief valve set for the trim is bypassed at the night load and useless at the day load. The arrangement answers it with ${ballastCapacity.toFixed(1)} m3 of seawater bladder against the ${loop.tankVolume.toFixed(1)} m3 the swing needs, pumped at ${loop.transferRate.toFixed(0)} kg a minute on ${loop.pumpPower.toFixed(0)} W. THE OCEAN IS THE BALLAST and moving water costs about a three-thousandth of what compressing lifting gas does. It works only afloat, which is where the problem is.`
+          : `${DESIGN_SUPERHEAT} K of superheat moves lift by ${excursion.toFixed(0)} kg, which is ${(excursion / LANDING_TRIM).toFixed(1)} times the ${LANDING_TRIM} kg the vehicle rests on water at. The ship floats off its float in the afternoon and presses ${(excursion / 1000).toFixed(1)} tonnes onto it before dawn, every day. NO PASSIVE WATER-CONTACT DEVICE CAN BE SIZED FOR A LOAD THAT SWINGS BY THAT FACTOR TWICE A DAY. The arrangement carries ${ballastCapacity.toFixed(1)} m3 of ballast capacity against the ${loop.tankVolume.toFixed(1)} m3 the swing needs, so either the bladder grows or the vehicle does not rest on the surface at all.`,
   })
 
   // ---- propulsion --------------------------------------------------------

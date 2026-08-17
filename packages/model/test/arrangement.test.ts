@@ -132,19 +132,15 @@ describe('the rules the arrangement has to obey', () => {
   const findings = validateArrangement(BASELINE, BASELINE_ARRANGEMENT)
   const find = (id: string) => findings.find((f) => f.id === id)
 
-  it('has exactly one failure at the baseline, and it is the known open item', () => {
-    // NOT a green suite by construction. The daily superheat swing is 2.6 times
-    // the trim the vehicle rests on water at, which no passive float can be
-    // sized for, and the honest thing is to let the gate stay red until the
-    // active ballast loop that answers it exists. Everything else passes.
-    const failures = findings.filter((f) => f.severity === 'fail')
-    expect(failures.map((f) => f.id)).toEqual(['superheat-against-landing-trim'])
-  })
 
-  it('states the superheat excursion against the landing trim in tonnes', () => {
+  it('answers the superheat excursion with a loop rather than with a bigger float', () => {
+    // No passive water-contact device can be sized for a load that swings by
+    // this factor twice a day, and the gate still says so. What it checks is
+    // whether the arrangement carries the active loop instead.
     const f = find('superheat-against-landing-trim')
-    expect(f?.severity).toBe('fail')
-    expect(f?.detail).toContain('active ballast loop')
+    expect(f?.severity).toBe('pass')
+    expect(f?.detail).toContain('NO PASSIVE WATER-CONTACT DEVICE')
+    expect(f?.detail).toContain('seawater bladder')
   })
 
   it('keeps every habitable space out of the cell volume', () => {
@@ -321,5 +317,42 @@ describe('what the arrangement did to the hull size', () => {
       (f) => f.id === 'trim-authority',
     )
     expect(trim?.severity).toBe('fail')
+  })
+})
+
+
+describe('the last gate, which is a check rather than an assertion', () => {
+  it('passes only because the arrangement carries the bladder', () => {
+    // THE ONE GATE THAT FAILED FOR MONTHS. Twenty kelvin of superheat moves
+    // lift by more than two tonnes against a 600 kg landing trim, so no passive
+    // water-contact device can be sized for it. That statement is still true
+    // and it is still the point; what changed is that the vehicle now carries
+    // the active loop the gate was asking for.
+    //
+    // Delete the bay and it fails again, which is the difference between a
+    // check and a check that agrees with itself.
+    const withLoop = validateArrangement(BASELINE, BASELINE_ARRANGEMENT).find(
+      (f) => f.id === 'superheat-against-landing-trim',
+    )
+    expect(withLoop?.severity).toBe('pass')
+
+    const without: Configuration = {
+      ...BASELINE_ARRANGEMENT,
+      compartments: BASELINE_ARRANGEMENT.compartments.filter((c) => c.id !== 'ballast-loop'),
+    }
+    const withoutLoop = validateArrangement(BASELINE, without).find(
+      (f) => f.id === 'superheat-against-landing-trim',
+    )
+    expect(withoutLoop?.severity).toBe('fail')
+  })
+
+  it('leaves nothing failing in the whole arrangement', () => {
+    // Every gate in this file passes at the baseline, which has not been true
+    // before. It stays true only for as long as the design does not move under
+    // it, which is what the rest of these tests are for.
+    const failing = validateArrangement(BASELINE, BASELINE_ARRANGEMENT).filter(
+      (f) => f.severity === 'fail',
+    )
+    expect(failing.map((f) => f.id)).toEqual([])
   })
 })

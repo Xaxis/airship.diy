@@ -74,6 +74,9 @@ export {
   DUCT_STATIC_THRUST_GAIN,
 } from './propulsion/vectoring.js'
 
+export type { BallastLoop } from './marine/ballast.js'
+export { ballastLoop, ballastEndurance } from './marine/ballast.js'
+
 export type { HeaveResponse, EmergenceVerdict } from './marine/heave.js'
 export {
   heaveResponse,

@@ -102,7 +102,7 @@ export const ROUTES: readonly Route[] = [
     title: 'Where the model is guessing',
     question: 'What would change the answer if it were measured?',
     summary:
-      'The uncertainty register, sorted by how much each unknown moves the endurance number. This is the research queue, and one gate on this site is failing on purpose.',
+      'The uncertainty register, sorted by how much each unknown moves the endurance number. This is the research queue: what would have to be measured before any of the rest is worth trusting.',
   },
 ]
 
