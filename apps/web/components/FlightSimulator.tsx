@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { atmosphere, hullGeometry, hullRadiusAt, hullShapeForPrismatic } from '@airship/core'
 import { WebGLUnavailable } from './HullViewer'
-import { REST, minimumFinAreaForStability, step, yawStaticMargin } from '@airship/solvers'
+import { REST, step, yawStaticMargin } from '@airship/solvers'
 import type { Controls, VehicleConfig, VehicleState } from '@airship/solvers'
 
 /**
@@ -28,11 +28,26 @@ import type { Controls, VehicleConfig, VehicleState } from '@airship/solvers'
  * difference is large.
  */
 
+export interface FlightTail {
+  /** Vertical fin area only, m2. The horizontal pair does not restore yaw. */
+  readonly verticalArea: number
+  readonly arm: number
+  readonly liftSlope: number
+}
+
+export interface FlightWing {
+  readonly area: number
+  readonly span: number
+  readonly arm: number
+}
+
 export interface FlightSimulatorProps {
   readonly length: number
   readonly finenessRatio: number
   readonly prismaticCoefficient: number
   readonly cellCount: number
+  readonly tail: FlightTail
+  readonly wing: FlightWing
 }
 
 /** Fixed physics timestep, seconds. Decoupled from the frame rate on purpose. */
@@ -55,6 +70,8 @@ export function FlightSimulator({
   finenessRatio,
   prismaticCoefficient,
   cellCount,
+  tail,
+  wing,
 }: FlightSimulatorProps) {
   const mount = useRef<HTMLDivElement>(null)
   const [readout, setReadout] = useState<Readout | null>(null)
@@ -91,9 +108,14 @@ export function FlightSimulator({
     const air = atmosphere(1000 as never)
     const grossLift = hull.volume * 1.1397
 
-    const finArm = length * 0.42
-    const finSlope = 2.8
-    const finArea = minimumFinAreaForStability(hull, finArm, finSlope) * 1.4
+    // THE FINS ARE THE ARRANGEMENT'S OWN, not a figure this component invents.
+    // It used to set finArea to 1.4 times the minimum for stability, which made
+    // the yaw margin it then displayed circular: it read back the 1.4 it had
+    // just written, whatever the design actually carried. Only the VERTICAL
+    // pair restores yaw, so half the cruciform is what goes in.
+    const finArm = tail.arm
+    const finSlope = tail.liftSlope
+    const finArea = tail.verticalArea
 
     const config: VehicleConfig = {
       hull,
@@ -106,6 +128,9 @@ export function FlightSimulator({
       finArea,
       finArm,
       finLiftSlope: finSlope,
+      wingArea: wing.area,
+      wingSpan: wing.span,
+      wingArm: wing.arm,
     }
     const margin = yawStaticMargin(config)
 
@@ -341,7 +366,7 @@ export function FlightSimulator({
       container.removeChild(renderer.domElement)
       setRunning(false)
     }
-  }, [length, finenessRatio, prismaticCoefficient, cellCount])
+  }, [length, finenessRatio, prismaticCoefficient, cellCount, tail, wing])
 
   if (unsupported) return <WebGLUnavailable what="flight simulator" />
 

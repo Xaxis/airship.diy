@@ -1473,3 +1473,37 @@ export const heave = (() => {
     emergenceNote: emergence(4, kg(LANDING_TRIM), kg(GONDOLA), STIFF, WATERPLANE).note,
   }
 })()
+
+/**
+ * The tail and the wing the flight simulator flies, from the arrangement.
+ *
+ * The simulator used to size its own fins at 1.4 times the minimum for
+ * stability, which made the yaw margin it displayed circular: it read back the
+ * number it had just written. Only the vertical pair restores yaw.
+ */
+export const flightConfiguration = (() => {
+  const fins = finPlanform(BASELINE, BASELINE_ARRANGEMENT)
+  const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+  const L = BASELINE.hull.length
+  const exposedAspectRatio = fins.span ** 2 / (fins.area / 4)
+  /** @source The hull is an end plate, so the exposed fin behaves as half a wing. */
+  const effectiveAspectRatio = exposedAspectRatio * 2
+  /** @source Local dynamic pressure at the tail, as a fraction of free stream. */
+  const TAIL_DYNAMIC_PRESSURE_RATIO = 0.85
+  const liftSlope =
+    ((2 * Math.PI * effectiveAspectRatio) / (2 + Math.sqrt(effectiveAspectRatio ** 2 + 4))) *
+    TAIL_DYNAMIC_PRESSURE_RATIO
+
+  return {
+    tail: {
+      verticalArea: fins.area / 2,
+      arm: (BASELINE_ARRANGEMENT.finStation - statement.centreOfGravity.x / L) * L,
+      liftSlope,
+    },
+    wing: {
+      area: BASELINE_ARRANGEMENT.wingArea,
+      span: BASELINE_ARRANGEMENT.wingSpan,
+      arm: (BASELINE_ARRANGEMENT.wingStation - statement.centreOfGravity.x / L) * L,
+    },
+  }
+})()

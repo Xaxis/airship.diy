@@ -85,6 +85,19 @@ export interface VehicleConfig {
   readonly finArm: number
   /** Fin lift curve slope, per radian. */
   readonly finLiftSlope: number
+  /**
+   * Outboard wing, if the vehicle has one. Reference area and span, so the
+   * induced drag uses the span the vortices actually leave from.
+   *
+   * A wing changes the handling in a way the fins do not: it makes lift that
+   * grows with the square of speed at a fixed incidence, so the vehicle becomes
+   * progressively less buoyancy-dominated as it accelerates, and its pitch trim
+   * changes with speed for the first time.
+   */
+  readonly wingArea?: number
+  readonly wingSpan?: number
+  /** Distance from CG to the wing aerodynamic centre, m. Positive aft. */
+  readonly wingArm?: number
 }
 
 export interface Controls {
@@ -203,6 +216,40 @@ export const forces = (
     // which is where pitch and yaw damping come from. Without it the vehicle
     // is statically stable and dynamically undamped, which looks plausible on
     // a trim plot and oscillates forever in a simulation.
+    /**
+     * The wing.
+     *
+     * Placed at the centre of buoyancy so it makes lift without making a trim
+     * change, which is the Aereon result the arrangement is built around, and
+     * its arm is therefore near zero on this vehicle. It is carried anyway
+     * because it is not zero on every configuration and a pitching moment that
+     * silently vanishes is a pitching moment nobody checks.
+     */
+    const wingArea = config.wingArea ?? 0
+    const wingSpan = config.wingSpan ?? 0
+    const wingArm = config.wingArm ?? 0
+    if (wingArea > 0 && wingSpan > 0) {
+      const wingAspect = (wingSpan * wingSpan) / wingArea
+      /** @source Helmbold's finite-span lift-curve slope. */
+      const wingSlope = (2 * Math.PI * wingAspect) / (2 + Math.sqrt(wingAspect * wingAspect + 4))
+      /** @source Span efficiency of a tapered planform without twist optimisation. */
+      const WING_SPAN_EFFICIENCY = 0.85
+      /** @source Profile drag coefficient of a clean section, on wing area. */
+      const WING_PROFILE_DRAG = 0.01
+
+      const wingCl = wingSlope * alpha
+      const wingLift = wingCl * q_dyn * wingArea
+      const wingInduced =
+        ((wingCl * wingCl) / (Math.PI * wingAspect * WING_SPAN_EFFICIENCY)) *
+        q_dyn *
+        wingArea
+      const wingProfile = WING_PROFILE_DRAG * q_dyn * wingArea
+
+      Z -= wingLift
+      X -= wingInduced + wingProfile
+      M += wingLift * wingArm
+    }
+
     if (config.finArea > 0) {
       const finQ = q_dyn * config.finArea * config.finLiftSlope
 

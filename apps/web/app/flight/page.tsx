@@ -6,8 +6,7 @@ import {
   Section,
 } from '../../components/site/primitives'
 import { Shell } from '../../components/site/Shell'
-import {
-} from '../../lib/model'
+import { flightConfiguration } from '../../lib/model'
 
 export const metadata = { title: 'Flight' }
 
@@ -19,6 +18,8 @@ export default function Page() {
         lede="This runs the project's own 6-DOF solver at 100 Hz, not a simplified version for the browser. The same step function the validation gates exercise is called here, so if the vehicle feels wrong there is no second implementation to blame. Expect it to be slow to respond and slow to stop: the displaced air nearly doubles the effective mass in sway and heave."
       >
         <FlightSimulator
+          tail={flightConfiguration.tail}
+          wing={flightConfiguration.wing}
           length={BASELINE.hull.length}
           finenessRatio={BASELINE.hull.finenessRatio}
           prismaticCoefficient={BASELINE.hull.prismaticCoefficient}
