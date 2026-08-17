@@ -21,7 +21,9 @@ export type {
 } from './arrangement.js'
 export {
   compartmentVolume,
+  consumables,
   keelEnvelopeVolume,
+  LANDING_TRIM,
   finPlanform,
   massStatement,
   validateArrangement,

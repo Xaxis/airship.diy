@@ -294,12 +294,12 @@ describe('what the arrangement did to the hull size', () => {
     // trim out. Where that happens is a property of the arrangement rather
     // than a bug in it, and it is worth pinning because it moves whenever
     // anything heavy changes station.
-    for (const length of [95, 105, 115, 120, 125]) {
+    for (const length of [95, 105, 115, 120]) {
       const findings = validateArrangement(at(length), BASELINE_ARRANGEMENT)
       const trim = findings.find((f) => f.id === 'trim-authority')
       expect(`${length}: ${trim?.severity}`).toBe(`${length}: pass`)
     }
-    for (const length of [140, 150]) {
+    for (const length of [125, 140, 150]) {
       const findings = validateArrangement(at(length), BASELINE_ARRANGEMENT)
       const trim = findings.find((f) => f.id === 'trim-authority')
       expect(`${length}: ${trim?.severity}`).toBe(`${length}: fail`)

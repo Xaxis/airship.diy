@@ -69,6 +69,7 @@ import {
   redundancyCheck,
   waterLoopCheck,
   assessHabitat,
+  consumables,
   FITOUT,
   buildVerdict,
   failureModes,
@@ -272,7 +273,16 @@ export const fuelRanking = rankedByLiftCost().map(({ option, energyPerLift }) =>
  * binding constraint, is the master ledger and does not bind at all.
  */
 export const mission = (() => {
-  const stores = { food: BASELINE.loads.crew * 0.62 * 400, water: 3000, waterCapacity: 4000 }
+  // READ OFF THE ARRANGEMENT, not passed in. The integrator used to be told
+  // 496 kg of food and 3,000 kg of water while the vehicle carried 584 and
+  // 2,500, and an endurance figure computed from stores the ship does not have
+  // is the worst possible place for two numbers to mean the same thing.
+  const aboard = consumables(BASELINE_ARRANGEMENT)
+  const stores = {
+    food: aboard.food,
+    water: aboard.water,
+    waterCapacity: aboard.waterCapacity,
+  }
   const result = integrateMission(BASELINE, stores, 2200)
   return {
     stores,

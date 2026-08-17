@@ -135,6 +135,31 @@ const CELL_NETTING_AREAL_MASS = 0.06
 export const LANDING_TRIM = 600
 
 /**
+ * The consumables the mission integrator has to be given, read off the
+ * arrangement rather than passed in.
+ *
+ * IT USED TO BE TOLD 496 kg OF FOOD AND 3,000 kg OF WATER while the arrangement
+ * carried 584 and 2,500. Two numbers for the same thing is the failure this
+ * repository exists to prevent, and an endurance figure computed from stores
+ * the vehicle does not have is the worst place for it to happen: days aloft is
+ * the figure of merit.
+ */
+export const consumables = (config: Configuration) => {
+  const massOf = (id: string): number =>
+    config.compartments.find((c) => c.id === id)?.mass ?? 0
+  const water = config.compartments
+    .filter((c) => c.id.startsWith('water-'))
+    .reduce((sum, c) => sum + c.mass, 0)
+  return {
+    food: massOf('stores-food'),
+    spares: massOf('stores-spares'),
+    water,
+    /** @derived Tanks are filled to about 90 percent, so capacity is above the load. */
+    waterCapacity: water / 0.9,
+  }
+}
+
+/**
  * @source Areal mass of a carbon-framed, film-covered control surface of this
  * size, including its hinges, its actuation and the local reinforcement where
  * it meets the hull.
