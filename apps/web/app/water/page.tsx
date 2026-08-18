@@ -157,8 +157,8 @@ export default function Page() {
       </Section>
 
       <Section
-        title="It does not slam, and it does not load its suspension"
-        lede={`Every intuition about seakeeping comes from hulls that carry their own weight. This one carries ${fmt(marine.landingHeaviness)} kg of a ${fmt(marine.totalMass / 1000)} tonne vehicle and floats on ${(heave.draught * 1000).toFixed(0)} mm of draught, so almost any wave lifts it clear and sets it down again at a speed you could not feel.`}
+        title="It does not slam, and the load is a bracket"
+        lede={`This vehicle carries ${fmt(marine.landingHeaviness)} kg of a ${fmt(marine.totalMass / 1000)} tonne weight on the water and floats on ${(heave.draught * 1000).toFixed(0)} mm of draught, so it comes clear of the surface on every wave in every sea state. That is the finding, and it is also why there is no single number for the load: rho g A is the restoring force of a float that stays immersed, and this one does not, so the contact is one-sided and the honest answer is a range.`}
       >
         <DataTable
           head={
@@ -166,12 +166,12 @@ export default function Page() {
               <Th>Sea state</Th>
               <Th align="right">Hs</Th>
               <Th align="right">Wave period</Th>
-              <Th align="right">Relative motion</Th>
-              <Th align="right">Suspension</Th>
+              <Th align="right">Ratio</Th>
+              <Th align="right">Suspension load</Th>
               <Th align="right">Re-entry</Th>
             </>
           }
-          caption={`The gondola's own heave period is ${(heave.bySeaState[2]?.naturalPeriod ?? 1).toFixed(1)} s against wave periods of four to nine, so the forcing is far slower than the vehicle can respond and it rides quasi-statically. The load is then the gondola's mass times the wave's ACCELERATION, and a fully developed sea has a modal period going as the square root of its height, so that acceleration is nearly constant. Sea state 6 loads the suspension no harder than sea state 2.`}
+          caption={`The whole vehicle oscillates on the waterplane, not the gondola alone: at wave frequencies the envelope's inertia is an order of magnitude below the suspension stiffness, so the suspension drags it along and the heave period is ${(heave.bySeaState[2]?.naturalPeriod ?? 1).toFixed(1)} s. Short waves excite that and long ones do not, so the resonance is in a SMOOTH sea. The load ranges from the vehicle following the surface to the vehicle holding station while the crest comes to it; against a ${(heave.suspensionDesignLoad / 1000).toFixed(0)} kN design load the upper bound is covered at sea state 2 and nowhere above it.`}
           minWidth={620}
         >
           {heave.bySeaState.map((s) => (
@@ -179,11 +179,15 @@ export default function Page() {
               <Td>{s.code}</Td>
               <Td align="right">{s.significantWaveHeight.toFixed(2)} m</Td>
               <Td align="right">{s.wavePeriod.toFixed(1)} s</Td>
-              <Td align="right">{(s.relativeMotion * 1000).toFixed(0)} mm</Td>
-              <Td align="right" tone="pass">
-                {(s.suspensionLoad / 1000).toFixed(1)} kN
+              <Td align="right">{s.frequencyRatio.toFixed(2)}</Td>
+              <Td
+                align="right"
+                tone={s.fullImmersionLoad <= heave.suspensionDesignLoad ? 'pass' : 'fail'}
+              >
+                {(s.quasiStaticLoad / 1000).toFixed(0)} to {(s.fullImmersionLoad / 1000).toFixed(0)}{' '}
+                kN
               </Td>
-              <Td align="right">{(s.reentryVelocity * 1000).toFixed(0)} mm/s</Td>
+              <Td align="right">{s.reentryVelocity.toFixed(2)} m/s</Td>
             </Tr>
           ))}
         </DataTable>
@@ -195,20 +199,19 @@ export default function Page() {
               stopped in a hull length and the deceleration breaks things. This vehicle puts{' '}
               {fmt(heave.landingTrim)} kg on {fmt(heave.waterplaneArea)} m² of waterplane, which is{' '}
               {(heave.draught * 1000).toFixed(0)} mm of draught. It comes clear of the water on
-              every wave in every sea state, and re-enters at millimetres per second.
+              every wave in every sea state, and re-enters at tenths of a metre per second.
             </p>
             <p>
-              The peak impact pressure that produces is under a pascal. The load case on a vehicle
-              this light is not immersion and it is not impact.
+              That is an order of magnitude under a seaplane, so it does not slam. It is not
+              nothing either, and the impact pressure goes as the square of it.
             </p>
           </Callout>
 
           <Callout tone="unknown" title="So stiffen the suspension, not soften it">
             <p>
               Vibration isolation says soften the mount to put the natural frequency below the
-              forcing. Here every wave frequency is already <em>below</em> the gondola&rsquo;s
-              natural one, so softening drags the resonance <em>up</em> into the sea states the
-              vehicle will actually meet.
+              forcing. Here softening lowers the coupled mode and walks the resonance <em>up</em>{' '}
+              the sea state table, towards waves the vehicle will actually meet.
             </p>
             <ul className="num space-y-1 text-xs">
               {heave.stiffnessSweep.map((k) => (
@@ -227,9 +230,14 @@ export default function Page() {
               ))}
             </ul>
             <p>
-              A soft suspension puts the resonance on a common chop. A stiff one puts it on a
-              ripple whose amplitude is nothing. The cables are sized by flight loads and by
-              handling, and the sea does not enter.
+              A soft suspension puts the resonance in a real sea. A stiff one moves it down to
+              about half a metre of significant height, which is a slight sea rather than a
+              ripple: there is no stiffness that puts it somewhere the vehicle will never go.
+              This is the correction that mattered most. Treating the envelope as ground, on the
+              grounds that its inertia is far larger, gave a resonance at 26 mm and the conclusion
+              that the sea never enters. Whether a body acts as ground is set by its inertial
+              impedance against the stiffness connecting to it, not by a mass ratio, and by that
+              test the envelope is a nearly free mass the suspension drags along.
             </p>
           </Callout>
         </div>

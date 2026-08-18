@@ -1596,6 +1596,14 @@ export const heave = (() => {
   /** @source A stiff suspension, N/m, which is the right answer here. */
   const STIFF = 1e6
 
+  // The envelope is NOT ground. Its inertial impedance at wave frequencies is
+  // an order of magnitude below the suspension stiffness, so it is dragged
+  // along and the whole vehicle oscillates on the waterplane.
+  const ENVELOPE_INERTIA = effectiveHeaveInertia(
+    kg(massStatement(BASELINE, BASELINE_ARRANGEMENT).total),
+    massStatement(BASELINE, BASELINE_ARRANGEMENT).gasVolume,
+  )
+
   /** @derived Sea states from a ripple to a fully developed gale, the range the vehicle might sit out. */
   const states = [2, 3, 4, 5, 6]
 
@@ -1603,12 +1611,18 @@ export const heave = (() => {
     gondolaMass: GONDOLA,
     waterplaneArea: WATERPLANE,
     landingTrim: LANDING_TRIM,
-    draught: emergence(4, kg(LANDING_TRIM), kg(GONDOLA), STIFF, WATERPLANE).draught,
+    /** @derived The suspension's design load, N: gondola weight at the water-impact factor. */
+    suspensionDesignLoad: GONDOLA * v(CONSTANTS.g0) * 2.5,
+    draught: emergence(4, kg(LANDING_TRIM), kg(GONDOLA), STIFF, WATERPLANE, ENVELOPE_INERTIA)
+      .draught,
     bySeaState: states.map((code) => {
-      const r = heaveResponse(code, kg(GONDOLA), STIFF, WATERPLANE)
-      const e = emergence(code, kg(LANDING_TRIM), kg(GONDOLA), STIFF, WATERPLANE)
+      const r = heaveResponse(code, kg(GONDOLA), STIFF, WATERPLANE, ENVELOPE_INERTIA, kg(LANDING_TRIM))
+      const e = emergence(code, kg(LANDING_TRIM), kg(GONDOLA), STIFF, WATERPLANE, ENVELOPE_INERTIA)
       return {
         code,
+        quasiStaticLoad: r.quasiStaticLoad,
+        fullImmersionLoad: r.fullImmersionLoad,
+        contactMaintained: r.contactMaintained,
         significantWaveHeight: r.waveAmplitude * 2,
         wavePeriod: r.wavePeriod,
         naturalPeriod: r.naturalPeriod,
@@ -1621,15 +1635,16 @@ export const heave = (() => {
         impactPressure: e.impactPressure,
       }
     }),
-    /** Softening the suspension drags the resonance up into a real chop. */
-    /** @derived Suspension stiffnesses spanning four decades, N/m, to show that the choice barely moves the load. */
+    /** @derived Suspension stiffnesses spanning four decades, N/m: softening walks the resonance up the sea state table. */
     stiffnessSweep: [5e4, 1e5, 3e5, 1e6, 5e6].map((k) => ({
       stiffness: k,
-      resonantWaveHeight: resonantWaveHeight(kg(GONDOLA), k, WATERPLANE),
-      load: heaveResponse(4, kg(GONDOLA), k, WATERPLANE).suspensionLoad,
+      resonantWaveHeight: resonantWaveHeight(kg(GONDOLA), k, WATERPLANE, ENVELOPE_INERTIA),
+      load: heaveResponse(4, kg(GONDOLA), k, WATERPLANE, ENVELOPE_INERTIA, kg(LANDING_TRIM))
+        .fullImmersionLoad,
     })),
-    note: heaveResponse(4, kg(GONDOLA), STIFF, WATERPLANE).note,
-    emergenceNote: emergence(4, kg(LANDING_TRIM), kg(GONDOLA), STIFF, WATERPLANE).note,
+    note: heaveResponse(4, kg(GONDOLA), STIFF, WATERPLANE, ENVELOPE_INERTIA, kg(LANDING_TRIM)).note,
+    emergenceNote: emergence(4, kg(LANDING_TRIM), kg(GONDOLA), STIFF, WATERPLANE, ENVELOPE_INERTIA)
+      .note,
   }
 })()
 

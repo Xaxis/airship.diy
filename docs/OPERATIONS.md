@@ -91,23 +91,40 @@ option of flying away from it instead.
 
 ### Seakeeping
 
-| Sea state | Hs, m | Relative motion, mm | Suspension load, kN | Re-entry, mm/s |
-|---|---|---|---|---|
-| 2 | 0.30 | 30 | 5.9 | 17 |
-| 3 | 0.88 | 27 | 5.2 | 4 |
-| 4 | 1.88 | 26 | 5.1 | 2 |
-| 5 | 3.25 | 26 | 5.0 | 1 |
-| 6 | 5.00 | 26 | 5.0 | 1 |
+| Sea state | Hs, m | Period, s | Frequency ratio | Suspension load, kN | Re-entry, m/s |
+|---|---|---|---|---|---|
+| 2 | 0.30 | 3.5 | 1.06 | 31 to 36 | 0.88 |
+| 3 | 0.88 | 4.5 | 0.79 | 55 to 106 | 0.86 |
+| 4 | 1.88 | 6.5 | 0.53 | 56 to 226 | 0.34 |
+| 5 | 3.25 | 8.5 | 0.40 | 57 to 392 | 0.22 |
+| 6 | 5.00 | 10.0 | 0.34 | 63 to 603 | 0.20 |
 
-The load does not grow with the sea. The gondola's heave period is about a
-second against wave periods of four to nine, so it rides quasi-statically and
-the load reduces to its mass times the wave's acceleration, which is nearly
-constant across a fully developed sea. **The limit on the water is windage, not
-waves.**
+**The load is a bracket, not a number, and the reason is that the float leaves
+the water.** rho g A is the restoring force of a continuously immersed float.
+This one draws about 24 mm, because the
+vehicle is nearly neutrally buoyant, and the relative motion is hundreds. It is
+clear of the surface for part of every cycle in every sea state, so the contact
+is one-sided: water can push and it cannot pull. The low figure is the vehicle
+following the surface, the high figure is the vehicle holding station while the
+crest comes to it, and closing the gap needs a time-domain solve nobody has
+written.
 
-The float comes clear of the water on every wave in every sea state, because it
-floats on a couple of centimetres of draught, and sets down again at millimetres
-per second. It does not slam.
+**Until then, size against the high figure and treat sea state 2 as the limit
+for sitting on the water.** The suspension design load is
+98 kN, which covers the upper bound at sea
+state 2 and nothing above it.
+
+**The resonance is in a SMOOTH sea, which is backwards from every intuition.**
+The whole vehicle oscillates on the waterplane, not the gondola alone: the
+suspension is stiff against the envelope's inertia at wave frequencies, so it
+drags the envelope along and the heave period is
+3.4 s. Short waves excite that; long ones do not.
+The vehicle rides a gale and is worst in a chop, and no suspension stiffness
+puts the resonance below about half a metre of significant height.
+
+The float comes clear of the water on every wave in every sea state and re-enters
+at tenths of a metre per second. That is well under a seaplane, which arrives at
+several, so it does not slam. It is not nothing either.
 
 ## The ballast loop
 

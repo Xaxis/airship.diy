@@ -25,93 +25,111 @@ const WATERPLANE = 24
 const TRIM = kg(600)
 /** @derived A stiff suspension, N/m. */
 const STIFF = 1e6
+/** @derived Envelope heave inertia including added mass, kg. */
+const ENVELOPE = 64000
 
-describe('the frequency ratio, which is easy to write upside down', () => {
-  it('puts a light gondola well below resonance in any real sea', () => {
-    // A light mass on a stiff waterplane has a heave period near a second; a
-    // sea state 4 wave has a period near six. The forcing is five times slower
-    // than the system can respond, so the gondola rides.
-    const r = heaveResponse(4, GONDOLA, STIFF, WATERPLANE)
-    expect(r.naturalPeriod).toBeLessThan(2)
-    expect(r.wavePeriod).toBeGreaterThan(4)
-    expect(r.frequencyRatio).toBeLessThan(0.4)
-    expect(r.regime).toBe('follows the sea')
+describe('what actually oscillates', () => {
+  it('is the whole vehicle, not the gondola alone', () => {
+    // The envelope was treated as ground because its inertia is an order of
+    // magnitude larger. That is the wrong test: what decides whether a body
+    // acts as ground is its inertial IMPEDANCE at the forcing frequency against
+    // the stiffness connecting to it. At wave frequencies the envelope's
+    // m * omega^2 is around 60 kN/m against a 1 MN/m suspension, so it is a
+    // nearly free mass the suspension drags along, and the two heave as one.
+    const r = heaveResponse(4, GONDOLA, STIFF, WATERPLANE, ENVELOPE, TRIM)
+    expect(r.oscillatingMass).toBeGreaterThan(ENVELOPE)
+    expect(r.naturalPeriod).toBeGreaterThan(3)
+    expect(r.naturalPeriod).toBeLessThan(4)
   })
 
-  it('moves only a few percent of the wave amplitude', () => {
-    const r = heaveResponse(4, GONDOLA, STIFF, WATERPLANE)
-    expect(r.followingFraction).toBeLessThan(0.1)
+  it('resonates in a SMOOTH sea, which is backwards from the intuition', () => {
+    // A heave period of three and a half seconds is excited by short waves, not
+    // long ones. So the vehicle rides a gale and is bad in a chop.
+    const chop = heaveResponse(2, GONDOLA, STIFF, WATERPLANE, ENVELOPE, TRIM)
+    const gale = heaveResponse(6, GONDOLA, STIFF, WATERPLANE, ENVELOPE, TRIM)
+    expect(chop.regime).toBe('near resonance')
+    expect(gale.regime).toBe('follows the sea')
+    expect(chop.frequencyRatio).toBeGreaterThan(gale.frequencyRatio)
   })
 })
 
-describe('the suspension load', () => {
-  it('is the gondola mass times the wave acceleration, and nothing else', () => {
-    // The full response reduces to the quasi-static limit to three figures,
-    // which is the check that the dynamics are being done rather than guessed.
-    const full = heaveResponse(4, GONDOLA, STIFF, WATERPLANE).suspensionLoad
-    const limit = quasiStaticSuspensionLoad(GONDOLA, 1.88)
-    expect(full / limit).toBeGreaterThan(0.95)
-    expect(full / limit).toBeLessThan(1.05)
+describe('the suspension load, which is a bracket rather than a number', () => {
+  it('cannot be taken from the linear model, because the float leaves the water', () => {
+    // rho * g * A is the restoring force of a CONTINUOUSLY IMMERSED float. This
+    // one draws about twenty millimetres because the vehicle is nearly
+    // neutrally buoyant, and the relative motion is hundreds. Water can push
+    // and it cannot pull, so the linear spring is not in contact for part of
+    // every cycle in every sea state.
+    for (const seaState of [2, 3, 4, 5, 6]) {
+      const r = heaveResponse(seaState, GONDOLA, STIFF, WATERPLANE, ENVELOPE, TRIM)
+      expect(`${seaState}: ${r.contactMaintained}`).toBe(`${seaState}: false`)
+      expect(r.draught).toBeLessThan(0.05)
+    }
   })
 
-  it('barely moves when the suspension stiffness moves two hundredfold', () => {
-    // The relative motion falls as the stiffness rises and the two cancel. What
-    // it means for the design is that the cables are sized by flight loads and
-    // by handling, not by the sea.
-    const soft = heaveResponse(4, GONDOLA, 5e4, WATERPLANE).suspensionLoad
-    const rigid = heaveResponse(4, GONDOLA, Infinity, WATERPLANE).suspensionLoad
-    expect(rigid / soft).toBeLessThan(2)
+  it('brackets it between following the surface and taking the crest', () => {
+    const r = heaveResponse(4, GONDOLA, STIFF, WATERPLANE, ENVELOPE, TRIM)
+    expect(r.quasiStaticLoad).toBeLessThan(r.fullImmersionLoad)
+    // And the lower bound is the standalone helper, on the same inertia.
+    expect(r.quasiStaticLoad).toBeCloseTo(quasiStaticSuspensionLoad(ENVELOPE, 4), 6)
+    // And both are tens of kilonewtons, not the five this module used to report
+    // by treating the envelope as ground and the springs as being in series.
+    expect(r.quasiStaticLoad).toBeGreaterThan(20e3)
   })
 
-  it('does not grow with the sea state at all', () => {
-    // A fully developed sea has a modal period going as the square root of the
-    // height, so the wave ACCELERATION is nearly constant across sea states.
-    // Sea state 6 loads the suspension no harder than sea state 2, and the
-    // vehicle's seakeeping limit is therefore not a wave height.
-    const loads = [0.3, 0.88, 1.88, 3.25, 5.0].map((hs) =>
-      quasiStaticSuspensionLoad(GONDOLA, hs),
-    )
-    const smallest = Math.min(...loads)
-    const largest = Math.max(...loads)
-    expect(largest / smallest).toBeLessThan(1.01)
+  it('grows with the sea at the upper bound, which is what sets the limit', () => {
+    // The old model said the load does not grow with sea state at all. That was
+    // a tautology of an assumed T = C * sqrt(Hs): omega^2 * A is then constant
+    // for ANY C. Against the tabulated periods, and at the bound that does not
+    // assume the vehicle follows, it grows by an order of magnitude.
+    const smooth = heaveResponse(2, GONDOLA, STIFF, WATERPLANE, ENVELOPE, TRIM)
+    const rough = heaveResponse(6, GONDOLA, STIFF, WATERPLANE, ENVELOPE, TRIM)
+    expect(rough.fullImmersionLoad / smooth.fullImmersionLoad).toBeGreaterThan(10)
   })
 })
 
 describe('resonance, which inverts the usual isolation intuition', () => {
-  it('is pushed UP into a real chop by softening the suspension', () => {
+  it('moves into BIGGER seas as the suspension softens', () => {
     // Vibration isolation says soften the mount to get below the forcing. Here
-    // every useful forcing frequency is BELOW the natural one, so softening
-    // drags the resonance up into the sea states the vehicle will meet.
-    const soft = resonantWaveHeight(GONDOLA, 5e4, WATERPLANE)
-    const stiff = resonantWaveHeight(GONDOLA, Infinity, WATERPLANE)
-    expect(soft).toBeGreaterThan(stiff)
-    expect(soft).toBeGreaterThan(0.2)
-    expect(stiff).toBeLessThan(0.06)
+    // softening lowers the coupled mode and walks the resonance up the sea
+    // state table towards waves the vehicle will actually meet.
+    const soft = resonantWaveHeight(GONDOLA, 5e4, WATERPLANE, ENVELOPE)
+    const rigid = resonantWaveHeight(GONDOLA, Infinity, WATERPLANE, ENVELOPE)
+    expect(soft).toBeGreaterThan(rigid)
   })
 
-  it('sits on a ripple with a stiff suspension, where the amplitude is nothing', () => {
-    const hs = resonantWaveHeight(GONDOLA, STIFF, WATERPLANE)
-    expect(hs).toBeLessThan(0.1)
+  it('cannot be put on a ripple at any stiffness', () => {
+    // Which is the correction. The old model said a stiff suspension parks the
+    // resonance below 6 cm of significant height, where there is no energy to
+    // excite it. That came from treating the envelope as ground: the mass on
+    // the waterplane is sixteen times larger than the gondola alone, and even
+    // rigidly coupled the resonance sits at about half a metre, which is a
+    // slight sea.
+    const rigid = resonantWaveHeight(GONDOLA, Infinity, WATERPLANE, ENVELOPE)
+    expect(rigid).toBeGreaterThan(0.3)
   })
 })
 
 describe('emergence, which is the real load case', () => {
   it('lifts the float clear in every sea, because it floats on millimetres', () => {
     for (const seaState of [2, 3, 4, 5, 6]) {
-      const e = emergence(seaState, TRIM, GONDOLA, STIFF, WATERPLANE)
+      const e = emergence(seaState, TRIM, GONDOLA, STIFF, WATERPLANE, ENVELOPE)
       expect(`${seaState}: ${e.emerges}`).toBe(`${seaState}: true`)
       expect(e.draught).toBeLessThan(0.05)
     }
   })
 
-  it('sets it down again at a speed you could not feel', () => {
+  it('sets it down well below a seaplane, but not gently', () => {
     // A seaplane arrives at several metres per second and that is why it slams.
-    // This arrives at millimetres per second, and the impact pressure is the
-    // square of that.
+    // This arrives at tenths of a metre per second, so it does not slam, but
+    // "millimetres per second" was an artefact of a re-entry velocity written
+    // as omega * (Z - d), which goes to zero exactly where the physics does
+    // not: a float that barely clears the water re-enters at close to its full
+    // relative velocity. The correct crossing velocity is omega * sqrt(Z^2 - d^2).
     for (const seaState of [2, 3, 4, 5, 6]) {
-      const e = emergence(seaState, TRIM, GONDOLA, STIFF, WATERPLANE)
-      expect(`${seaState}: ${e.reentryVelocity < 0.05}`).toBe(`${seaState}: true`)
-      expect(`${seaState}: ${e.impactPressure < 100}`).toBe(`${seaState}: true`)
+      const e = emergence(seaState, TRIM, GONDOLA, STIFF, WATERPLANE, ENVELOPE)
+      expect(`${seaState}: ${e.reentryVelocity < 1.5}`).toBe(`${seaState}: true`)
+      expect(`${seaState}: ${e.impactPressure < 20e3}`).toBe(`${seaState}: true`)
     }
   })
 

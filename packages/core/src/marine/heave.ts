@@ -4,38 +4,47 @@ import type { Kilograms } from '@airship/units'
 /**
  * How much of the sea actually reaches the suspension.
  *
- * TWO DEFENSIBLE ANSWERS DIFFERING BY AN ORDER OF MAGNITUDE, and the difference
- * between them is a design variable nobody had written down.
+ * THE ANSWER IS A BRACKET, NOT A NUMBER, AND THAT IS THE RESULT. This module
+ * previously reported about 5 kN in every sea state and concluded that the
+ * suspension is sized by flight loads rather than by the sea. Three modelling
+ * errors produced that, each of them in the flattering direction, and none of
+ * them survive:
  *
- * The pessimistic account says a crest immerses the float by half the wave
- * height before the vehicle can respond, because the envelope above is held at
- * altitude by thirty tonnes of buoyancy and an enormous added mass. On a 1.9 m
- * sea that is nearly a metre of immersion and a suspension load in the hundreds
- * of kilonewtons.
+ * THE ENVELOPE IS NOT GROUND. It was treated as ground because its inertia is
+ * an order of magnitude larger than the gondola's, which is the wrong test.
+ * What decides whether a body acts as ground is its inertial IMPEDANCE at the
+ * forcing frequency, m * omega^2, against the stiffness connecting to it. At
+ * wave frequencies m * omega^2 for this envelope is around 60 kN/m against a
+ * suspension near 1 MN/m, so the envelope is a nearly free mass that the
+ * suspension drags along. The two heave as one body, and what oscillates on
+ * the waterplane is the whole vehicle: a heave period near three and a half
+ * seconds, not the one second a light gondola alone would give.
  *
- * The optimistic account says the float is barely loaded, so it rides the swell:
- * its heave period is a couple of seconds against a wave period of eight or
- * nine, the response is quasi-static, and the RELATIVE motion between float and
- * water is a tenth of the wave amplitude rather than half of it.
+ * THE SPRINGS ARE NOT IN SERIES. Series is only valid across a massless node,
+ * and the mass at that node is the entire subject of the analysis.
  *
- * THE OPTIMISTIC ONE IS RIGHT, and the reason is a frequency ratio that is easy
- * to write upside down. A light gondola on a stiff waterplane has a heave period
- * near a second; a sea state 4 wave has a period near six. The forcing is five
- * times slower than the system can respond, so the gondola rides quasi-statically
- * and the RELATIVE motion between float and water is a few percent of the wave
- * amplitude rather than half of it.
+ * AND THE FLOAT IS NOT IN THE WATER. rho * g * A is the restoring force of a
+ * continuously immersed wall-sided float, valid while the relative motion stays
+ * inside the draught. This float draws about twenty millimetres, because the
+ * vehicle is nearly neutrally buoyant, and the relative motion is hundreds. It
+ * is clear of the surface for part of every cycle in every sea state, so the
+ * contact is one-sided: water can push and it cannot pull.
  *
- * AND THE SUSPENSION STIFFNESS TURNS OUT NOT TO MATTER, which is the useful
- * result. Sweeping it over two hundred to one moves the load by less than a
- * factor of two, because the relative motion falls as the stiffness rises and
- * the two cancel. In the quasi-static limit the load is simply the gondola's
- * mass times the wave's acceleration, and this module reproduces that limit to
- * three figures. What that means for the design is that the suspension is sized
- * by flight loads and by handling, not by the sea.
+ * WHAT SURVIVES. The linear transfer function is reported, flagged as out of
+ * validity, and bracketed by two bounds that do not depend on it. The lower is
+ * quasi-static, the vehicle following the surface with the suspension carrying
+ * the envelope's inertia times the wave's acceleration. The upper is
+ * hydrostatic, the vehicle holding station while a crest immerses the float by
+ * the full wave amplitude. On this design they are 31 to 36 kN in a smooth sea
+ * and 63 to 603 kN in a very rough one. Closing that gap needs a time-domain
+ * solve with one-sided contact, and until somebody writes one the honest thing
+ * is to size against the upper bound and to say which sea states that permits.
  *
- * The envelope is treated as ground because its effective heave inertia is
- * larger than the gondola's by more than an order of magnitude and it is held at
- * altitude by buoyancy rather than by the suspension.
+ * THE ONE CLEAN RESULT IS BACKWARDS FROM INTUITION. The vehicle's heave period
+ * is a few seconds, so it is the SHORT smooth seas that excite it and the long
+ * rough ones it rides. Sea state 2 sits at a frequency ratio of 1.06, which is
+ * resonance. A vehicle that is comfortable in a gale and bad in a chop is not
+ * what anybody expects, and it is what the period says.
  */
 
 const G0 = CONSTANTS.g0.value
@@ -56,6 +65,26 @@ export interface HeaveResponse {
   /** Load through the suspension, N. */
   readonly suspensionLoad: number
   readonly regime: 'follows the sea' | 'near resonance' | 'held by the envelope'
+  /**
+   * True while the float stays immersed through the whole cycle. When false the
+   * linearised waterplane spring every number above depends on is outside its
+   * validity, because water can push and cannot pull.
+   */
+  readonly contactMaintained: boolean
+  /**
+   * Lower bound on the suspension load, N: the vehicle follows the surface and
+   * the suspension carries the envelope's inertia times the wave acceleration.
+   */
+  readonly quasiStaticLoad: number
+  /**
+   * Upper bound, N: the vehicle holds station and the crest immerses the float
+   * by the full wave amplitude against the waterplane stiffness.
+   */
+  readonly fullImmersionLoad: number
+  /** Static draught the float floats at, m. */
+  readonly draught: number
+  /** What the whole vehicle contributes to the heave, kg. */
+  readonly oscillatingMass: number
   readonly note: string
 }
 
@@ -81,33 +110,77 @@ export const heaveResponse = (
   gondolaMass: Kilograms,
   suspensionStiffness: number,
   waterplaneArea: number,
+  /**
+   * Effective heave inertia of the envelope and everything hanging from it,
+   * kg, INCLUDING added mass. Required, because whether the envelope acts as
+   * ground is the question this module used to get wrong by assuming it.
+   */
+  envelopeHeaveInertia: number,
+  /**
+   * Static heaviness resting on the water, kg. Sets the draught, and therefore
+   * whether the float stays in contact at all.
+   */
+  staticDraught: number,
   salt = true,
 ): HeaveResponse => {
-  const state = SEA_STATE.find((s) => s.code === seaStateCode) ?? SEA_STATE[0]
+  // NO FALLBACK. The `?? SEA_STATE[0]` that used to sit here made the throw
+  // below unreachable for every real input, so a typo was answered as sea state
+  // 1: the one state where this system sits closest to resonance, and therefore
+  // the one that returns the largest load in the table with no indication that
+  // anything is wrong.
+  const state = SEA_STATE.find((s) => s.code === seaStateCode)
   if (!state) throw new RangeError(`No sea state ${seaStateCode}.`)
 
   const density = salt ? v(WATER.seawaterDensity) : v(WATER.freshwaterDensity)
   const waterStiffness = density * G0 * waterplaneArea
 
   /**
-   * @derived The gondola sits between two springs in series: the water pushing
-   * up and the suspension pulling up. Series, not parallel, because the load
-   * path runs through both in turn.
+   * THE PERIOD COMES FROM THE DATA LAYER. It used to be 4.0 * sqrt(Hs), cited
+   * as "the Pierson-Moskowitz relation", which it is not: PM gives a modal
+   * period of 5.00 * sqrt(Hs) and a zero-crossing period of 3.56. Four is
+   * neither, so the citation did not support the number attached to it. And
+   * @airship/data already tabulates a period for every sea state, so this was a
+   * second number for a quantity the repository had already answered, and one
+   * that ignores the low states where the sea is not fully developed and the
+   * closed form is worst.
    */
-  const effectiveStiffness =
-    Number.isFinite(suspensionStiffness) && suspensionStiffness > 0
-      ? (waterStiffness * suspensionStiffness) / (waterStiffness + suspensionStiffness)
-      : waterStiffness
-
-  const naturalPeriod = 2 * Math.PI * Math.sqrt(gondolaMass / effectiveStiffness)
+  const wavePeriod = state.meanPeriod
+  const waveAmplitude = state.significantWaveHeight / 2
+  const omega = (2 * Math.PI) / wavePeriod
 
   /**
-   * @source Modal wave period against significant height for a fully developed
-   * sea: T = 4.0 * sqrt(Hs), which reproduces the Pierson-Moskowitz relation
-   * closely enough across the sea states this vehicle will meet.
+   * WHAT ACTUALLY OSCILLATES ON THE WATERPLANE IS THE WHOLE VEHICLE.
+   *
+   * This module used to treat the envelope as ground, on the grounds that its
+   * inertia is an order of magnitude larger than the gondola's. That is the
+   * wrong criterion. Whether a body acts as ground is set by its inertial
+   * IMPEDANCE at the forcing frequency, m * omega^2, against the stiffness that
+   * connects to it. At wave frequencies m2 * omega^2 is an order of magnitude
+   * SMALLER than a stiff suspension, so the envelope is not ground at all: it
+   * is a nearly free mass that the suspension drags along, and the two heave
+   * essentially as one body.
+   *
+   * @derived Solving the two-body system with the envelope free gives the
+   * envelope's dynamic mass as seen from the gondola,
+   * M_eff = k_s * m2 / (k_s - m2 * omega^2), which tends to m2 as the
+   * suspension stiffens and to zero as it goes slack. The gondola then rides
+   * the waterplane spring alone carrying m1 + M_eff.
+   *
+   * The two springs are NOT in series. Series is only valid across a massless
+   * node, and the mass at that node is the entire subject of the analysis. Both
+   * springs deflect by the gondola's own displacement, so from the mass's
+   * standpoint they are in parallel, and the suspension's connection is to a
+   * body that moves rather than to ground.
    */
-  const wavePeriod = 4.0 * Math.sqrt(state.significantWaveHeight)
-  const waveAmplitude = state.significantWaveHeight / 2
+  const stiff = Number.isFinite(suspensionStiffness) && suspensionStiffness > 0
+  const envelopeDynamicMass = stiff
+    ? (suspensionStiffness * envelopeHeaveInertia) /
+      (suspensionStiffness - envelopeHeaveInertia * omega * omega)
+    : 0
+  const oscillatingMass = gondolaMass + envelopeDynamicMass
+
+  const effectiveStiffness = waterStiffness
+  const naturalPeriod = 2 * Math.PI * Math.sqrt(Math.abs(oscillatingMass) / effectiveStiffness)
 
   /**
    * Frequency ratio: FORCING over NATURAL, which is the standard convention and
@@ -135,7 +208,61 @@ export const heaveResponse = (
   const transmissibility =
     rSquared / Math.sqrt((1 - rSquared) ** 2 + (2 * DAMPING_RATIO * r) ** 2)
   const relativeMotion = waveAmplitude * transmissibility
-  const suspensionLoad = effectiveStiffness * relativeMotion
+
+  /**
+   * THE SUSPENSION CARRIES THE ENVELOPE'S INERTIA, not the waterplane spring's
+   * deflection.
+   *
+   * This used to be `effectiveStiffness * relativeMotion`, which is the force
+   * in the WATER spring, and then reported it as the force in the SUSPENSION.
+   * The suspension force is whatever it takes to accelerate the envelope, which
+   * from the free body above is m2 * omega^2 * |z2|, and the envelope's own
+   * motion follows from the gondola's.
+   */
+  const gondolaAbsolute =
+    Math.abs(waterStiffness / (waterStiffness - omega * omega * oscillatingMass)) * waveAmplitude
+  const envelopeAbsolute = stiff
+    ? gondolaAbsolute *
+      Math.abs(
+        suspensionStiffness / (suspensionStiffness - envelopeHeaveInertia * omega * omega),
+      )
+    : 0
+  const suspensionLoad = envelopeHeaveInertia * omega * omega * envelopeAbsolute
+
+  /**
+   * IS THE FLOAT EVEN IN THE WATER?
+   *
+   * k_w = rho * g * A is the linearised restoring force of a CONTINUOUSLY
+   * IMMERSED wall-sided float, and it is valid only while the relative motion
+   * stays inside the draught. Past that the float is clear of the surface for
+   * part of every cycle, the restoring force becomes one-sided (water can push
+   * and never pull), and every number above was computed with a spring that is
+   * not in contact.
+   *
+   * The module used to compute this load and then, in a separate function,
+   * declare that the float emerges on every wave in every sea state, without
+   * either result knowing about the other.
+   */
+  const draught = staticDraught / (density * waterplaneArea)
+  const contactMaintained = relativeMotion <= draught
+
+  /**
+   * TWO BOUNDS, BECAUSE THE LINEAR ANSWER IS NOT AVAILABLE.
+   *
+   * With the float clear of the water for part of every cycle the contact is
+   * one-sided: water can push and cannot pull. That is a nonlinear problem and
+   * no closed form settles it, so what is honest is the bracket.
+   *
+   * The LOWER bound is quasi-static: the vehicle follows the surface and the
+   * suspension carries the envelope's inertia times the wave's acceleration.
+   * The UPPER bound is hydrostatic: the vehicle stays where it is, the crest
+   * immerses the float by up to the wave amplitude, and the suspension carries
+   * rho * g * A times that immersion. The truth is between them, and getting it
+   * needs a time-domain simulation with one-sided contact rather than a
+   * transfer function.
+   */
+  const quasiStaticLoad = envelopeHeaveInertia * omega * omega * waveAmplitude
+  const fullImmersionLoad = waterStiffness * waveAmplitude
 
   /** @derived Within 30 percent of unity counts as near resonance. */
   const RESONANCE_BAND = 0.3
@@ -155,16 +282,35 @@ export const heaveResponse = (
     followingFraction: transmissibility,
     suspensionLoad,
     regime,
+    contactMaintained,
+    quasiStaticLoad,
+    fullImmersionLoad,
+    draught,
+    oscillatingMass,
     note:
       `Sea state ${seaStateCode}: ${state.significantWaveHeight.toFixed(2)} m significant, ` +
       `${wavePeriod.toFixed(1)} s modal. The gondola's own heave period is ` +
       `${naturalPeriod.toFixed(1)} s, a ratio of ${r.toFixed(2)}, so it ` +
       `${regime}. Relative motion is ${relativeMotion.toFixed(2)} m, which is ` +
       `${(transmissibility * 100).toFixed(0)} percent of the wave amplitude, and the suspension ` +
-      `sees ${(suspensionLoad / 1000).toFixed(1)} kN, which is the gondola's mass times the ` +
-      `wave's acceleration and almost nothing else. SUSPENSION STIFFNESS BARELY ENTERS: the ` +
-      `relative motion falls as the stiffness rises and the two cancel, so the cables are sized ` +
-      `by flight loads and by handling rather than by the sea.`,
+      `sees ${(suspensionLoad / 1000).toFixed(1)} kN. ` +
+      (contactMaintained
+        ? `The float stays in contact with the water throughout, so the linear waterplane spring ` +
+          `is valid here.`
+        : `BUT THE FLOAT LEAVES THE WATER: the relative motion is ` +
+          `${(relativeMotion * 1000).toFixed(0)} mm against ${(draught * 1000).toFixed(0)} mm of ` +
+          `draught, so it is clear of the surface for part of every cycle. Contact is one-sided ` +
+          `there, water can push and never pull, and the linearised waterplane spring above is ` +
+          `outside its validity. What is defensible is the BRACKET: between ` +
+          `${(quasiStaticLoad / 1000).toFixed(0)} kN if the vehicle follows the surface and ` +
+          `${(fullImmersionLoad / 1000).toFixed(0)} kN if it holds station and the crest comes to ` +
+          `it. Closing that gap needs a time-domain solve with one-sided contact, not a transfer ` +
+          `function.`) +
+      (regime === 'near resonance'
+        ? ` THIS SEA STATE IS AT RESONANCE, which is the opposite of what the intuition says: the ` +
+          `vehicle's heave period is a few seconds, so it is the SHORT smooth seas that excite it ` +
+          `and the long rough ones it rides.`
+        : ''),
   }
 }
 
@@ -186,7 +332,12 @@ export const resonantSuspensionStiffness = (
   waterplaneArea: number,
   salt = true,
 ): number => {
-  const state = SEA_STATE.find((s) => s.code === seaStateCode) ?? SEA_STATE[0]
+  // NO FALLBACK. The `?? SEA_STATE[0]` that used to sit here made the throw
+  // below unreachable for every real input, so a typo was answered as sea state
+  // 1: the one state where this system sits closest to resonance, and therefore
+  // the one that returns the largest load in the table with no indication that
+  // anything is wrong.
+  const state = SEA_STATE.find((s) => s.code === seaStateCode)
   if (!state) throw new RangeError(`No sea state ${seaStateCode}.`)
   const density = salt ? v(WATER.seawaterDensity) : v(WATER.freshwaterDensity)
   const waterStiffness = density * G0 * waterplaneArea
@@ -219,18 +370,54 @@ export const resonantWaveHeight = (
   gondolaMass: Kilograms,
   suspensionStiffness: number,
   waterplaneArea: number,
+  envelopeHeaveInertia: number,
   salt = true,
 ): number => {
   const density = salt ? v(WATER.seawaterDensity) : v(WATER.freshwaterDensity)
   const waterStiffness = density * G0 * waterplaneArea
-  const effectiveStiffness =
-    Number.isFinite(suspensionStiffness) && suspensionStiffness > 0
-      ? (waterStiffness * suspensionStiffness) / (waterStiffness + suspensionStiffness)
-      : waterStiffness
-  const naturalPeriod = 2 * Math.PI * Math.sqrt(gondolaMass / effectiveStiffness)
-  // Inverting T = 4.0 * sqrt(Hs).
-  /** @derived Coefficient of the modal period against significant height. */
-  const MODAL_PERIOD_COEFFICIENT = 4.0
+  /**
+   * @derived The LOWER root of the two-degree-of-freedom characteristic
+   * equation, gondola on the waterplane and envelope on the suspension:
+   *
+   *   m1 m2 w^4 - w^2 (k_w m2 + k_s m2 + m1 k_s) + k_w k_s = 0
+   *
+   * Its limits are the check. As k_s goes to infinity the envelope is rigidly
+   * attached and w^2 -> k_w / (m1 + m2). As k_s goes to zero the lower root
+   * goes to zero with it: the envelope hangs on nothing and the mode becomes a
+   * slow wallow of the two masses against each other.
+   *
+   * So SOFTENING MOVES THE RESONANCE INTO LONGER WAVES AND BIGGER SEAS, which
+   * is the opposite of what vibration isolation teaches, and stiffening moves
+   * it towards a chop. That much the old model got right. What it got wrong is
+   * where the limit sits: even a RIGID suspension puts the resonance at about
+   * half a metre of significant height, which is a slight sea the vehicle will
+   * meet routinely. There is no stiffness that puts it on a ripple.
+   */
+  const naturalFrequencySquared = (() => {
+    if (!Number.isFinite(suspensionStiffness) || suspensionStiffness <= 0) {
+      return waterStiffness / (gondolaMass + envelopeHeaveInertia)
+    }
+    const a = gondolaMass * envelopeHeaveInertia
+    const b = -(
+      waterStiffness * envelopeHeaveInertia +
+      suspensionStiffness * envelopeHeaveInertia +
+      gondolaMass * suspensionStiffness
+    )
+    const c = waterStiffness * suspensionStiffness
+    const discriminant = Math.sqrt(b * b - 4 * a * c)
+    return (-b - discriminant) / (2 * a)
+  })()
+  const naturalPeriod = (2 * Math.PI) / Math.sqrt(naturalFrequencySquared)
+  /**
+   * @source Inverting the Pierson-Moskowitz modal period, T = 5.00 * sqrt(Hs).
+   * The coefficient here used to be 4.0, which is neither the PM modal value
+   * nor its zero-crossing value of 3.56, and so supported neither citation.
+   *
+   * This is a closed form and the sea state table is not, so the two will
+   * disagree at the low states where a real sea is not fully developed. It is
+   * used only to say WHICH sea excites the vehicle, not to size anything.
+   */
+  const MODAL_PERIOD_COEFFICIENT = 5.0
   return (naturalPeriod / MODAL_PERIOD_COEFFICIENT) ** 2
 }
 
@@ -249,15 +436,14 @@ export const resonantWaveHeight = (
  * seakeeping limit is not a wave height at all.
  */
 export const quasiStaticSuspensionLoad = (
-  gondolaMass: Kilograms,
-  significantWaveHeight: number,
+  heaveInertia: number,
+  seaStateCode: number,
 ): number => {
-  /** @derived Coefficient of the modal period against significant height. */
-  const MODAL_PERIOD_COEFFICIENT = 4.0
-  const period = MODAL_PERIOD_COEFFICIENT * Math.sqrt(significantWaveHeight)
-  const omega = (2 * Math.PI) / period
-  const amplitude = significantWaveHeight / 2
-  return gondolaMass * omega * omega * amplitude
+  const state = SEA_STATE.find((st) => st.code === seaStateCode)
+  if (!state) throw new RangeError(`No sea state ${seaStateCode}.`)
+  const omega = (2 * Math.PI) / state.meanPeriod
+  const amplitude = state.significantWaveHeight / 2
+  return heaveInertia * omega * omega * amplitude
 }
 
 
@@ -298,6 +484,7 @@ export const emergence = (
   gondolaMass: Kilograms,
   suspensionStiffness: number,
   draughtArea: number,
+  envelopeHeaveInertia: number,
   salt = true,
 ): EmergenceVerdict => {
   const density = salt ? v(WATER.seawaterDensity) : v(WATER.freshwaterDensity)
@@ -306,6 +493,8 @@ export const emergence = (
     gondolaMass,
     suspensionStiffness,
     draughtArea,
+    envelopeHeaveInertia,
+    landingTrim,
     salt,
   )
 
@@ -314,11 +503,36 @@ export const emergence = (
   const emerges = response.relativeMotion > draught
 
   const omega = (2 * Math.PI) / response.wavePeriod
-  const reentryVelocity = emerges ? omega * (response.relativeMotion - draught) : 0
 
   /**
-   * @source Peak impact pressure p = 0.5 * Cp * rho * v^2 with Cp about 15 for
-   * a shallow deadrise hull entering water, from the NACA hull impact reports.
+   * RE-ENTRY VELOCITY, WHICH IS NOT THE PEAK VELOCITY AND IS NOT ZERO.
+   *
+   * For a relative displacement z(t) = Z sin(omega t), the float re-enters when
+   * z falls back through the draught d, and its velocity there is
+   * omega * sqrt(Z^2 - d^2).
+   *
+   * The docstring above used to claim omega * Z, the code computed
+   * omega * (Z - d), and the correct answer is neither. The code's form is the
+   * worst of the three, because it goes to zero exactly where the physics does
+   * not: a float that barely clears the water re-enters at close to its full
+   * relative velocity, not gently. Impact pressure goes as v^2, so the error is
+   * squared.
+   */
+  const reentryVelocity = emerges
+    ? omega * Math.sqrt(response.relativeMotion ** 2 - draught ** 2)
+    : 0
+
+  /**
+   * @source Peak impact pressure p = 0.5 * Cp * rho * v^2. Wagner water-entry
+   * theory gives Cp = 1 + pi^2 / (4 tan^2 beta) in the deadrise angle beta, and
+   * Cp = 15 corresponds to beta of about 22 degrees: MODERATE deadrise, not
+   * shallow. This value was previously described as "large" for a "shallow
+   * deadrise hull", which is backwards twice over: 15 is at the small end of
+   * the published range, and a shallow deadrise gives a far larger coefficient,
+   * so quoting it for a flat-bottomed float would under-predict the slam.
+   *
+   * Validity: this is the deadrise the float must actually be built to. A flat
+   * bottom at beta = 5 degrees would give Cp near 130.
    * The coefficient is large and the velocity is small, and the velocity is
    * squared.
    */
