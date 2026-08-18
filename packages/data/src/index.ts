@@ -13,7 +13,14 @@ export {
 
 export { SOURCES, source, sourceExists } from './sources.js'
 export { CONSTANTS, MOLAR_MASS } from './constants.js'
-export { HYDROGEN_ENERGY, FUEL_CELL, ELECTROLYZER, PHOTOVOLTAIC, BATTERY } from './power.js'
+export {
+  HYDROGEN_ENERGY,
+  HYDROCARBON_FUELS,
+  FUEL_CELL,
+  ELECTROLYZER,
+  PHOTOVOLTAIC,
+  BATTERY,
+} from './power.js'
 export { WATER, WINDAGE, GALVANIC, SEA_STATE } from './marine.js'
 export { CREW, FOOD_SHELF_LIFE, CATCHMENT, HABITABILITY } from './habitat.js'
 export type { Engine } from './engines.js'

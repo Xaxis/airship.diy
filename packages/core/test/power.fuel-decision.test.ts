@@ -68,12 +68,19 @@ describe('the fuel decision is settled by lift cost, not energy density', () => 
     //
     // A genuinely independent check needs published energy-per-lift figures for
     // airship fuels, and none exist: the comparison is the point of this module.
+    //
+    // Repinned twice since. The blend moved from 50.0 to 51.0 when its specific
+    // energy stopped being the asserted 46.55 MJ/kg and started being the
+    // mass-weighted average of its own two ingredients, 47.44. The 700 bar tank
+    // moved from 6.2 to 6.6 when its lift cost stopped being 19.4, which is
+    // 1/0.0515, and became 1/0.055, which is the gravimetric fraction the same
+    // entry's comment already named.
     const expected: Record<string, number> = {
-      'air-density-blend': 50.0,
+      'air-density-blend': 51.0,
       'historical-blaugas': 51.7,
       'jet-a': 40.6,
       'hydrogen-cell': 9.0,
-      'hydrogen-700bar': 6.2,
+      'hydrogen-700bar': 6.6,
     }
     for (const { option, energyPerLift } of rankedByLiftCost()) {
       const target = expected[option.id] ?? 0
@@ -82,10 +89,21 @@ describe('the fuel decision is settled by lift cost, not energy density', () => 
   })
 
   it('separates the cost of CARRYING a fuel from the trim excursion on burning it', () => {
-    // Two different questions. A buoyancy-neutral gas has zero trim excursion
-    // and a lift cost near unity; conflating them is what caused the error.
+    // Two different questions. A buoyancy-neutral gas has a trim excursion near
+    // zero and a lift cost near unity; conflating them is what caused the error.
+    //
+    // NEAR zero, not zero. The blend is solved to match air's MOLAR MASS, and
+    // propane is nearly two percent non-ideal at ambient conditions, so the
+    // density lands 0.8 percent off and burning it leaves the ship very
+    // slightly light. This used to assert exact neutrality, which was a
+    // property of the ideal-gas assumption rather than of the fuel.
     const blend = option('air-density-blend')
-    expect(blend.trimExcursionPerKilogram).toBeCloseTo(0, 6)
+    expect(Math.abs(blend.trimExcursionPerKilogram)).toBeLessThan(0.02)
+    expect(blend.trimExcursionPerKilogram).not.toBe(0)
+    // And three orders smaller than the option it is being compared against.
+    expect(Math.abs(blend.trimExcursionPerKilogram)).toBeLessThan(
+      option('hydrogen-cell').trimExcursionPerKilogram / 100,
+    )
     expect(blend.liftCostPerKilogram).toBeGreaterThan(0.9)
     expect(blend.liftCostPerKilogram).toBeLessThan(1.0)
   })

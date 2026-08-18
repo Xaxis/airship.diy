@@ -51,12 +51,34 @@ import { K, Pa, kgPerM3, mps, PaS, m } from '@airship/units'
 const ISA_EARTH_RADIUS = 6356766
 
 /** @derived H = r*h/(r + h). Exact inverse of geopotentialToGeometric. */
-export const geometricToGeopotential = (geometric: Meters): Meters =>
-  m((ISA_EARTH_RADIUS * geometric) / (ISA_EARTH_RADIUS + geometric))
+export const geometricToGeopotential = (geometric: Meters): Meters => {
+  if (geometric <= -ISA_EARTH_RADIUS) {
+    throw new RangeError(
+      `Geometric altitude ${geometric} m is at or below the centre of the Earth, where the ` +
+        `geopotential conversion has a pole.`,
+    )
+  }
+  return m((ISA_EARTH_RADIUS * geometric) / (ISA_EARTH_RADIUS + geometric))
+}
 
-/** @derived h = r*H/(r - H). */
-export const geopotentialToGeometric = (geopotential: Meters): Meters =>
-  m((ISA_EARTH_RADIUS * geopotential) / (ISA_EARTH_RADIUS - geopotential))
+/**
+ * @derived h = r*H/(r - H).
+ *
+ * Guarded because the pole is at H = r and the expression does not announce it:
+ * it returns Infinity there and NEGATIVE altitudes above it, which is a wrong
+ * answer that looks like an answer. Nothing in this project goes near 6,357 km,
+ * which is exactly why an unguarded pole would never be found by testing the
+ * cases anyone cares about.
+ */
+export const geopotentialToGeometric = (geopotential: Meters): Meters => {
+  if (geopotential >= ISA_EARTH_RADIUS) {
+    throw new RangeError(
+      `Geopotential altitude ${geopotential} m is at or above the ISA Earth radius ` +
+        `${ISA_EARTH_RADIUS} m, where the conversion to geometric altitude diverges.`,
+    )
+  }
+  return m((ISA_EARTH_RADIUS * geopotential) / (ISA_EARTH_RADIUS - geopotential))
+}
 
 export interface AtmosphereState {
   readonly altitude: Meters
@@ -223,15 +245,37 @@ export const atmosphere = (
 
 /**
  * Pressure altitude: the geopotential altitude at which ISA has a given
- * pressure. The inverse of the pressure profile, restricted to the troposphere.
+ * pressure. The exact inverse of `atmosphere`'s pressure profile, over the same
+ * 0 to 32 km the forward function is valid on.
  *
  * This is what the gas cells actually respond to. A cell does not know its
  * altitude; it knows the pressure outside it, and fill fraction follows that.
+ *
+ * IT WAS NOT THE INVERSE ABOVE 20 KM. The docstring said "restricted to the
+ * troposphere" while the body already handled the tropopause, and it handled
+ * everything above the tropopause with the isothermal law, including the second
+ * lapse layer where `atmosphere` uses a different one. Round-tripping a
+ * pressure through the pair came back 57 m low at 25 km and 320 m low at 32 km,
+ * silently, in the one direction the gas cells are actually driven from.
  */
 export const pressureAltitude = (pressure: Pascals): Meters => {
   if (pressure > P0) {
     /** @derived Below sea level the troposphere formula still inverts cleanly. */
     return m((T0 / LAPSE) * (1 - (pressure / P0) ** ((R_ISA * LAPSE) / (G0 * M_AIR))))
+  }
+  if (pressure < P_STRATOSPHERE) {
+    /**
+     * @derived Inverting p = p20 * (T/T20)^(g0 M / (R L2)) for T, then the
+     * layer's own T = T20 - L2*(H - H20) for H.
+     *
+     * LAPSE_2 IS NEGATIVE, matching the data package's convention that a lapse
+     * rate is a positive number which gets SUBTRACTED, so a layer that warms
+     * with altitude carries a negative one. Both signs here follow from that
+     * and neither is free to be chosen.
+     */
+    const temperature =
+      T_TROPOPAUSE * (pressure / P_STRATOSPHERE) ** ((R_ISA * LAPSE_2) / (G0 * M_AIR))
+    return m(H_STRATOSPHERE + (T_TROPOPAUSE - temperature) / LAPSE_2)
   }
   if (pressure < P_TROPOPAUSE) {
     return m(

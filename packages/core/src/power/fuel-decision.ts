@@ -1,4 +1,12 @@
-import { GAS, HYDROGEN_ENERGY, MOLAR_MASS, v } from '@airship/data'
+import {
+  GAS,
+  HYDROCARBON_FUELS,
+  HYDROGEN_ENERGY,
+  HYDROGEN_STORAGE_DENSITY,
+  ISA,
+  MOLAR_MASS,
+  v,
+} from '@airship/data'
 
 /**
  * The fuel decision, on the metric that actually governs.
@@ -159,11 +167,22 @@ export const energyPerLiftGivenUp = (option: FuelOption): number =>
  *
  * @source ISA sea level hydrogen density, computed by the buoyancy module.
  */
-const hullGasLiftCost = (fuelDensity: number): number => {
-  /** @source Pure hydrogen at ISA sea level, kg/m3. */
-  const hydrogenDensity = 0.0852
-  return (fuelDensity - hydrogenDensity) / fuelDensity
-}
+/**
+ * Density of pure hydrogen at ISA sea level, kg/m3.
+ *
+ * @derived Two ideal gases at the same pressure and temperature are in the
+ * ratio of their molar masses, so this is the ISA density scaled by
+ * M_H2 / M_air. Computed rather than written as 0.0852, which appeared twice in
+ * this file with a comment claiming the buoyancy module produced it.
+ *
+ * Real-gas compressibility is deliberately absent: hydrogen at ambient pressure
+ * has Z = 1.0006. It is NOT absent for the 700 bar tank below, where Z = 1.43.
+ */
+const HYDROGEN_DENSITY_AT_SEA_LEVEL =
+  v(ISA.seaLevelDensity) * (MOLAR_MASS.hydrogen.value / MOLAR_MASS.dryAir.value)
+
+const hullGasLiftCost = (fuelDensity: number): number =>
+  (fuelDensity - HYDROGEN_DENSITY_AT_SEA_LEVEL) / fuelDensity
 
 /**
  * Heaviness gained per kilogram of a hull-carried gas CONSUMED.
@@ -173,13 +192,80 @@ const hullGasLiftCost = (fuelDensity: number): number => {
  * Zero when the fuel is exactly air density, which is the whole point of a
  * buoyancy-neutral fuel.
  */
-const hullGasTrimExcursion = (fuelDensity: number): number => {
-  const airDensity = 1.225
-  return (airDensity - fuelDensity) / fuelDensity
+const hullGasTrimExcursion = (fuelDensity: number): number =>
+  (v(ISA.seaLevelDensity) - fuelDensity) / fuelDensity
+
+/**
+ * Molar composition of a gas blend that exactly matches air density.
+ *
+ * @derived Solving x*M_heavy + (1-x)*M_light = M_air for the heavy mole
+ * fraction. For propane and methane this gives 46.1 percent propane.
+ *
+ * The result is a genuinely buildable modern Blaugas, better than the original
+ * because it hits air density exactly rather than 3.6 percent under, and made
+ * from two commodity fuels obtainable anywhere in the world.
+ */
+export const airDensityBlend = (
+  heavyMolarMass: number,
+  lightMolarMass: number,
+): { heavyMoleFraction: number; lightMoleFraction: number } => {
+  const target = MOLAR_MASS.dryAir.value
+  if ((heavyMolarMass - target) * (lightMolarMass - target) > 0) {
+    throw new RangeError(
+      'A blend can only reach air density if one component is heavier than air and the other lighter. ' +
+        'Both components given are on the same side.',
+    )
+  }
+  const heavy = (target - lightMolarMass) / (heavyMolarMass - lightMolarMass)
+  return { heavyMoleFraction: heavy, lightMoleFraction: 1 - heavy }
 }
 
-/** @source Density of the air-density blend, by construction. */
-const BLEND_DENSITY = 1.225
+/**
+ * The propane/methane blend, computed rather than asserted.
+ *
+ * "EXACTLY AIR DENSITY" IS NOT EXACTLY TRUE, and the module used to say it was.
+ * The composition is solved to match air's MOLAR MASS, which matches density
+ * only for an ideal gas. Propane is a large molecule and is nearly two percent
+ * non-ideal at ambient conditions, so the blend comes out denser than air by
+ * the ratio of the compressibilities.
+ *
+ * It is a small number and it is kept because the alternative is a claim of an
+ * exact match that the same file's own constants contradict.
+ */
+const BLEND = (() => {
+  const composition = airDensityBlend(
+    v(HYDROCARBON_FUELS.propaneMolarMass),
+    v(HYDROCARBON_FUELS.methaneMolarMass),
+  )
+  const propaneMass = composition.heavyMoleFraction * v(HYDROCARBON_FUELS.propaneMolarMass)
+  const methaneMass = composition.lightMoleFraction * v(HYDROCARBON_FUELS.methaneMolarMass)
+  const total = propaneMass + methaneMass
+
+  /**
+   * @derived Mass-weighted lower heating value. This is where the asserted
+   * 46.55 MJ/kg was wrong: the blend is 70 percent propane BY MASS even though
+   * it is 46 percent by mole, and propane is the lower-energy component, so the
+   * average lands at 47.44 rather than below either ingredient's neighbourhood.
+   */
+  const specificEnergy =
+    (propaneMass * v(HYDROCARBON_FUELS.propaneLowerHeatingValue) +
+      methaneMass * v(HYDROCARBON_FUELS.methaneLowerHeatingValue)) /
+    total
+
+  /** @derived Amagat mixing of the component compressibilities by mole. */
+  const compressibility =
+    composition.heavyMoleFraction * v(HYDROCARBON_FUELS.propaneCompressibility) +
+    composition.lightMoleFraction * v(HYDROCARBON_FUELS.methaneCompressibility)
+
+  // rho = P M / (Z R T), and M is matched to air by construction, so the whole
+  // difference from air density is the compressibility ratio.
+  const density = v(ISA.seaLevelDensity) * (v(HYDROCARBON_FUELS.airCompressibility) / compressibility)
+
+  return { composition, specificEnergy, density }
+})()
+
+const BLEND_DENSITY = BLEND.density
+
 /** @source Blaugas at ISA sea level: relative density 0.963. */
 const BLAUGAS_DENSITY = 1.1797
 
@@ -187,14 +273,13 @@ export const FUEL_OPTIONS: readonly FuelOption[] = [
   {
     id: 'air-density-blend',
     name: 'Modern air-density gas blend, 46 mol% propane / 54 mol% methane',
-    /** @source Computed LHV of the blend at exactly air density. */
-    specificEnergy: 46.55e6,
+    specificEnergy: BLEND.specificEnergy,
     liftCostPerKilogram: hullGasLiftCost(BLEND_DENSITY),
     trimExcursionPerKilogram: hullGasTrimExcursion(BLEND_DENSITY),
     waterRecoveryForNeutrality: 0,
     condenserOutletTemperature: 0,
     note:
-      'Solving x*44.096 + (1-x)*16.043 = 28.9647 g/mol gives 46.1 mol% propane and 53.9 mol% methane, which is EXACTLY air density. Both are commodity fuels available anywhere in the world. No ballast compensation, no condenser, no trim excursion. It still costs 0.93 kg of lift for every kilogram carried, because the cell it occupies could have held hydrogen.',
+      'Solving x*44.096 + (1-x)*16.043 = 28.9647 g/mol gives 46.1 mol% propane and 53.9 mol% methane, which matches air MOLAR MASS exactly. Density is a further 0.8 percent off, because propane is nearly two percent non-ideal at ambient conditions, so burning it leaves the ship very slightly light rather than exactly neutral: 8 grams per kilogram, against 13.4 kilograms for cell hydrogen. Both are commodity fuels available anywhere in the world. No ballast compensation and no condenser. It still costs 0.93 kg of lift for every kilogram carried, because the cell it occupies could have held hydrogen.',
   },
   {
     id: 'historical-blaugas',
@@ -228,14 +313,26 @@ export const FUEL_OPTIONS: readonly FuelOption[] = [
     id: 'hydrogen-cell',
     name: 'Hydrogen drawn from the lift cells',
     specificEnergy: v(HYDROGEN_ENERGY.lowerHeatingValue),
-    /** @derived 13.4 kg of lift lost per kilogram drawn; see the module docstring. */
-    liftCostPerKilogram: 13.4,
+    /**
+     * @derived The same quantity as the trim excursion below, because for cell
+     * hydrogen the lift lost and the heaviness gained ARE one number: the
+     * vacated volume fills with air. It was written as the rounded 13.4 while
+     * the line below computed 13.378, which is the disagreement this file has
+     * now had twice.
+     */
+    liftCostPerKilogram: heavinessPerKilogramOfCellHydrogenBurned(
+      v(ISA.seaLevelDensity),
+      HYDROGEN_DENSITY_AT_SEA_LEVEL,
+    ),
     /**
      * @derived The ship goes this much heavier per kilogram burned, before any
      * water is recovered. Computed rather than restated: it was the literal
      * 12.4, which is this number with the gas's own kilogram subtracted twice.
      */
-    trimExcursionPerKilogram: heavinessPerKilogramOfCellHydrogenBurned(1.225, 0.0852),
+    trimExcursionPerKilogram: heavinessPerKilogramOfCellHydrogenBurned(
+      v(ISA.seaLevelDensity),
+      HYDROGEN_DENSITY_AT_SEA_LEVEL,
+    ),
     /** @derived Even full recovery cannot hold trim; see the module docstring. */
     waterRecoveryForNeutrality: Infinity,
     condenserOutletTemperature: HYDROGEN_CONDENSER_OUTLET,
@@ -246,8 +343,13 @@ export const FUEL_OPTIONS: readonly FuelOption[] = [
     id: 'hydrogen-700bar',
     name: 'Hydrogen in 700 bar Type IV storage',
     specificEnergy: v(HYDROGEN_ENERGY.lowerHeatingValue),
-    /** @derived At 5.5 wt% system capacity, one kilogram of usable hydrogen brings about 18 kg of tank. */
-    liftCostPerKilogram: 19.4,
+    /**
+     * @derived System mass per kilogram of usable hydrogen, at the Type IV
+     * system's own gravimetric fraction: 1/0.055 = 18.18. It was written as
+     * 19.4, which is 1/0.0515, next to a comment saying "about 18". Nothing
+     * sourced 0.0515.
+     */
+    liftCostPerKilogram: 1 / v(HYDROGEN_STORAGE_DENSITY.type4SystemGravimetricFraction),
     /** @derived Mass leaves the tank; the tank stays. */
     trimExcursionPerKilogram: -1.0,
     /** @derived 11.2 percent of product water holds trim, which is easy. */
@@ -255,7 +357,7 @@ export const FUEL_OPTIONS: readonly FuelOption[] = [
     /** @source Condenser outlet for 11 percent recovery at lambda 4. */
     condenserOutletTemperature: HYDROGEN_CONDENSER_OUTLET,
     note:
-      'Ballast compensation is nearly free here, needing only 11 percent water recovery at an exhaust temperature of 44 C which almost any climate allows. The problem is the tank: the storage system masses roughly nineteen times the hydrogen it holds.',
+      'Ballast compensation is nearly free here, needing only 11 percent water recovery at an exhaust temperature of 44 C which almost any climate allows. The problem is the tank: the storage system masses about eighteen times the hydrogen it holds.',
   },
 ]
 
@@ -312,35 +414,13 @@ export const engineDutyCycleLimit = (
   }
 }
 
-/**
- * Molar composition of a gas blend that exactly matches air density.
- *
- * @derived Solving x*M_heavy + (1-x)*M_light = M_air for the heavy mole
- * fraction. For propane and methane this gives 46.1 percent propane.
- *
- * The result is a genuinely buildable modern Blaugas, better than the original
- * because it hits air density exactly rather than 3.6 percent under, and made
- * from two commodity fuels obtainable anywhere in the world.
- */
-export const airDensityBlend = (
-  heavyMolarMass: number,
-  lightMolarMass: number,
-): { heavyMoleFraction: number; lightMoleFraction: number } => {
-  const target = MOLAR_MASS.dryAir.value
-  if ((heavyMolarMass - target) * (lightMolarMass - target) > 0) {
-    throw new RangeError(
-      'A blend can only reach air density if one component is heavier than air and the other lighter. ' +
-        'Both components given are on the same side.',
-    )
-  }
-  const heavy = (target - lightMolarMass) / (heavyMolarMass - lightMolarMass)
-  return { heavyMoleFraction: heavy, lightMoleFraction: 1 - heavy }
-}
 
-/** Molar masses of the blend candidates, kg/mol. @source IUPAC 2021. */
+
+/** Molar masses of the blend candidates, kg/mol. */
 export const BLEND_COMPONENTS = {
-  propane: 44.096e-3,
-  methane: GAS.hydrogen.molarMass * 0 + 16.043e-3,
+  propane: v(HYDROCARBON_FUELS.propaneMolarMass),
+  methane: v(HYDROCARBON_FUELS.methaneMolarMass),
+  /** @source IUPAC 2021 atomic weights, C4H10. */
   butane: 58.122e-3,
   hydrogen: GAS.hydrogen.molarMass,
 } as const

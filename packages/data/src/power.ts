@@ -220,3 +220,71 @@ export const BATTERY = under('battery', () => ({
     note: 'The contrast that decides the architecture: 94 percent for lithium against about 33 percent for the hydrogen round trip. Diurnal cycling belongs in the battery and nowhere else.',
   }),
 }))
+
+/**
+ * The two commodity hydrocarbons the air-density blend is made of.
+ *
+ * They are here rather than in the core module because the blend's specific
+ * energy was ASSERTED there as 46.55 MJ/kg, and the mass-weighted average of
+ * these two values at the blend's own composition is 47.44. A number that
+ * disagrees with the numbers it is supposedly computed from is the failure mode
+ * this package exists to prevent, so the ingredients live where they can be
+ * cited and the blend is computed from them.
+ */
+export const HYDROCARBON_FUELS = under('hydrocarbonFuels', () => ({
+  propaneLowerHeatingValue: measured(46.35e6, {
+    unit: 'J/kg',
+    source: 'nist-webbook',
+    relativeUncertainty: 5e-3,
+    note: 'Net calorific value of C3H8. Quoted between 46.3 and 46.4 depending on reference temperature.',
+  }),
+
+  methaneLowerHeatingValue: measured(50.0e6, {
+    unit: 'J/kg',
+    source: 'nist-webbook',
+    relativeUncertainty: 5e-3,
+    note: 'Net calorific value of CH4. Pipeline natural gas is lower, around 47 to 48, because it is not pure methane. The blend here is specified as pure components.',
+  }),
+
+  propaneMolarMass: measured(44.0956e-3, {
+    unit: 'kg/mol',
+    source: 'iupac-atomic-weights-2021',
+    relativeUncertainty: 1e-5,
+  }),
+
+  methaneMolarMass: measured(16.0425e-3, {
+    unit: 'kg/mol',
+    source: 'iupac-atomic-weights-2021',
+    relativeUncertainty: 1e-5,
+  }),
+
+  /**
+   * Real-gas compressibility at ISA sea level, which is why "exactly air
+   * density" is not exactly true.
+   *
+   * Propane is a much larger molecule than anything else in this model and it
+   * departs from ideal behaviour at ambient conditions by nearly two percent,
+   * in the direction that makes the blend DENSER than the ideal-gas
+   * calculation says. Matching molar mass to air therefore does not match
+   * density to air, and the residual is a real, if small, trim excursion.
+   */
+  propaneCompressibility: measured(0.9834, {
+    unit: '1',
+    source: 'nist-webbook',
+    relativeUncertainty: 2e-3,
+    note: 'Z for C3H8 at 288.15 K and 101.325 kPa. Air is 0.9995 and methane 0.9980 at the same condition, so propane is the term that matters.',
+  }),
+
+  methaneCompressibility: measured(0.998, {
+    unit: '1',
+    source: 'nist-webbook',
+    relativeUncertainty: 1e-3,
+  }),
+
+  /** Z for dry air at the same condition, so the comparison is like for like. */
+  airCompressibility: measured(0.9995, {
+    unit: '1',
+    source: 'nist-webbook',
+    relativeUncertainty: 5e-4,
+  }),
+}))

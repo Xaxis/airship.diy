@@ -133,6 +133,32 @@ describe('pressure altitude', () => {
     expect(Math.abs(pressureAltitude(state.pressure) - 15000)).toBeLessThan(1)
   })
 
+  it('inverts the SECOND lapse layer, which it silently did not', () => {
+    // THE CASE THE OLD TESTS MISSED, and they missed it for a structural
+    // reason worth keeping: they checked 15,000 m, which is inside the
+    // isothermal layer, so the one branch that was wrong was never entered.
+    //
+    // Above 20 km `atmosphere` switches to a lapse layer and `pressureAltitude`
+    // kept using the isothermal law, so the pair stopped being inverses: 57 m
+    // out at 25 km and 320 m at 32 km, in the direction the gas cells are
+    // actually driven from.
+    for (const h of [20000, 22000, 25000, 28000, 32000]) {
+      const state = atmosphere(m(h))
+      expect(`${h}: ${Math.abs(pressureAltitude(state.pressure) - h) < 1e-6}`).toBe(`${h}: true`)
+    }
+  })
+
+  it('is an exact inverse everywhere the forward function is valid', () => {
+    // Swept rather than sampled, because sampling is what let a whole layer go
+    // unchecked. Machine precision, not a tolerance: both directions are closed
+    // forms of the same profile and any daylight between them is a defect.
+    let worst = 0
+    for (let h = 0; h <= 32000; h += 250) {
+      worst = Math.max(worst, Math.abs(pressureAltitude(atmosphere(m(h)).pressure) - h))
+    }
+    expect(worst).toBeLessThan(1e-6)
+  })
+
   it('returns sea level for standard pressure', () => {
     expect(Math.abs(pressureAltitude(Pa(101325)))).toBeLessThan(1e-6)
   })
