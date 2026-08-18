@@ -2,7 +2,10 @@ import { CREW, v } from '@airship/data'
 import { atmosphere, hullGeometry, hullShapeForPrismatic, powerRequired } from '@airship/core'
 import { m, mps } from '@airship/units'
 
+import { dumpableInventory } from './configuration.js'
 import type { Configuration } from './configuration.js'
+
+export { dumpableInventory }
 import type { DesignPoint } from './design-point.js'
 import { hullBendingMoment, massStatement } from './arrangement.js'
 import { compareArchitecture } from './architecture.js'
@@ -25,18 +28,6 @@ import { RIGID, SEMI_RIGID } from './architectures.js'
  * not asserted. A torn gas cell costs one twelfth of the gross lift because the
  * arrangement has twelve cells and the buoyancy module knows what they lift.
  */
-
-/**
- * The water aboard, all of which can go over the side in seconds.
- *
- * Read off the arrangement rather than asserted, because a failure analysis
- * whose ballast figure is a literal will keep saying a mode is survivable after
- * the tank that made it survivable has been deleted from the drawing.
- */
-export const dumpableInventory = (config: Configuration): number =>
-  config.compartments
-    .filter((c) => c.id.startsWith('water-'))
-    .reduce((sum, c) => sum + c.mass, 0)
 
 export type Severity = 'nuisance' | 'degraded' | 'serious' | 'catastrophic'
 

@@ -456,7 +456,7 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       netHabitable: false,
       shell: false,
       enclosed: true,
-      note: 'The other half of the trim system. Deliberately the SAME size as the forward tank, because trim authority is the smaller of the two and an asymmetric pair wastes the larger one, and placed so the PAIR is centred on the centre of buoyancy: a symmetric pair straddling it contributes no standing trim moment of its own and still gives a 32 m arm to work with.',
+      note: 'The other half of the trim system. Deliberately the SAME size as the forward tank, because trim authority is the smaller of the two and an asymmetric pair wastes the larger one. The pair does NOT straddle the centre of buoyancy: its centroid sits about nine metres forward of it, because correcting the yaw stability put nearly two tonnes of fin at station 0.9 and the water is one of the few masses big enough to answer that. So dumping both equally trims the ship nose-up and the drill is to dump this one first. This note used to claim the pair was centred on the centre of buoyancy, which contradicted the forward tank\'s note and the arithmetic in the same file.',
     },
     {
       id: 'reserve-fuel',
@@ -712,3 +712,19 @@ export const BASELINE_ARRANGEMENT: Configuration = {
   keelWidth: 1.1,
   keelOpenToFreeStream: true,
 }
+
+/**
+ * The water aboard, all of which can go over the side in seconds.
+ *
+ * Read off the configuration rather than asserted, because a failure analysis
+ * whose ballast figure is a literal will keep saying a mode is survivable after
+ * the tank that made it survivable has been deleted from the drawing.
+ *
+ * It lives here rather than in failure.ts because the ALIGHTING GEAR needs it
+ * too: what the gear carries is the landing trim plus whatever of the diurnal
+ * superheat swing the vehicle cannot shed, and what it can shed is this.
+ */
+export const dumpableInventory = (config: Configuration): number =>
+  config.compartments
+    .filter((c) => c.id.startsWith('water-'))
+    .reduce((sum, c) => sum + c.mass, 0)

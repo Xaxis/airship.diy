@@ -13,18 +13,28 @@ import { CONSTANTS, WATER, v } from '@airship/data'
  * other.
  *
  * THE ANSWER IS THE OCEAN. A vehicle afloat is sitting on unlimited ballast,
- * and moving water is the cheapest way there is to change static heaviness:
- * about 0.024 kWh per tonne against 71 to 149 for compressing lifting gas, a
- * ratio of three thousand to one. The loop takes seawater aboard as the sun
+ * and moving water is the cheapest way there is to change static heaviness.
+ * `ballastLoop` returns the energy per tonne it costs and `shareOfHabitatLoad`
+ * puts it against what the vehicle draws to keep two people alive; both are
+ * fractions of a percent. The comparison against compressing lifting gas lives
+ * in `rankedByLiftCost` in the fuel-decision module, which is where the
+ * compression energies are cited, rather than as a pair of numbers restated
+ * here without one. The loop takes seawater aboard as the sun
  * rises and puts it back as the sun sets, and it tracks the superheat rather
  * than fighting it.
  *
  * WHAT IS SURPRISING IS HOW SMALL IT IS. Two tonnes over the six hours between
  * dawn and the afternoon peak is a few kilograms a minute, lifted five metres.
  * That is a bilge pump. The largest unresolved item in the marine case is
- * answered by ten watts and a two cubic metre bladder, and the reason it looked
- * hard is that every other way of changing a vehicle's weight in flight is
- * ruinously expensive.
+ * answered by a couple of cubic metres of bladder and a pump drawing barely
+ * more than a cabin light, and the reason it looked hard is that every other
+ * way of changing a vehicle's weight in flight is ruinously expensive.
+ *
+ * DO NOT PUT A WATTAGE HERE. The header used to say ten watts, which is the
+ * six-hour DIURNAL rate, while the function deliberately sizes for the
+ * half-hour clearing-overcast transient and returns twelve times that. One
+ * quantity, two numbers, in one file, and the header's own next paragraph
+ * argued against the case its number came from.
  *
  * IT ONLY WORKS AFLOAT, which is the honest limitation. In the air there is
  * nothing to pump from: ballast can be dumped and not recovered, so the
@@ -40,7 +50,11 @@ export interface BallastLoop {
   readonly tankVolume: number
   /** Rate the pump must sustain, kg/min. */
   readonly transferRate: number
-  /** Hydraulic power at that rate, W. */
+  /**
+   * Electrical input power at that rate, W. NOT hydraulic power: the efficiency
+   * is already divided out, so a reader sizing a pump against a manufacturer's
+   * hydraulic curve with this number would buy twice the machine.
+   */
   readonly pumpPower: number
   /** Energy over a full day of cycling, J. */
   readonly dailyEnergy: number
@@ -156,7 +170,7 @@ export const ballastLoop = (
       `CLEARING OVERCAST instead: the envelope's thermal time constant is tens of minutes, not ` +
       `hours, so the superheat arrives with the sunshine. At ${TRANSIENT_HOURS} hours that is ` +
       `${transferRate.toFixed(0)} kg a minute, lifted ${LIFT_HEIGHT} m, for ` +
-      `${pumpPower.toFixed(0)} W of hydraulic power, which is ` +
+      `${pumpPower.toFixed(0)} W at the pump's input, which is ` +
       `${(dailyEnergy / habitatDaily * 100).toFixed(2)} percent of what the habitat draws in a ` +
       `day. THE LARGEST UNRESOLVED ITEM IN THE MARINE CASE IS ANSWERED BY A BILGE PUMP: ` +
       `${tankVolume.toFixed(1)} m3 of bladder and ${systemMass.toFixed(0)} kg of tank, pump and ` +

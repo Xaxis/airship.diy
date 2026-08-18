@@ -29,6 +29,7 @@ import {
 import { AKRON_STRUCTURE, barrierFilm, EMPTY_WEIGHT_PER_GAS_VOLUME, v } from '@airship/data'
 import { kg, m, m3, K, rad, kgPerM3, W } from '@airship/units'
 
+import { dumpableInventory } from './configuration.js'
 import type { Category, Compartment, Configuration, Deck } from './configuration.js'
 import type { DesignPoint } from './design-point.js'
 
@@ -539,10 +540,14 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
     specificLift(pure(design.gas.species), seaLevelForGear, K(seaLevelForGear.temperature))
 
   const gear = alightingGear(
-    kg(0),
+    kg(liftForGear),
     LANDING_TRIM,
     superheatHeavinessExcursion(liftForGear, SUPERHEAT_EXCURSION),
     config.landCapable,
+    // What the vehicle can shed to hold trim. Dumping works on land as well as
+    // afloat, and the load case the gear is sized by is the COLD one before
+    // dawn, which dumping answers.
+    dumpableInventory(config),
   )
 
   const arrayStation = (design.power.arrayForwardStation + design.power.arrayAftStation) / 2
