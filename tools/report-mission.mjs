@@ -2,36 +2,61 @@
 //
 // The question the energy balance cannot answer. Energy is not the binding
 // constraint; this finds out what is.
-import { BASELINE_ARRANGEMENT, DESIGN_POINTS, consumables } from '../packages/model/dist/index.js'
+import {
+  BASELINE_ARRANGEMENT,
+  DESIGN_POINTS,
+  consumables,
+  provisionsFor,
+} from '../packages/model/dist/index.js'
 import { integrateMission } from '../packages/solvers/dist/index.js'
 
 const pad = (s, n) => String(s).padEnd(n)
 
-// READ OFF THE ARRANGEMENT. This tool used to invent its own stores, sized for
-// a nominal 400 days, while the vehicle carried something else. An endurance
-// figure computed from provisions the ship does not have is the worst place in
-// the project for two numbers to mean the same thing, because days aloft is the
-// figure of merit and every other trade is measured against it.
-const aboard = consumables(BASELINE_ARRANGEMENT)
-const storesFor = () => ({
-  food: aboard.food,
-  water: aboard.water,
-  waterCapacity: aboard.waterCapacity,
-})
+// TWO NUMBERS, AND THEY ARE DIFFERENT QUESTIONS.
+//
+// AS DRAWN is what the stores bay holds: the loadout on the drawing. AT
+// CAPACITY is what the design could carry if the spare lift beyond its growth
+// reserve were loaded as food, which is what measures the DESIGN rather than a
+// loading choice.
+//
+// The second one exists because this tool used to hand every design point the
+// baseline's stores and report 471 days for all three. Endurance was
+// `food / (crew * dailyFood)` and nothing else, so a 65 m hull scored exactly
+// what a 125 m hull scored and no physics anywhere could move the figure the
+// project calls its figure of merit. Worse, the 65 m point has a lift margin of
+// MINUS eleven tonnes: it was being given an endurance for a ship that cannot
+// leave the ground.
+const asDrawn = consumables(BASELINE_ARRANGEMENT)
+
+/** @derived Long enough to contain the fully provisioned answers, days. */
+const HORIZON = 6000
 
 console.log('\n' + '='.repeat(78))
 console.log('WHICH RESOURCE RUNS OUT FIRST')
 console.log('='.repeat(78))
 
 for (const design of DESIGN_POINTS) {
-  const stores = storesFor()
-  const result = integrateMission(design, stores, 2200)
+  const capacity = provisionsFor(design, BASELINE_ARRANGEMENT)
 
   console.log('\n%s  (%s)', design.name.toUpperCase(), design.id)
-  console.log('  stores loaded: %s kg food, %s kg water (%s kg capacity)',
-    stores.food.toFixed(0), stores.water.toFixed(0), stores.waterCapacity.toFixed(0))
+
+  if (!capacity.closes) {
+    console.log('  %s', capacity.note)
+    console.log()
+    continue
+  }
+
+  const drawn = integrateMission(design, asDrawn, HORIZON)
+  const result = integrateMission(design, capacity, HORIZON)
+
+  console.log('  stores as drawn: %s kg food, %s kg water (%s kg capacity)',
+    asDrawn.food.toFixed(0), asDrawn.water.toFixed(0), asDrawn.waterCapacity.toFixed(0))
+  console.log('  at capacity:     %s kg food, using %s kg of spare lift',
+    capacity.food.toFixed(0), capacity.extraFood.toFixed(0))
   console.log()
-  console.log('  %s %s days   %s', pad('PHYSICAL ENDURANCE', 26),
+  console.log('  %s %s days   %s', pad('AS DRAWN', 26),
+    String(drawn.physicalEnduranceDays).padStart(6), drawn.physicalLimit.toUpperCase())
+  console.log('  %s %s days   %s', pad('AT CAPACITY', 26),
     String(result.physicalEnduranceDays).padStart(6), result.physicalLimit.toUpperCase())
   console.log('  %s %s days   %s', pad('INCLUDING LEGAL LIMITS', 26),
     String(result.enduranceDays).padStart(6), result.limitingResource.toUpperCase())

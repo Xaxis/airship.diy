@@ -17,11 +17,14 @@ export type {
   Severity,
   Finding,
   FinPlanform,
+  Provisions,
   HullGirderLoads,
 } from './arrangement.js'
 export {
   compartmentVolume,
   consumables,
+  provisionsFor,
+  MASS_GROWTH_ALLOWANCE,
   wingSizing,
   keelEnvelopeVolume,
   LANDING_TRIM,

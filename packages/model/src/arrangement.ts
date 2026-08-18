@@ -839,7 +839,7 @@ const TRIM_OFFSET_LIMIT = 0.02
  * hull length, and it is the reason the baseline is not 105 m — 105 m closes,
  * and closing is not the same as being buildable.
  */
-const MASS_GROWTH_ALLOWANCE = 0.15
+export const MASS_GROWTH_ALLOWANCE = 0.15
 
 /**
  * Every rule the arrangement has to obey, checked.
@@ -1450,5 +1450,70 @@ export const hullBendingMoment = (design: DesignPoint, config: Configuration): H
       gustMoment > Math.abs(beam.maximumMoment)
         ? `The static case is ${(Math.abs(beam.maximumMoment) / MN).toFixed(2)} MN m and the gust case is ${(gustMoment / MN).toFixed(2)} MN m, so the gust sizes the girder. A ${DESIGN_GUST} m/s vertical gust at ${design.mission.stationKeepingWind} m/s of forward speed is ${((gustIncidence * 180) / Math.PI).toFixed(0)} degrees of incidence, and the Munk moment peaks at 45. An airship's gust case gets WORSE as it slows down, which is the reverse of an aeroplane's and is why station-keeping is the structural design condition.`
         : `The static case is ${(Math.abs(beam.maximumMoment) / MN).toFixed(2)} MN m and governs, which is unusual and worth checking: for most airships the gust case is larger.`,
+  }
+}
+
+export interface Provisions {
+  /** Dry food loaded, kg. */
+  readonly food: number
+  /** Water loaded, kg. */
+  readonly water: number
+  /** Tank capacity, kg. Catchment above this is lost. */
+  readonly waterCapacity: number
+  /** True when the design can lift the arrangement at all. */
+  readonly closes: boolean
+  /** Spare lift beyond the growth reserve, converted to food, kg. */
+  readonly extraFood: number
+  readonly note: string
+}
+
+/**
+ * What a given design point can actually carry.
+ *
+ * DAYS ALOFT IS THE FIGURE OF MERIT AND IT WAS NOT A FUNCTION OF THE DESIGN.
+ * `make report` issued every design point the baseline's 584 kg of food and
+ * returned 471 days for all three, because the reporting tool computed the
+ * stores once and its `storesFor` ignored the design it was handed. Endurance
+ * was `food / (crew * dailyFood)` and nothing else, so a 65 m hull and a 125 m
+ * hull scored identically and no physics anywhere could move the number the
+ * project exists to compute.
+ *
+ * The 65 m point does not merely carry less. Its lift margin is MINUS eleven
+ * tonnes: it cannot lift the arrangement at all, and reporting an endurance for
+ * it was reporting the endurance of a ship that cannot leave the ground.
+ *
+ * So: a design that does not close gets no endurance figure. One that does gets
+ * the arrangement's stores plus whatever lift is spare once the growth reserve
+ * is kept back, taken as food, because food is what binds.
+ */
+export const provisionsFor = (design: DesignPoint, config: Configuration): Provisions => {
+  const statement = massStatement(design, config)
+  const base = consumables(config)
+  const reserve = MASS_GROWTH_ALLOWANCE * statement.total
+
+  if (statement.liftMargin <= 0) {
+    return {
+      ...base,
+      closes: false,
+      extraFood: 0,
+      note:
+        `This design cannot lift the arrangement: the margin is ` +
+        `${statement.liftMargin.toFixed(0)} kg. There is no endurance to report, because there ` +
+        `is no flight. Endurance is only a figure of merit among designs that fly.`,
+    }
+  }
+
+  const spare = Math.max(statement.liftMargin - reserve, 0)
+  return {
+    food: base.food + spare,
+    water: base.water,
+    waterCapacity: base.waterCapacity,
+    closes: true,
+    extraFood: spare,
+    note:
+      `${base.food.toFixed(0)} kg of food in the stores bay, plus ${spare.toFixed(0)} kg of spare ` +
+      `lift once the ${(MASS_GROWTH_ALLOWANCE * 100).toFixed(0)} percent growth reserve is kept ` +
+      `back. Loading the reserve as well would buy more days and is the trade a crew makes on the ` +
+      `day, not one the model should make for them.`,
   }
 }

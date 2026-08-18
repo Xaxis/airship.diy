@@ -6,13 +6,17 @@ import { m } from '@airship/units'
 import {
   BASELINE,
   BASELINE_ARRANGEMENT,
+  DESIGN_POINTS,
+  MASS_GROWTH_ALLOWANCE,
   compartmentVolume,
+  consumables,
   finPlanform,
   massStatement,
+  provisionsFor,
   smallestClosingLength,
   validateArrangement,
 } from '../src/index.js'
-import type { Configuration } from '../src/index.js'
+import type { Configuration, DesignPoint } from '../src/index.js'
 
 /**
  * The arrangement has to survive the rules the rest of the project derived, and
@@ -354,5 +358,45 @@ describe('the last gate, which is a check rather than an assertion', () => {
       (f) => f.severity === 'fail',
     )
     expect(failing.map((f) => f.id)).toEqual([])
+  })
+})
+
+describe('what each design can actually carry', () => {
+  /**
+   * DAYS ALOFT IS THE FIGURE OF MERIT AND IT WAS NOT A FUNCTION OF THE DESIGN.
+   * The reporting tool handed every design point the baseline's stores and
+   * returned 471 days for all three, so a 65 m hull scored exactly what a 125 m
+   * hull scored and no physics anywhere could move the number.
+   */
+  it('refuses to provision a design that cannot lift the arrangement', () => {
+    const minimum = DESIGN_POINTS.find((d) => d.id === 'minimum-viable')
+    expect(minimum).toBeDefined()
+    const p = provisionsFor(minimum as DesignPoint, BASELINE_ARRANGEMENT)
+    expect(p.closes).toBe(false)
+    expect(p.extraFood).toBe(0)
+  })
+
+  it('gives a closing design its spare lift as food', () => {
+    const p = provisionsFor(BASELINE, BASELINE_ARRANGEMENT)
+    expect(p.closes).toBe(true)
+    expect(p.extraFood).toBeGreaterThan(0)
+    expect(p.food).toBeCloseTo(consumables(BASELINE_ARRANGEMENT).food + p.extraFood, 6)
+  })
+
+  it('keeps the growth reserve back rather than loading it', () => {
+    // Loading the reserve would buy more days and leave nothing for superheat,
+    // rain or a torn cell. That is a trade a crew makes on the day.
+    const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+    const p = provisionsFor(BASELINE, BASELINE_ARRANGEMENT)
+    const remaining = statement.liftMargin - p.extraFood
+    expect(remaining).toBeCloseTo(MASS_GROWTH_ALLOWANCE * statement.total, 6)
+  })
+
+  it('separates two designs that used to score identically', () => {
+    const stretch = DESIGN_POINTS.find((d) => d.id === 'stretch')
+    expect(stretch).toBeDefined()
+    const a = provisionsFor(BASELINE, BASELINE_ARRANGEMENT)
+    const b = provisionsFor(stretch as DesignPoint, BASELINE_ARRANGEMENT)
+    expect(a.food).not.toBeCloseTo(b.food, 0)
   })
 })
