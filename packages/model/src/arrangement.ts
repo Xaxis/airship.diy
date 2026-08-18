@@ -136,6 +136,16 @@ const CELL_NETTING_AREAL_MASS = 0.06
 export const LANDING_TRIM = 600
 
 /**
+ * @source Solar superheat the design is graded against, K. Twenty kelvin is the
+ * standard figure for a dark envelope in still air at midday.
+ *
+ * ONE OF THESE. The gear sizing and the superheat gate each carried their own
+ * copy of the excursion, computed against different lift bases, so the same
+ * 20 K produced 2,307 kg in one place and 2,230 kg in the other.
+ */
+export const DESIGN_SUPERHEAT = 20
+
+/**
  * The consumables the mission integrator has to be given, read off the
  * arrangement rather than passed in.
  *
@@ -266,6 +276,16 @@ export interface MassStatement {
   readonly gasVolume: number
   /** The binding one of the two conditions below, kg. */
   readonly grossLift: number
+  /**
+   * Gross lift at SEA LEVEL, kg. Separate from `grossLift`, which is the
+   * binding figure across the operating band, because every ground and water
+   * case happens down here: the gear load, the superheat swing the gear and the
+   * ballast loop both answer, and the trim the vehicle rests at.
+   *
+   * They used to be computed independently in two places, so one 20 K
+   * excursion came out as 2,307 kg for the gear and 2,230 kg for the gate.
+   */
+  readonly seaLevelGrossLift: number
   /** Lift at sea level with the cells at the design fill fraction, kg. */
   readonly liftAtSeaLevel: number
   /** Lift at the design altitude with the cells fully expanded, kg. */
@@ -528,7 +548,6 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
    * ambient in sunlight and cooler at dawn, and this is the swing the marine
    * chapter's failing gate is about.
    */
-  const SUPERHEAT_EXCURSION = 20
 
   // Gross lift at sea level, needed here only to size the gear. The authoritative
   // figure is computed below at both ends of the operating band; this is the
@@ -542,7 +561,7 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
   const gear = alightingGear(
     kg(liftForGear),
     LANDING_TRIM,
-    superheatHeavinessExcursion(liftForGear, SUPERHEAT_EXCURSION),
+    superheatHeavinessExcursion(liftForGear, DESIGN_SUPERHEAT),
     config.landCapable,
     // What the vehicle can shed to hold trim. Dumping works on land as well as
     // afloat, and the load case the gear is sized by is the COLD one before
@@ -735,6 +754,7 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
     centreOfBuoyancy,
     gasVolume,
     grossLift: lift,
+    seaLevelGrossLift: liftForGear,
     liftAtSeaLevel,
     liftAtAltitude,
     bindingCondition: liftAtSeaLevel <= liftAtAltitude ? 'sea level' : 'design altitude',
@@ -830,6 +850,9 @@ export const validateArrangement = (
   const statement = massStatement(design, config)
   const { length, finenessRatio } = design.hull
   const maxRadius = length / finenessRatio / 2
+  const validateShape = hullShapeForPrismatic(design.hull.prismaticCoefficient)
+  const radiusAt = (station: number): number =>
+    hullRadiusAt(m(length), finenessRatio, station, validateShape)
 
   // ---- the rule that shapes everything ----------------------------------
   const inCells = config.compartments.filter((c) => c.deck === 'cells' && c.habitable)
@@ -1080,22 +1103,20 @@ export const validateArrangement = (
   )
   const effectiveDiameter = 2 * Math.sqrt(totalDiscArea / config.propulsors.length / Math.PI)
   const allDucted = config.propulsors.every((p) => p.ducted)
-  /** @source The trim the vehicle rests at, from the mass statement's own basis. */
-  const VERTICAL_LANDING_TRIM = 600
   const hover = hoverCapability(
     config.propulsors.length,
     effectiveDiameter,
     W(totalPropulsorPower),
     allDucted,
     kg(statement.total),
-    VERTICAL_LANDING_TRIM,
+    LANDING_TRIM,
   )
-  const outOne = propulsorOut(config.propulsors, VERTICAL_LANDING_TRIM)
+  const outOne = propulsorOut(config.propulsors, LANDING_TRIM)
   findings.push({
     id: 'vertical-landing',
     severity: outOne.stillLands ? 'pass' : hover.liftsItsTrim ? 'warn' : 'fail',
     rule: 'The propulsors lift the landing trim with one of them stopped.',
-    detail: `${config.propulsors.length} ${allDucted ? 'ducted ' : ''}propulsors at an effective ${effectiveDiameter.toFixed(1)} m lift ${hover.liftableHeaviness.toFixed(0)} kg on ${(totalPropulsorPower / 1000).toFixed(0)} kW, and ${outOne.remainingHeaviness.toFixed(0)} kg with one stopped, against a ${VERTICAL_LANDING_TRIM} kg landing trim. THE TRIM IS SET BY THIS CASE and not by the sea state: a trim the vehicle can only leave with every propulsor running turns one failure into a vehicle that cannot take off again. Diameter is the whole game, because static thrust goes as the four-thirds power of it at fixed power, and the duct is worth a further factor of two.`,
+    detail: `${config.propulsors.length} ${allDucted ? 'ducted ' : ''}propulsors at an effective ${effectiveDiameter.toFixed(1)} m lift ${hover.liftableHeaviness.toFixed(0)} kg on ${(totalPropulsorPower / 1000).toFixed(0)} kW, and ${outOne.remainingHeaviness.toFixed(0)} kg with one stopped, against a ${LANDING_TRIM} kg landing trim. THE TRIM IS SET BY THIS CASE and not by the sea state: a trim the vehicle can only leave with every propulsor running turns one failure into a vehicle that cannot take off again. Diameter is the whole game, because static thrust goes as the four-thirds power of it at fixed power, and the duct is worth a further factor of two.`,
   })
 
   // ---- habitability ------------------------------------------------------
@@ -1118,8 +1139,9 @@ export const validateArrangement = (
    * at 20 K, which is the middle of the band and the figure the superheat module
    * uses for its worked example.
    */
-  const DESIGN_SUPERHEAT = 20
-  const excursion = superheatHeavinessExcursion(statement.grossLift, DESIGN_SUPERHEAT)
+  // From the SEA LEVEL lift, which is where every ground and water case
+  // happens, and the same basis the gear is sized on.
+  const excursion = superheatHeavinessExcursion(statement.seaLevelGrossLift, DESIGN_SUPERHEAT)
 
   /**
    * The active ballast loop, if the arrangement carries one.
@@ -1160,18 +1182,34 @@ export const validateArrangement = (
         : 'No laterally separated fully vectoring pair. The fins do nothing below about 5 m/s, so without this the ship is uncontrollable exactly when it is closest to something solid.',
   })
 
-  const propellerTipRadius = Math.max(
-    ...config.propulsors.map((p) => Math.abs(p.lateralOffset) * maxRadius + p.diameter / 2),
+  /**
+   * THE WORST UNIT, AT ITS OWN STATION, ON ITS INBOARD SIDE.
+   *
+   * This check had three errors that all ran the same way. It took the maximum
+   * over the propulsors, which finds the unit with the most clearance rather
+   * than the one with the least; it measured against the hull's MAXIMUM radius
+   * rather than the local radius at each propulsor's station, which is smaller
+   * everywhere except amidships and so understated the clearance for units near
+   * the ends; and it compared the OUTER tip against the hull, when the tip that
+   * can strike is the inner one.
+   */
+  const worstClearance = Math.min(
+    ...config.propulsors.map((p) => {
+      const localRadius = radiusAt(p.station)
+      const centreOffset = Math.abs(p.lateralOffset) * maxRadius
+      // The inboard tip is what approaches the hull.
+      return centreOffset - p.diameter / 2 - localRadius
+    }),
   )
-  const clearance = propellerTipRadius - maxRadius
+  const clearance = worstClearance
   findings.push({
     id: 'propeller-hull-clearance',
     severity: clearance > 0 ? 'pass' : 'fail',
     rule: 'Propeller discs clear the hull surface.',
     detail:
       clearance > 0
-        ? `Outermost tip is ${clearance.toFixed(1)} m outboard of the hull at maximum radius. The outrigger has to carry that, and its bending moment is what sets the mount mass.`
-        : `Propeller tips intersect the hull by ${(-clearance).toFixed(1)} m. The outrigger is too short or the disc is too large.`,
+        ? `The tightest unit's INBOARD tip clears the hull at its own station by ${clearance.toFixed(1)} m. The outrigger has to carry that offset, and its bending moment is what sets the mount mass.`
+        : `Propeller tips intersect the hull by ${(-clearance).toFixed(1)} m at the tightest unit. The outrigger is too short or the disc is too large.`,
   })
 
   return findings

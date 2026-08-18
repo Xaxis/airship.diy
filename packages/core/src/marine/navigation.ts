@@ -71,7 +71,17 @@ export interface NavigationPoint {
 export interface FinSet {
   /** Combined planform area of the VERTICAL surfaces only, m2. */
   readonly verticalArea: number
-  /** Distance from the centre of the hull to the fin centre of pressure, m. */
+  /**
+   * Distance from the CENTRE OF BUOYANCY to the fin centre of pressure, m.
+   *
+   * The centre of buoyancy, not the centre of gravity and not the geometric
+   * centre. The Munk moment this restores acts about the body's aerodynamic
+   * reference, so the fin arm has to be measured from the same point or the two
+   * are not being compared. The flight dynamics solver takes its moments about
+   * the centre of GRAVITY, correctly, and the two arms differ: that is a
+   * difference of purpose rather than a disagreement, and it is worth stating
+   * because it was not stated before.
+   */
   readonly momentArm: number
   /** Geometric aspect ratio of one fin, for its lift-curve slope. */
   readonly aspectRatio: number

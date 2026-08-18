@@ -17,6 +17,8 @@ import {
   pure,
   hullGeometry,
   finLiftCurveSlope,
+  COMPLETE_SHIP_DRAG_COEFFICIENT,
+  PROPULSIVE_EFFICIENCY,
   gasDensity,
   heavinessPerKilogramOfCellHydrogenBurned,
   WATER_PER_HYDROGEN_BURNED,
@@ -1407,10 +1409,13 @@ export const wings = (() => {
   const air = atmosphere(m(BASELINE.mission.altitude))
   const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
   const power = BASELINE_ARRANGEMENT.propulsors.reduce((s, p) => s + p.ratedPower, 0)
-  /** @source Complete-ship volumetric drag coefficient. */
-  const HULL_DRAG = 0.025
-  /** @source Propulsive efficiency of a large slow propulsor. */
-  const ETA = 0.8
+  // FROM THE CITATION LAYER, not written here. These were 0.025 and 0.8 beside
+  // a data package that gives 0.035 and 0.75 for the same quantities, and the
+  // arrangement uses the data ones for the same calculation, so the site was
+  // publishing a wing trade computed on a cleaner ship and a better propeller
+  // than the model's own.
+  const HULL_DRAG = v(COMPLETE_SHIP_DRAG_COEFFICIENT)
+  const ETA = v(PROPULSIVE_EFFICIENCY)
 
   // From the MODEL, not re-derived here. The hull is wide at the wing station
   // and the span inside it is carry-through rather than lifting panel, so a
@@ -1589,10 +1594,16 @@ export const refused = (() => {
  * follows from that.
  */
 export const heave = (() => {
-  /** @source Gondola, contents and the water's added mass on the immersed hull, kg. */
-  const GONDOLA = 4000
-  /** @source Waterplane area of the gondola hulls, m2. */
-  const WATERPLANE = 24
+  // FROM THE ARRANGEMENT. Both of these were literals here while the same two
+  // quantities were computed from the drawing 850 lines earlier in this file,
+  // with different answers: two waterplane areas and two gondola masses for one
+  // gondola, each published as a fact.
+  const heaveGondola = BASELINE_ARRANGEMENT.compartments.find((c) => c.id === 'gondola-structure')
+  if (!heaveGondola) throw new Error('No gondola-structure compartment to float on.')
+  const heaveStatement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
+  const GONDOLA = heaveStatement.byDeck.gondola
+  /** @derived Waterline length is 85 percent of the gondola's extent, and the waterplane 75 percent of that rectangle: the ends taper. */
+  const WATERPLANE = heaveGondola.width * (heaveGondola.extent * 0.85) * 0.75
   /** @source A stiff suspension, N/m, which is the right answer here. */
   const STIFF = 1e6
 
@@ -1670,6 +1681,10 @@ export const flightConfiguration = (() => {
   return {
     tail: {
       verticalArea: fins.area / 2,
+      // From the centre of GRAVITY, because the 6-DOF solver takes its moments
+      // there. The navigation polar measures the same fin from the centre of
+      // BUOYANCY, because the Munk moment it balances acts about the body's
+      // aerodynamic reference. Different purposes, not a disagreement.
       arm: (BASELINE_ARRANGEMENT.finStation - statement.centreOfGravity.x / L) * L,
       liftSlope,
     },

@@ -12,10 +12,10 @@ building it. The reasoning is on the site; the limits are here.
 | | |
 |---|---|
 | Length | 118 m at fineness 5 |
-| Envelope | 34,305 m³, 12 cells |
-| Gross weight | 25,767 kg |
-| Gross lift | 32,124 kg |
-| Lift margin | 6,357 kg (19.8 %) |
+| Envelope | 34,271 m³, 12 cells |
+| Gross weight | 25,762 kg |
+| Gross lift | 32,093 kg |
+| Lift margin | 6,331 kg (19.7 %) |
 | Dumpable water ballast | 2,500 kg |
 | Propulsion | 4 × 6.0 m ducted, 72 kW |
 | Food aboard | 584 kg |
@@ -94,10 +94,10 @@ option of flying away from it instead.
 | Sea state | Hs, m | Period, s | Frequency ratio | Suspension load, kN | Re-entry, m/s |
 |---|---|---|---|---|---|
 | 2 | 0.30 | 3.5 | 1.06 | 31 to 36 | 0.89 |
-| 3 | 0.88 | 4.5 | 0.79 | 54 to 106 | 0.84 |
+| 3 | 0.88 | 4.5 | 0.78 | 54 to 106 | 0.83 |
 | 4 | 1.88 | 6.5 | 0.53 | 55 to 226 | 0.34 |
 | 5 | 3.25 | 8.5 | 0.40 | 56 to 392 | 0.22 |
-| 6 | 5.00 | 10.0 | 0.34 | 63 to 603 | 0.20 |
+| 6 | 5.00 | 10.0 | 0.34 | 62 to 603 | 0.20 |
 
 **The load is a bracket, not a number, and the reason is that the float leaves
 the water.** rho g A is the restoring force of a continuously immersed float.
@@ -129,7 +129,7 @@ several, so it does not slam. It is not nothing either.
 ## The ballast loop
 
 **Run it whenever you are on the surface in daylight.** Twenty kelvin of solar
-superheat moves the lift by 2,230 kg against a 600 kg
+superheat moves the lift by 2,227 kg against a 600 kg
 trim: without the loop the vehicle takes itself off by mid-afternoon and presses
 2.2 tonnes onto its gear before dawn.
 

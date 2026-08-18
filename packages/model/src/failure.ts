@@ -1,4 +1,4 @@
-import { CREW, v } from '@airship/data'
+import { CREW, barrierFilm, v } from '@airship/data'
 import { atmosphere, hullGeometry, hullShapeForPrismatic, powerRequired } from '@airship/core'
 import { m, mps } from '@airship/units'
 
@@ -91,7 +91,11 @@ export const failureModes = (
    * @source Areal mass of the gas cell film the arrangement carries, kg/m2,
    * passed to the architecture comparison so both sides use the same film.
    */
-  const CELL_FILM_AREAL_MASS = 0.21
+  // READ, not restated. The citation said "the film the arrangement carries"
+  // and then hardcoded it, so changing the film would have left this module
+  // comparing architectures on the old one. The data layer also carries an
+  // uncertainty band with the value, which a literal discards.
+  const CELL_FILM_AREAL_MASS = v(barrierFilm(design.hull.filmId).arealDensity)
 
   const ONE_CELL_AS_PERCENT = 100
   /** @derived Two cells out of N, expressed as a percentage. */

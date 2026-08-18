@@ -62,10 +62,12 @@ export const BASELINE: DesignPoint = {
      * lever from 2.84 m down to 1.33, which is below anything airship practice
      * would fly.
      *
-     * Cutting to 32 degrees takes the array to 2,851 kg, restores the lever to
-     * 2.54 m, raises the lift margin from 15.8 to 22.0 percent, and STILL leaves
-     * 164 percent of margin on the worst day of the year. The energy that buys
-     * is energy the mission never needed.
+     * Cutting to 32 degrees restores the lever, raises the lift margin, and
+     * still leaves surplus on the worst day of the year: the energy the wider
+     * band buys is energy the mission never needed. The figures move with every
+     * other change to the vehicle, so ask `massStatement` and
+     * `validateArrangement` for them rather than reading them here. This
+     * paragraph carried three of them and all three had gone stale.
      *
      * It also makes the array easier to build: a strip along the crown rather
      * than a wrap reaching almost to the equator, where the modules are most
@@ -159,11 +161,15 @@ export const STRETCH: DesignPoint = {
      * break-even and 75 to have any margin at all.
      *
      * AND THAT IS WHAT LIMITS THE STRETCH GOAL, not the energy. At 75 degrees
-     * the array is the only large mass above the hull axis and it takes the
-     * pendulum lever down to 0.093 of the hull radius, against the 0.2 the
-     * baseline holds and the 0.16 that airship practice treats as a floor. The
-     * five-year ship is not energy-limited. It is PENDULUM-limited, and that is
-     * a constraint no amount of array area or battery capacity relieves.
+     * the array is the only large mass above the hull axis, and widening the
+     * band drives the pendulum lever down towards the fraction of hull radius
+     * that airship practice treats as a floor. Compare the two design points'
+     * `pendulum-lever` findings for the current numbers; the ratio is what
+     * matters and it moves whenever the array or the keel masses do.
+     *
+     * The five-year ship is not energy-limited. It is PENDULUM-limited, and
+     * that is a constraint no amount of array area or battery capacity
+     * relieves.
      */
     arrayCoverageHalfAngle: deg(75),
     fuelCellRating: 60000,

@@ -73,14 +73,23 @@ describe('the lobes as wings', () => {
   })
 
   it('refuses on the ballonet, which costs lift one for one by volume', () => {
-    // Reshaping a lobe by inflating air inside it displaces lifting gas
-    // volume for volume. That is the mechanism people mean when they say
-    // pressurising costs lift, and it is three orders of magnitude worse.
+    // Reshaping a lobe by inflating air inside it displaces lifting gas volume
+    // for volume. That is the mechanism people mean when they say pressurising
+    // costs lift, and it is what the detail quantifies against the tiny
+    // compressibility loss it is usually confused with.
     const tenth = pressurisedLobeWing(BASELINE, 2500, 0.1)
     const fifth = pressurisedLobeWing(BASELINE, 2500, 0.2)
-    expect(tenth.ratio).toBeCloseTo(0.1, 6)
-    expect(fifth.ratio).toBeCloseTo(0.2, 6)
+    expect(tenth.detail).toContain('10 percent of the lobe')
+    expect(fifth.detail).toContain('20 percent of the lobe')
     expect(tenth.refused).toBe(true)
+  })
+
+  it('reports an infinite ratio, because no parameter reopens it', () => {
+    // The refusal is STRUCTURAL: vectored thrust needs a member in compression
+    // and fabric has none. Reporting the ballonet loss as the ratio suggested a
+    // threshold that could be crossed by tuning the ballonet.
+    const r = pressurisedLobeWing(BASELINE, 2500, 0.1)
+    expect(r.ratio).toBe(Number.POSITIVE_INFINITY)
   })
 })
 

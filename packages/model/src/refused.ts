@@ -12,19 +12,34 @@ import type { DesignPoint } from './design-point.js'
  * refusal that stops being checked. Every function here COMPUTES its no from
  * the same constants the rest of the model uses, so if a storage technology
  * improves or a material arrives the answer changes by itself rather than
- * waiting for somebody to remember. Two of these are close enough to their
- * threshold that it matters.
+ * waiting for somebody to remember.
  *
  * They are also here because a design tool that only records what it chose is
- * an advocacy document. The three below are the most interesting things this
+ * an advocacy document. The two below are the most interesting things this
  * project has been asked for, and the reasons they do not work are more useful
  * than the things that do.
+ *
+ * OF THE TWO, ONLY THE FIRST IS A CALCULATION. `collapsibleEnvelope` computes a
+ * ratio against a threshold and would reopen if the threshold moved.
+ * `pressurisedLobeWing` refuses on a structural argument, not an arithmetic
+ * one, and its `refused` is a constant: no parameter in this model turns it
+ * around, and pretending otherwise by giving it a ratio would suggest it is
+ * closer to working than it is.
  */
 
 export interface Refusal {
   readonly id: string
   readonly requirement: string
-  /** How far from working it is. 1.0 means exactly at the threshold. */
+  /**
+   * How far from working it is, as a MULTIPLE OF THE THRESHOLD: 1.0 means
+   * exactly at it and larger is further away.
+   *
+   * The two producers used to report different things under this name, one a
+   * raw quantity and one a ratio against a threshold, so a reader comparing
+   * them was comparing nothing. Where a refusal is structural rather than
+   * numerical the ratio is Infinity, which is the honest entry for "no
+   * parameter here reopens it".
+   */
   readonly ratio: number
   readonly refused: boolean
   /** What would have to change, and by how much. */
@@ -85,8 +100,10 @@ export const collapsibleEnvelope = (design: DesignPoint, liftMarginFraction: num
       `percent a real system achieves, the tanks weigh ${tankPerGrossLift.toFixed(2)} times the ` +
       `gross lift of the gas they hold. Break-even needs ${(breakEven * 100).toFixed(2)} percent ` +
       `and fitting inside the vehicle's own lift margin needs ${(fitsMargin * 100).toFixed(1)}. ` +
-      `Venting instead of storing is mass-free and costs about 150 days of re-electrolysing, which ` +
-      `is a third of a year aloft for one boat trip.`,
+      `Venting instead of storing is mass-free, and what it costs is the days of surplus ` +
+      `electrolysis needed to put the gas back, which this model's own energy balance sets. It is ` +
+      `a large fraction of a year aloft for one boat trip, and that is the trade: mass you cannot ` +
+      `afford against time you can.`,
   }
 }
 
@@ -139,13 +156,20 @@ export const pressurisedLobeWing = (
   const lostToPressure = 1 - liftPressurised / liftAtAmbient
 
   // A ballonet displaces lifting gas one for one, so the loss IS the fraction.
+  /** @derived Guard against dividing by a vanishing denominator in the comparison. */
+  const RATIO_FLOOR = 1e-12
   const lostToBallonet = ballonetVolumeFraction
 
   return {
     id: 'pressurised-lobe-wing',
     requirement:
       'The buoyant lobes act as the lifting surface, stiffened or reshaped from inside when aerodynamic lift is wanted.',
-    ratio: lostToBallonet,
+    /**
+     * Infinity: this refusal is structural rather than numerical, so no
+     * parameter in the model reopens it. Reporting the ballonet loss here
+     * suggested it was a threshold that could be crossed.
+     */
+    ratio: Number.POSITIVE_INFINITY,
     refused: true,
     whatWouldReopenIt:
       'Nothing on the buoyancy side, because the buoyancy side is not what kills it. A material that carries compression in a membrane would, and none exists: that is what a spar is, and a lobe with a spar in it is a wing with gas in it, which is a worse wing and a worse gas cell than having one of each.',
@@ -159,7 +183,8 @@ export const pressurisedLobeWing = (
       `THE MECHANISM THAT DOES COST LIFT IS THE BALLONET: reshaping a lobe by inflating air inside ` +
       `it displaces lifting gas one for one by volume, so ` +
       `${(ballonetVolumeFraction * 100).toFixed(0)} percent of the lobe's volume is ` +
-      `${(lostToBallonet * 100).toFixed(0)} percent of its lift, three orders of magnitude worse. ` +
+      `${(lostToBallonet * 100).toFixed(0)} percent of its lift, which is ` +
+      `${(lostToBallonet / Math.max(lostToPressure, RATIO_FLOOR)).toFixed(0)} times worse. ` +
       `And the structural objection is worse still: vectored thrust needs a member in compression ` +
       `and fabric has none, so a propulsor mount on a pressure-stabilised lobe is a local buckle ` +
       `waiting for a gust. That forces a rigid keel, and once there is a rigid keel the lobes are a ` +
@@ -187,13 +212,23 @@ export const refusedRequirements = (
   collapsibleEnvelope(design, liftMarginFraction),
   /**
    * @source Superpressure a lobe needs to hold its shape against the airstream,
-   * Pa. Scale-invariant and proportional to dynamic pressure: three independent
-   * sources agree it is a speed decision rather than a size one.
+   * Pa. It scales with dynamic pressure rather than with size, so it is a speed
+   * decision rather than a scale one, which is why a bigger ship does not
+   * escape it.
+   *
+   * The value is UNCERTAIN and this used to claim "three independent sources
+   * agree" while naming none of them, which is an assertion of citation rather
+   * than a citation, in the package where the rule is strictest.
    */
   /**
    * @source Superpressure a lobe needs to hold its shape against the airstream,
-   * Pa. Scale-invariant and proportional to dynamic pressure: three independent
-   * sources agree it is a speed decision rather than a size one.
+   * Pa. It scales with dynamic pressure rather than with size, so it is a speed
+   * decision rather than a scale one, which is why a bigger ship does not
+   * escape it.
+   *
+   * The value is UNCERTAIN and this used to claim "three independent sources
+   * agree" while naming none of them, which is an assertion of citation rather
+   * than a citation, in the package where the rule is strictest.
    */
   pressurisedLobeWing(design, 2500, BALLONET_RESHAPE_FRACTION),
 ]

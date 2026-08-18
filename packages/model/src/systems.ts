@@ -468,6 +468,12 @@ export const redundancyCheck = (schematic: SystemSchematic): readonly SystemFind
  * and a loop that closes on the annual average and not on a dry month is a loop
  * that ends the mission in a dry month.
  */
+/**
+ * @derived How far the two legs of the water circulation may differ before the
+ * difference is a real loss rather than rounding.
+ */
+const CIRCULATION_TOLERANCE = 0.02
+
 export const waterLoopCheck = (
   inputs: WaterInputs,
   /** @source A month without meaningful rain is normal in the trade wind belt. */
@@ -501,9 +507,17 @@ export const waterLoopCheck = (
     },
     {
       id: 'electrolyzer-water-is-circulation',
-      severity: 'pass',
+      // A GATE THAT CAN ACTUALLY FAIL. This was a literal 'pass', rendered with
+      // the same badge as findings that can go red, and no design change could
+      // ever turn it. What it was really saying is that the two legs balance,
+      // so it now checks that they do.
+      severity:
+        Math.abs(inputs.electrolyzerDemand - inputs.fuelCellProduct) <=
+        Math.max(inputs.electrolyzerDemand, inputs.fuelCellProduct) * CIRCULATION_TOLERANCE
+          ? 'pass'
+          : 'warn',
       rule: 'Electrolyzer feedstock is counted as circulation, not consumption.',
-      detail: `${inputs.electrolyzerDemand.toFixed(1)} kg/day goes to the electrolyzer and ${inputs.fuelCellProduct.toFixed(1)} kg/day comes back from the fuel cell. Nine kilograms of water per kilogram of hydrogen, both ways. Counting the outbound leg as consumption would double count the largest flow in the loop and make the water budget look impossible.`,
+      detail: `${inputs.electrolyzerDemand.toFixed(1)} kg/day goes to the electrolyzer and ${inputs.fuelCellProduct.toFixed(1)} kg/day comes back from the fuel cell. Nine kilograms of water per kilogram of hydrogen, both ways. Counting the outbound leg as consumption would double count the largest flow in the loop and make the water budget look impossible. The two legs must balance, and where they do not the difference is a real loss the budget has to carry.`,
     },
   ]
 }

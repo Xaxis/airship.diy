@@ -11,6 +11,7 @@ import {
   hydrogenRoundTripEfficiency,
   powerRequired,
   makeupPower,
+  specificLift,
 } from '@airship/core'
 import type { ArrayLayout } from '@airship/core'
 import { m, mps, rad, purity as asPurity, SI } from '@airship/units'
@@ -244,11 +245,20 @@ export const energyBalance = (design: DesignPoint): EnergyBalanceResult => {
 
   const closes = worst.surplus > 0
 
-  // Gross lift available, for the check that the array is not a net loss. Uses
-  // the sea level figure because that is the worst case for lift.
-  /** @source Computed by packages/core at ISA sea level for pure hydrogen. */
-  const specificLiftAtSeaLevel = 1.14
-  const grossLiftAvailable = hull.volume * specificLiftAtSeaLevel
+  const seaLevelAir = atmosphere(m(0))
+
+  // Gross lift available, for the check that the array is not a net loss.
+  //
+  // COMPUTED, not asserted. This used to be `hull.volume * 1.14` with a
+  // citation reading "computed by packages/core", which named the function it
+  // then declined to call. Pure hydrogen at full fill is also not the ship: the
+  // arrangement fills to a fraction and the gas is not pure, so the literal
+  // produced a third gross-lift figure a quarter above the binding one, and the
+  // structure page scaled its mass fractions against it.
+  const grossLiftAvailable =
+    hull.volume *
+    design.gas.seaLevelFillFraction *
+    specificLift(contents, seaLevelAir, seaLevelAir.temperature)
 
   const habitatEnergy = design.loads.habitatPower * SECONDS_PER_DAY * DAYS_PER_YEAR
   const propulsionEnergy =
