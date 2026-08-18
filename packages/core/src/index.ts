@@ -70,6 +70,7 @@ export {
   hoverCapability,
   vectoredControl,
   propulsorOut,
+  staticThrustOf,
   VECTORED_THRUST_REALISATION,
   DUCT_STATIC_THRUST_GAIN,
 } from './propulsion/vectoring.js'

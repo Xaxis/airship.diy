@@ -26,35 +26,48 @@ const GROSS = kg(25224)
 const TRIM = 600
 
 describe('what sets the thrust', () => {
-  it('is diameter, by the four-thirds power, and nothing else is close', () => {
-    // Static thrust goes as (rho A P^2)^(1/3), so at fixed power it goes as the
-    // two-thirds power of disc area and the four-thirds power of diameter.
-    // Doubling the diameter is worth about 2.5 times the thrust for the same
-    // kilowatt, and no other change in the propulsion group comes near that.
+  it('is diameter and power EQUALLY, both by the two-thirds power', () => {
+    // T = (2 rho A P^2)^(1/3). The area is inside the cube root to the first
+    // power, so T goes as A^(1/3) = D^(2/3), and power carries the identical
+    // exponent. Doubling either is worth 1.59 times, not 2.5.
+    //
+    // This test's assertion was always 2^(2/3); its title and its comment said
+    // "four-thirds power" and "2.5 times". It passed for years against prose
+    // that contradicted it, which is how the exponent survived into the module
+    // header, the arrangement, and the flight page.
     const small = hoverCapability(COUNT, 3, POWER, false, GROSS, TRIM)
     const large = hoverCapability(COUNT, 6, POWER, false, GROSS, TRIM)
-    const ratio = large.liftableHeaviness / small.liftableHeaviness
-    expect(ratio).toBeCloseTo(2 ** (2 / 3), 2)
+    expect(large.liftableHeaviness / small.liftableHeaviness).toBeCloseTo(2 ** (2 / 3), 2)
+
+    // And the same doubling in POWER buys exactly the same thing.
+    const morePower = hoverCapability(COUNT, 3, W(2 * (POWER as number)), false, GROSS, TRIM)
+    expect(morePower.liftableHeaviness / small.liftableHeaviness).toBeCloseTo(2 ** (2 / 3), 2)
   })
 
-  it('is doubled by a duct, at equal power', () => {
+  it('gains from a duct, but not the factor of two the folklore quotes', () => {
+    // The folklore two is the AREA effect: an open rotor's wake contracts to
+    // A/2, so holding it at A doubles the thrust at fixed induced velocity.
+    // Hold POWER fixed and the same doubling is 2^(1/3) = 1.26, which is the
+    // ideal-flow ceiling. A factor of two at equal power is above it, so no
+    // measurement can have produced it.
     const open = hoverCapability(COUNT, 6, POWER, false, GROSS, TRIM)
     const ducted = hoverCapability(COUNT, 6, POWER, true, GROSS, TRIM)
     expect(ducted.liftableHeaviness / open.liftableHeaviness).toBeCloseTo(
       DUCT_STATIC_THRUST_GAIN,
       6,
     )
+    expect(DUCT_STATIC_THRUST_GAIN).toBeLessThanOrEqual(2 ** (1 / 3) + 1e-9)
   })
 
-  it('is a third of what momentum theory promises', () => {
-    // Sizing an installation from momentum theory alone would overstate what it
-    // can lift by nearly three times. The realisation factor comes from
-    // Zeppelin NT, which is certified to lift 400 kg of heaviness on three
-    // 147 kW engines with 2.7 m propellers.
-    expect(VECTORED_THRUST_REALISATION).toBeLessThan(0.5)
-    const h = hoverCapability(COUNT, 6, POWER, false, GROSS, TRIM)
-    const ideal = h.liftableHeaviness / VECTORED_THRUST_REALISATION
-    expect(ideal / h.liftableHeaviness).toBeGreaterThan(2.5)
+  it('falls short of momentum theory by an amount nobody has measured', () => {
+    // The realisation factor used to be 0.37, justified by a Zeppelin NT
+    // calculation that gives 0.195, from a 400 kg figure that is a certified
+    // operating LIMIT rather than a measurement. Read as a measurement it
+    // implies a propeller figure of merit of 0.086, which no propeller reaches
+    // even stalled. It is uncertain now, bounded by what a real static
+    // propeller achieves.
+    expect(VECTORED_THRUST_REALISATION).toBeGreaterThan(0.4)
+    expect(VECTORED_THRUST_REALISATION).toBeLessThan(0.85)
   })
 })
 
@@ -76,11 +89,41 @@ describe('the baseline installation', () => {
     expect(HOVER.heavinessFraction).toBeLessThan(0.08)
   })
 
-  it('still lands with one propulsor stopped, which is what sets the trim', () => {
-    const out = propulsorOut(COUNT, HOVER, TRIM)
+  it('still lands with the WORST propulsor stopped, which is what sets the trim', () => {
+    const identical = Array.from({ length: COUNT }, () => ({
+      diameter: 6,
+      ratedPower: (POWER as number) / COUNT,
+      ducted: true,
+    }))
+    const out = propulsorOut(identical, TRIM)
     expect(out.stillLands).toBe(true)
     // And it is close, which is the point: the trim was chosen to make it so.
     expect(out.remainingHeaviness).toBeLessThan(TRIM * 1.2)
+  })
+
+  it('costs more than an equal share when the units are not identical', () => {
+    // The (N-1)/N law is only right for N IDENTICAL units. With two large and
+    // two small, losing a large one removes 30 percent of the thrust rather
+    // than 25, and the landing trim was set by exactly this case with a margin
+    // of four kilograms. That is why the four units on this vehicle are the
+    // same size.
+    const mixed = [
+      { diameter: 6, ratedPower: 22000, ducted: true },
+      { diameter: 6, ratedPower: 22000, ducted: true },
+      { diameter: 5, ratedPower: 14000, ducted: true },
+      { diameter: 5, ratedPower: 14000, ducted: true },
+    ]
+    const even = [
+      { diameter: 5.52, ratedPower: 18000, ducted: true },
+      { diameter: 5.52, ratedPower: 18000, ducted: true },
+      { diameter: 5.52, ratedPower: 18000, ducted: true },
+      { diameter: 5.52, ratedPower: 18000, ducted: true },
+    ]
+    const a = propulsorOut(mixed, TRIM)
+    const b = propulsorOut(even, TRIM)
+    expect(a.remainingHeaviness).toBeLessThan(b.remainingHeaviness)
+    expect(a.loadShare).toBeGreaterThan(4 / 3)
+    expect(b.loadShare).toBeCloseTo(4 / 3, 3)
   })
 })
 

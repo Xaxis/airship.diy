@@ -1085,7 +1085,7 @@ export const validateArrangement = (
     kg(statement.total),
     VERTICAL_LANDING_TRIM,
   )
-  const outOne = propulsorOut(config.propulsors.length, hover, VERTICAL_LANDING_TRIM)
+  const outOne = propulsorOut(config.propulsors, VERTICAL_LANDING_TRIM)
   findings.push({
     id: 'vertical-landing',
     severity: outOne.stillLands ? 'pass' : hover.liftsItsTrim ? 'warn' : 'fail',

@@ -1513,7 +1513,7 @@ export const vectoring = (() => {
     kg(statement.total),
     LANDING_TRIM,
   )
-  const out = propulsorOut(propulsors.length, hover, LANDING_TRIM)
+  const out = propulsorOut(propulsors, LANDING_TRIM)
   const control = vectoredControl(
     N(hover.staticThrust),
     statement.gasVolume,

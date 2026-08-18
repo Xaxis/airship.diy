@@ -290,7 +290,7 @@ export function DesignExplorer() {
       kg(mass.total),
       trim,
     )
-    const out = propulsorOut(config.propulsors.length, hover, trim)
+    const out = propulsorOut(config.propulsors, trim)
 
     const hullWidth = design.hull.length / design.hull.finenessRatio
     const seaLevel = atmosphere(m(0))

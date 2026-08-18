@@ -1,4 +1,5 @@
 import type { Kilograms, Newtons, Watts } from '@airship/units'
+import { uncertain, v } from '@airship/data'
 
 /**
  * Tilting propulsors: what they can lift, what they can hold, and what happens
@@ -9,31 +10,38 @@ import type { Kilograms, Newtons, Watts } from '@airship/units'
  * A buoyant vehicle does not have to lift its weight. It has to lift its
  * RESIDUAL HEAVINESS, which on a well-trimmed airship is a couple of percent of
  * the weight, so the thrust needed is two orders of magnitude below what a
- * helicopter of the same mass would need. Zeppelin NT is certified to 400 kg of
- * static heaviness at take-off on an 8,050 kg vehicle, which is 5.0 percent, and
- * it lifts that on tilting propellers.
+ * helicopter of the same mass would need. Zeppelin NT is CERTIFIED to 400 kg of
+ * static heaviness at take-off on an 8,050 kg vehicle, which is 5.0 percent,
+ * and it lifts that on tilting propellers. Note the word certified: that is an
+ * operating limit in a flight manual, not a measurement of what the
+ * installation can lift, and it is not evidence for any particular realisation
+ * factor. See VECTORED_THRUST_REALISATION.
  *
- * THE DESIGN VARIABLE THAT MATTERS IS DIAMETER AND NOTHING ELSE COMES CLOSE.
- * Momentum theory gives thrust proportional to (rho * A * P^2)^(1/3), so at
- * fixed power the thrust goes as the two-thirds power of disc area and therefore
- * as the four-thirds power of diameter. Doubling the diameter is worth 2.5 times
- * the thrust for the same kilowatt. Four 8 m propulsors hover this vehicle's
- * landing trim on the power it already has; four 3 m propulsors do not come
- * close. Everything else in the propulsion group is a rounding error against
- * that.
+ * DIAMETER AND POWER ARE WORTH EXACTLY THE SAME, PERCENT FOR PERCENT. Momentum
+ * theory gives T = (2 rho A P^2)^(1/3). The area sits inside the cube root to
+ * the first power, so T goes as A^(1/3), which is D^(2/3), and power goes as
+ * P^(2/3): the same exponent. Differentiating,
  *
- * AND A DUCT IS WORTH A FACTOR OF TWO IN STATIC THRUST at equal power, because
- * the shroud carries a suction load of its own and stops the tip vortex
- * contracting the wake. It costs in cruise, where the duct is wetted area doing
- * nothing, so the choice is not free: it is a hover-versus-endurance trade and
- * this vehicle spends its life in the second regime.
+ *   dT/T = (2/3) dD/D + (2/3) dP/P
  *
- * MOMENTUM THEORY OVER-PREDICTS AND THE MARGIN IS LARGE. Against certified
- * airship installations the realisation factor is about 0.37: real thrust is a
- * third of the ideal, because of tip losses, non-uniform inflow, the download on
- * the body under the wake, and the fact that a propulsor sized for cruise is
- * badly matched at zero airspeed. Sizing an installation from momentum theory
- * alone would overstate what it can lift by nearly three times.
+ * so a one percent bigger disc and a one percent bigger motor buy the same one
+ * percent more thrust. Doubling either is worth 2^(2/3) = 1.59 times.
+ *
+ * THIS MODULE USED TO CLAIM THE OPPOSITE, that thrust goes as D^(4/3) and that
+ * "diameter is the only variable that matters", which reads the exponent off
+ * the area rather than off the cube root of the area. It is the reason the
+ * propulsors grew from 4.6 m to 6 m rather than the motors growing, and the
+ * flight page printed the correct formula and the wrong conclusion drawn from
+ * it in consecutive clauses. Which lever to pull is a mass and drag question,
+ * not an exponent one: a bigger disc costs structure and cruise drag, a bigger
+ * motor costs motor mass and nothing else.
+ *
+ * MOMENTUM THEORY OVER-PREDICTS AND BY HOW MUCH IS NOT MEASURED. See
+ * VECTORED_THRUST_REALISATION: the figure this module used to carry was pinned
+ * to a Zeppelin NT number that turns out to be a certified operating LIMIT on
+ * static heaviness rather than a measurement of what the installation lifts, so
+ * it cannot calibrate anything, and the arithmetic offered for it did not
+ * reproduce it either.
  */
 
 export interface HoverCapability {
@@ -57,22 +65,61 @@ export interface HoverCapability {
 /**
  * Realisation factor of a real installation against momentum theory.
  *
- * @source Derived from certified airship vectored-thrust installations: Zeppelin
- * NT lifts 400 kg of static heaviness on three 147 kW engines with 2.7 m
- * propellers, which is 0.37 of what momentum theory says that disc and that
- * power should give. Tip losses, non-uniform inflow, the download on the body
- * under the wake, and a propulsor sized for cruise operating at zero airspeed.
+ * IT USED TO BE 0.37, JUSTIFIED BY A CALCULATION THAT GIVES 0.195. The stated
+ * derivation was Zeppelin NT lifting 400 kg on three engines with 2.7 m
+ * propellers. Two things are wrong with it. The arithmetic does not reproduce
+ * the constant, and the data point cannot support any constant: 400 kg is the
+ * certified operating limit on static heaviness at take-off, which is what the
+ * flight manual permits, not a measurement of what the installation can lift.
+ * Read as a measurement it implies a propeller figure of merit of 0.086, since
+ * the realisation is FM^(2/3), and no propeller achieves that even stalled.
+ *
+ * So it is uncertain, and the range is built from the physics rather than from
+ * the anecdote. A well-designed static propeller reaches a figure of merit of
+ * 0.6 to 0.75, which is a realisation of 0.71 to 0.83 before installation
+ * effects; the download on the hull under the wake, non-uniform inflow, and a
+ * blade optimised for cruise working at zero advance ratio take back 10 to 30
+ * percent of that.
  */
-export const VECTORED_THRUST_REALISATION = 0.37
+export const VECTORED_THRUST_REALISATION = v(
+  uncertain({
+    low: 0.45,
+    nominal: 0.62,
+    high: 0.78,
+    unit: '1',
+    reason:
+      'No measured static thrust exists for a vectored airship installation of this size. The low end is a cruise-optimised blade with a heavy hull download; the high end is a purpose-designed lift rotor with little.',
+    resolvedBy:
+      'A static thrust measurement on the chosen propulsor, or a figure of merit from its manufacturer at zero advance ratio.',
+  }),
+)
 
 /**
- * Static thrust gain from shrouding a propulsor.
+ * Static thrust gain from shrouding a propulsor, AT EQUAL POWER.
  *
- * @source Measured shrouded against unshrouded static thrust at equal power, a
- * factor of two. The duct carries a suction load and prevents the wake
- * contracting. It costs in cruise, where it is wetted area doing nothing.
+ * THE FOLKLORE FACTOR OF TWO IS THE AREA EFFECT, NOT THE POWER EFFECT, and this
+ * constant used to carry it with the wrong label. An open rotor's wake
+ * contracts to half the disc area, so a duct that holds the wake at the disc
+ * doubles the effective wake area and doubles the thrust AT FIXED INDUCED
+ * VELOCITY. Hold POWER fixed instead, which is what a propulsion installation
+ * actually does, and T goes as A^(1/3): doubling the effective area is worth
+ * 2^(1/3) = 1.26. A factor of two at equal power is above the ideal-flow
+ * ceiling, so no measurement can have produced it.
+ *
+ * @source The ideal ducted-fan result at fixed power, 2^(1/3), derated for
+ * duct internal and external drag, which a real shroud does not escape.
  */
-export const DUCT_STATIC_THRUST_GAIN = 2
+export const DUCT_STATIC_THRUST_GAIN = v(
+  uncertain({
+    low: 1.05,
+    nominal: 1.18,
+    high: 1.26,
+    unit: '1',
+    reason:
+      'The 1.26 ceiling is the ideal-flow result at fixed power. What a real duct keeps of it depends on its length, lip radius and internal losses, none of which are chosen yet.',
+    resolvedBy: 'A duct design, or static thrust measured shrouded against unshrouded at equal power.',
+  }),
+)
 
 /** @source Standard gravity, m/s2. */
 const G0 = 9.80665
@@ -88,7 +135,28 @@ export const hoverCapability = (
   grossWeight: Kilograms,
   landingTrim: number,
   airDensity = SEA_LEVEL_DENSITY,
+  /**
+   * Smallest tilt authority in the fleet, radians. Every unit's thrust is
+   * counted as fully vertical, which is only true at 90 degrees: a unit that
+   * tilts to 60 puts sin(60) = 0.866 of its thrust upward and the remaining
+   * half horizontally, where it has to be trimmed out by tilting another unit
+   * back, costing more again.
+   *
+   * Defaults to full authority so existing callers are unchanged, and warns
+   * rather than silently over-promising when it is not.
+   */
+  minimumVectorAuthority = Math.PI / 2,
 ): HoverCapability => {
+  if (minimumVectorAuthority < Math.PI / 2) {
+    // Not a throw: a partial-authority installation is a real design, it just
+    // is not the one this closed form describes.
+    console.warn(
+      `hoverCapability assumes every propulsor tilts to vertical, and the least capable in this ` +
+        `fleet reaches ${((minimumVectorAuthority * 180) / Math.PI).toFixed(0)} degrees. Its ` +
+        `vertical component is ${Math.sin(minimumVectorAuthority).toFixed(3)} of its thrust and ` +
+        `the rest has to be trimmed out. Treat the result as an upper bound.`,
+    )
+  }
   const discArea = propulsorCount * Math.PI * ((diameter / 2) ** 2)
 
   /**
@@ -114,7 +182,11 @@ export const hoverCapability = (
     staticThrust,
     liftableHeaviness,
     heavinessFraction: liftableHeaviness / grossWeight,
-    discLoading: installedPower / discArea,
+    // THRUST over area, which is what disc loading means and what the field is
+    // named after. It used to be POWER over area, which is power loading in
+    // W/m2: a different quantity, in different units, reported under the name
+    // of this one.
+    discLoading: staticThrust / discArea,
     powerAtTrim,
     liftsItsTrim: powerAtTrim <= installedPower,
     note:
@@ -123,12 +195,13 @@ export const hoverCapability = (
       `heaviness, which is ${((liftableHeaviness / grossWeight) * 100).toFixed(1)} percent of the ` +
       `vehicle. Against a landing trim of ${landingTrim.toFixed(0)} kg it needs ` +
       `${(powerAtTrim / 1e3).toFixed(0)} kW, so it ${powerAtTrim <= installedPower ? 'CAN' : 'CANNOT'} ` +
-      `lift itself off. DIAMETER IS THE ONLY VARIABLE THAT MATTERS HERE: thrust goes as the ` +
-      `four-thirds power of it at fixed power, so doubling the diameter is worth 2.5 times the ` +
-      `thrust for the same kilowatt, and no other change in the propulsion group comes close. ` +
+      `lift itself off. DIAMETER AND POWER ARE WORTH THE SAME, percent for percent: thrust goes ` +
+      `as (rho A P^2)^(1/3), so both carry the exponent 2/3 and doubling either is worth 1.59 ` +
+      `times. Which one to buy is a mass and drag question rather than an exponent one. ` +
       `Momentum theory alone would have promised ${(ideal / G0).toFixed(0)} kg, ` +
-      `${(1 / VECTORED_THRUST_REALISATION).toFixed(1)} times what a certified installation ` +
-      `achieves.`,
+      `${(ideal / (staticThrust || 1)).toFixed(1)} times what this installation is assumed to ` +
+      `achieve, and that assumption is UNCERTAIN rather than measured: see ` +
+      `VECTORED_THRUST_REALISATION.`,
   }
 }
 
@@ -208,34 +281,68 @@ export interface PropulsorOut {
  * ability to stay up. The residual is a thrust problem rather than a control
  * one, and the answer to it is to be light rather than to be redundant.
  */
-export const propulsorOut = (
-  propulsorCount: number,
-  hover: HoverCapability,
-  landingTrim: number,
-): PropulsorOut => {
-  const surviving = propulsorCount - 1
-  const loadShare = propulsorCount / surviving
+/**
+ * Static thrust of ONE propulsor, N.
+ *
+ * Exported because the fleet is not identical and lumping total area against
+ * total power is only right when it is.
+ */
+export const staticThrustOf = (
+  diameter: number,
+  ratedPower: number,
+  ducted: boolean,
+  airDensity = SEA_LEVEL_DENSITY,
+): number => {
+  const area = Math.PI * (diameter / 2) ** 2
+  const ideal = Math.cbrt(2 * airDensity * area * ratedPower ** 2)
+  return ideal * VECTORED_THRUST_REALISATION * (ducted ? DUCT_STATIC_THRUST_GAIN : 1)
+}
 
-  /**
-   * @derived Thrust goes as the two-thirds power of disc area at fixed power
-   * per unit, so losing one of N leaves (N-1)/N of both the disc and the power
-   * and therefore (N-1)/N of the thrust. The survivors do not spin up.
-   */
-  const remainingHeaviness = hover.liftableHeaviness * (surviving / propulsorCount)
+/**
+ * What is left after the WORST single propulsor failure.
+ *
+ * THE (N-1)/N LAW IS ONLY RIGHT FOR N IDENTICAL UNITS, and this vehicle's are
+ * not: two large ones amidships and two smaller ones aft. Losing a large one
+ * removes 30 percent of the thrust rather than 25, and since the landing trim
+ * was set by this very case with a margin of four kilograms, the difference
+ * decides the gate rather than shading it.
+ *
+ * It also has to be the worst loss and not an average one. A failure mode
+ * analysis that averages over which unit fails is not a failure mode analysis.
+ */
+export const propulsorOut = (
+  units: readonly { readonly diameter: number; readonly ratedPower: number; readonly ducted: boolean }[],
+  landingTrim: number,
+  airDensity = SEA_LEVEL_DENSITY,
+): PropulsorOut => {
+  if (units.length < 2) throw new RangeError('A propulsor-out case needs at least two propulsors.')
+
+  const thrusts = units.map((u) => staticThrustOf(u.diameter, u.ratedPower, u.ducted, airDensity))
+  const total = thrusts.reduce((sum, t) => sum + t, 0)
+
+  // The worst loss is the largest single contribution.
+  const lost = Math.max(...thrusts)
+  const remainingThrust = total - lost
+  const remainingHeaviness = remainingThrust / G0
+  const loadShare = total / remainingThrust
+
+  /** @derived What the naive equal-units law would have said, for the comparison. */
+  const naive = (total * (units.length - 1)) / units.length / G0
 
   return {
     loadShare,
     remainingHeaviness,
     stillLands: remainingHeaviness >= landingTrim,
     note:
-      `Losing one of ${propulsorCount} leaves ${remainingHeaviness.toFixed(0)} kg of liftable ` +
-      `heaviness against a ${landingTrim.toFixed(0)} kg trim, so the vehicle ` +
-      `${remainingHeaviness >= landingTrim ? 'still lands under control' : 'cannot hold its trim'}. ` +
-      `THIS IS THE STRONGEST ARGUMENT FOR THE ARCHITECTURE and it is the opposite of the ` +
-      `helicopter case: a heavier-than-air VTOL that loses a rotor in the hover is descending ` +
-      `immediately, and this one is still buoyant. It loses the ability to PLACE itself and keeps ` +
-      `the ability to stay up. The survivors must carry ${loadShare.toFixed(2)} times their share, ` +
-      `which is a thrust problem and not a control one, and the answer to it is to be light rather ` +
-      `than to be redundant.`,
+      `Losing the LARGEST of ${units.length} leaves ${remainingHeaviness.toFixed(0)} kg of ` +
+      `liftable heaviness against a ${landingTrim.toFixed(0)} kg trim, so the vehicle ` +
+      `${remainingHeaviness >= landingTrim ? 'still lands under control' : 'CANNOT HOLD ITS TRIM'}. ` +
+      `The units are not identical, so the equal-share law that would give ` +
+      `${naive.toFixed(0)} kg does not apply: the biggest unit is worth more than its share and ` +
+      `losing it costs more than its share. ` +
+      `A heavier-than-air VTOL that loses a rotor in the hover is descending immediately, and ` +
+      `this one is still buoyant: it loses the ability to PLACE itself and keeps the ability to ` +
+      `stay up. The survivors carry ${loadShare.toFixed(2)} times their share, which is a thrust ` +
+      `problem and not a control one, and the answer to it is to be light rather than redundant.`,
   }
 }

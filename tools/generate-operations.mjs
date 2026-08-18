@@ -62,7 +62,7 @@ const hover = hoverCapability(
   mass.total,
   LANDING_TRIM,
 )
-const out = propulsorOut(propulsors.length, hover, LANDING_TRIM)
+const out = propulsorOut(propulsors, LANDING_TRIM)
 const control = vectoredControl(
   hover.staticThrust,
   mass.gasVolume,

@@ -13,22 +13,22 @@ building it. The reasoning is on the site; the limits are here.
 |---|---|
 | Length | 118 m at fineness 5 |
 | Envelope | 34,305 m³, 12 cells |
-| Gross weight | 26,536 kg |
+| Gross weight | 26,636 kg |
 | Gross lift | 32,124 kg |
-| Lift margin | 5,589 kg (17.4 %) |
+| Lift margin | 5,489 kg (17.1 %) |
 | Dumpable water ballast | 2,500 kg |
-| Propulsion | 4 × 5.5 m ducted, 72 kW |
+| Propulsion | 4 × 6.0 m ducted, 72 kW |
 | Food aboard | 584 kg |
 
 ## Trim
 
 **Land at 600 kg heavy and no more.** That number is not about the
-sea state. It is what THREE of the four propulsors can lift: 604 kg.
+sea state. It is what THREE of the four propulsors can lift: 631 kg.
 A trim you can only leave with every unit running turns one failure into a
 vehicle that cannot take off again.
 
-All four lift 806 kg, which needs
-46 kW of the 72 installed.
+All four lift 842 kg, which needs
+43 kW of the 72 installed.
 
 **Heavy is the safe direction.** Static heaviness is signed and positive means
 heavy: a vehicle that drifts light leaves without you.
@@ -55,8 +55,8 @@ displaced air as well as the vehicle.
 
 | Condition | Limit | Why |
 |---|---|---|
-| Holds itself bow-on | 16 m/s | Vectored thrust at zero airspeed |
-| Holds itself broadside | 2.6 m/s | The broadside force is an order of magnitude larger |
+| Holds itself bow-on | 17 m/s | Vectored thrust at zero airspeed |
+| Holds itself broadside | 2.7 m/s | The broadside force is an order of magnitude larger |
 | Two people, bow-on | see the build chapter | Ground handling by hand |
 | Two people, broadside | under 1 m/s | Do not attempt it |
 
@@ -71,11 +71,11 @@ Boat mode is a cone, not a compass, and the cone is set by the centreboard.
 
 | True wind, m/s | Upwind speed, m/s | Leeway at the beam, ° | Usable cone from dead upwind, ° |
 |---|---|---|---|
-| 5 | 9.3 | 7 | 180 |
-| 8 | 6.9 | 11 | 180 |
-| 10 | 5.3 | 14 | 180 |
-| 12 | 4.0 | 17 | 180 |
-| 15 | 1.3 | 21 | 5 |
+| 5 | 9.6 | 7 | 180 |
+| 8 | 7.2 | 11 | 180 |
+| 10 | 5.6 | 14 | 180 |
+| 12 | 4.3 | 17 | 180 |
+| 15 | 1.6 | 21 | 15 |
 
 **Lower the centreboard before you try to hold any heading off the wind.** With
 it up the vehicle points where the fins say and goes where the wind says: the
@@ -93,10 +93,10 @@ option of flying away from it instead.
 
 | Sea state | Hs, m | Period, s | Frequency ratio | Suspension load, kN | Re-entry, m/s |
 |---|---|---|---|---|---|
-| 2 | 0.30 | 3.5 | 1.06 | 31 to 36 | 0.88 |
+| 2 | 0.30 | 3.5 | 1.07 | 31 to 36 | 0.88 |
 | 3 | 0.88 | 4.5 | 0.79 | 55 to 106 | 0.86 |
 | 4 | 1.88 | 6.5 | 0.53 | 56 to 226 | 0.34 |
-| 5 | 3.25 | 8.5 | 0.40 | 57 to 392 | 0.22 |
+| 5 | 3.25 | 8.5 | 0.40 | 57 to 392 | 0.23 |
 | 6 | 5.00 | 10.0 | 0.34 | 63 to 603 | 0.20 |
 
 **The load is a bracket, not a number, and the reason is that the float leaves
