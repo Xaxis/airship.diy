@@ -2,20 +2,34 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 
 import { neighbours, routeFor } from '../../lib/routes'
+import { Sidebar } from './Sidebar'
 
 /**
- * The page wrapper: header, content, and where to go next.
+ * The page wrapper: chapter index, header, content, and where to go next.
  *
  * Every page states the QUESTION it answers before it says anything else. That
  * is the whole editorial rule of this site: a page that cannot name its question
  * is a page that should be part of another one.
+ *
+ * The chapter index sits BESIDE the page from `xl` up and above it below that,
+ * rather than across the top on every width. Ten chapters in a top bar is a
+ * wall: it gives every one of them the same weight and shows none of the
+ * structure. The sidebar shows which of the four parts of the argument you are
+ * in without costing a tap.
  */
 export function Shell({ href, children }: { href: string; children: ReactNode }) {
   const route = routeFor(href)
   const { previous, next } = neighbours(href)
 
   return (
-    <main className="mx-auto max-w-6xl px-5 sm:px-8">
+    <div className="mx-auto grid max-w-[88rem] gap-10 px-5 sm:px-8 xl:grid-cols-[15rem_minmax(0,1fr)] xl:gap-14">
+      <aside className="hidden xl:block">
+        <div className="sticky top-20 py-12">
+          <Sidebar />
+        </div>
+      </aside>
+
+      <main className="min-w-0">
       <header className="pt-12 pb-8 sm:pt-16">
         <p className="num text-xs tracking-[0.18em] text-[var(--color-ink-faint)]">
           {route?.question}
@@ -69,7 +83,8 @@ export function Shell({ href, children }: { href: string; children: ReactNode })
           </Link>
         ) : null}
       </nav>
-    </main>
+      </main>
+    </div>
   )
 }
 

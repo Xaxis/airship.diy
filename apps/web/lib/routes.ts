@@ -11,7 +11,29 @@
  * the design; jumped into anywhere it is a reference.
  */
 
+/**
+ * The chapters, grouped.
+ *
+ * THE GROUPS ARE THE ARGUMENT'S OWN JOINTS, not a filing convenience. This
+ * file already said the order runs from what the vehicle IS, through the
+ * questions that decide whether it works, to what is still unknown. These are
+ * those joints, named.
+ *
+ * They exist because ten chapters strung across a top bar is a wall rather than
+ * navigation. A reader cannot tell from it which pages are the argument and
+ * which are the reference.
+ */
+export type Section = 'The vehicle' | 'Does it work' | 'Could you build it' | 'Is any of it true'
+
+export const SECTIONS: readonly Section[] = [
+  'The vehicle',
+  'Does it work',
+  'Could you build it',
+  'Is any of it true',
+]
+
 export interface Route {
+  readonly section: Section
   readonly href: string
   /** Short label, for the navigation bar. */
   readonly label: string
@@ -25,6 +47,7 @@ export interface Route {
 
 export const ROUTES: readonly Route[] = [
   {
+    section: 'The vehicle',
     href: '/ship',
     label: 'The ship',
     title: 'The ship',
@@ -33,6 +56,7 @@ export const ROUTES: readonly Route[] = [
       'The arrangement and the interior: a cutaway, an inboard profile, four sections and a plan of every room with what is in it. All drawn from the same stations, footprints and masses the budget integrated.',
   },
   {
+    section: 'The vehicle',
     href: '/architecture',
     label: 'Architecture',
     title: 'Why this and not something else',
@@ -41,6 +65,7 @@ export const ROUTES: readonly Route[] = [
       'All five on one basis, each calibrated on a vehicle that flew. Three are lighter than the one chosen, and each is lighter for a reason that costs something a liveaboard cannot pay.',
   },
   {
+    section: 'Does it work',
     href: '/energy',
     label: 'Energy',
     title: 'Does the loop close?',
@@ -49,6 +74,7 @@ export const ROUTES: readonly Route[] = [
       'Solar collection integrated over the real hull surface, a fuel cell and electrolyzer round trip, and a day-by-day mission integration that reports the day it fails rather than an average that hides it.',
   },
   {
+    section: 'Does it work',
     href: '/structure',
     label: 'Structure',
     title: 'Will it hold together?',
@@ -57,6 +83,7 @@ export const ROUTES: readonly Route[] = [
       'The mass fraction against every rigid airship with published figures, the buckling allowables that actually size the frame, and the gust case that turns out to govern rather than the static one.',
   },
   {
+    section: 'Does it work',
     href: '/water',
     label: 'Water',
     title: 'Land it on water',
@@ -65,6 +92,7 @@ export const ROUTES: readonly Route[] = [
       'Flotation is trivial and it is not the problem. A simulator that integrates the real seakeeping, and the finding that a sealed pneumatic float is stiffer than the water it replaces.',
   },
   {
+    section: 'Does it work',
     href: '/flight',
     label: 'Flight',
     title: 'Fly it',
@@ -73,6 +101,7 @@ export const ROUTES: readonly Route[] = [
       'The project’s own 6-DOF solver at 100 Hz, with the full added-mass tensor. Slow to respond, slow to stop, and overdamped at cruise where it wallows at rest.',
   },
   {
+    section: 'Could you build it',
     href: '/failure',
     label: 'Failure',
     title: 'What breaks, and does it kill you?',
@@ -81,6 +110,7 @@ export const ROUTES: readonly Route[] = [
       'An FMEA whose consequences are computed from the mass statement rather than asserted. Seven of eight are survivable. The eighth is a wiring diagram, not a physics problem, and it is the one worth fixing.',
   },
   {
+    section: 'Could you build it',
     href: '/build',
     label: 'Build',
     title: 'Could you actually build it?',
@@ -89,6 +119,7 @@ export const ROUTES: readonly Route[] = [
       'A bill of materials priced at what an individual is actually charged, a labour estimate cross-checked two ways, and the building. This is the page where the answer is no, and the reason is not the airship.',
   },
   {
+    section: 'Is any of it true',
     href: '/validation',
     label: 'Validation',
     title: 'Does it hold up?',
@@ -97,6 +128,7 @@ export const ROUTES: readonly Route[] = [
       'Every rigid airship with published figures, modelled from its own envelope and compared. Where the model misses, the discrepancy is recorded rather than tuned away.',
   },
   {
+    section: 'Is any of it true',
     href: '/open',
     label: 'Open questions',
     title: 'Where the model is guessing',
@@ -119,3 +151,7 @@ export const neighbours = (href: string): { previous?: Route; next?: Route } => 
     ...(next ? { next } : {}),
   }
 }
+
+/** The chapters of one section, in reading order. */
+export const routesIn = (section: Section): readonly Route[] =>
+  ROUTES.filter((route) => route.section === section)
