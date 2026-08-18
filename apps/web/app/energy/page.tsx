@@ -231,9 +231,11 @@ export default function Page() {
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
             &ldquo;One gas for lift and fuel&rdquo; is the most attractive idea in the propulsion
             module and it does not survive the buoyancy budget. Removing 1 kg of hydrogen from a
-            cell removes 1 kg of weight and {burningTheLiftingGas.liftLost.toFixed(1)} kg of gross
-            lift, so the ship goes {burningTheLiftingGas.heavinessGained.toFixed(1)} kg{' '}
-            <em>heavy</em> per kilogram burned, while combustion returns only{' '}
+            cell frees the 11.7 m&sup3; it occupied, losing 14.4 kg of displaced air while shedding
+            the gas&rsquo;s own kilogram, so the ship goes{' '}
+            {burningTheLiftingGas.heavinessGained.toFixed(1)} kg <em>heavy</em> per kilogram burned.
+            That figure is already net of the kilogram that left: taking it off again is the
+            arithmetic slip this page and the solver both made. Combustion returns only{' '}
             {burningTheLiftingGas.waterReturned.toFixed(2)} kg of water. No recovery fraction can
             hold trim, and recovering the water makes it worse rather than better:{' '}
             {burningTheLiftingGas.heavinessWithRecovery.toFixed(1)} kg heavy instead of{' '}

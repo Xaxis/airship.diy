@@ -43,15 +43,20 @@ import { GAS, HYDROGEN_ENERGY, MOLAR_MASS, v } from '@airship/data'
 /**
  * Net heaviness change from burning hydrogen taken out of the LIFT CELLS.
  *
- * @derived Removing 1 kg of hydrogen from a cell removes 1 kg of ship weight and
- * removes the buoyancy that kilogram was generating. At sea level a kilogram of
- * hydrogen displaces about 14.4 kg of air, so the lost gross lift is about
- * 13.4 kg net of the gas's own weight. The ship therefore becomes 12.4 kg HEAVY
- * for every kilogram burned.
+ * @derived Removing 1 kg of hydrogen from a cell frees the 11.74 m3 it occupied
+ * and loses the 14.38 kg of air that volume was displacing, while shedding the
+ * gas's own 1 kg of weight. The ship therefore becomes 13.38 kg HEAVY for every
+ * kilogram burned.
+ *
+ * DO NOT SUBTRACT THE KILOGRAM AGAIN. 13.38 is already net of the gas's own
+ * weight: it is 14.38 of lost buoyancy less the 1 kg that left with it. This
+ * docstring used to say "the lost gross lift is 13.4 net of the gas's own
+ * weight, so the ship becomes 12.4 kg heavy", taking the same kilogram off
+ * twice, and the literal below and the website both carried the 12.4.
  *
  * Combustion returns only 8.94 kg of water. So even at 100 percent condensation
- * recovery the ship cannot stay neutral: recovering the water makes it 21.3 kg
- * heavy instead of 12.4, which is worse.
+ * recovery the ship cannot stay neutral: recovering the water makes it 22.32 kg
+ * heavy instead of 13.38, which is worse.
  *
  * THIS KILLS THE ELEGANT ARCHITECTURE. "One gas for lift and fuel" is the most
  * attractive idea in the whole propulsion module and it does not survive
@@ -135,14 +140,29 @@ export const energyPerLiftGivenUp = (option: FuelOption): number =>
 /**
  * Lift given up per kilogram of a gas carried INSIDE the hull.
  *
- * @derived The cell could have held hydrogen. Lift forgone per unit volume is
- * (rho_air - rho_H2); per kilogram of fuel that is (rho_air - rho_H2)/rho_fuel.
- * @source ISA sea level densities, computed by the buoyancy module.
+ * THE DIFFERENCE IS AGAINST THE FUEL, NOT AGAINST AIR. A cubic metre of cell
+ * holding hydrogen lifts (rho_air - rho_H2). The same cubic metre holding fuel
+ * lifts (rho_air - rho_fuel), which is not zero unless the fuel is exactly air
+ * density. What is FORGONE is the difference between them:
+ *
+ *   (rho_air - rho_H2) - (rho_air - rho_fuel) = rho_fuel - rho_H2
+ *
+ * and per kilogram of fuel, which occupies 1/rho_fuel of a cubic metre, that is
+ * (rho_fuel - rho_H2)/rho_fuel.
+ *
+ * It read (rho_air - rho_H2)/rho_fuel, which assumes the fuel generates no lift
+ * at all. That is true only for the air-density blend, which is the single case
+ * the tests check against an independent figure, so the error was invisible
+ * there and wrong for every other gas in the table, always in the direction
+ * that penalises the alternative. Since `energyPerLiftGivenUp` is declared THE
+ * FIGURE OF MERIT, it was inverting this module's own ranking.
+ *
+ * @source ISA sea level hydrogen density, computed by the buoyancy module.
  */
 const hullGasLiftCost = (fuelDensity: number): number => {
-  const airDensity = 1.225
+  /** @source Pure hydrogen at ISA sea level, kg/m3. */
   const hydrogenDensity = 0.0852
-  return (airDensity - hydrogenDensity) / fuelDensity
+  return (fuelDensity - hydrogenDensity) / fuelDensity
 }
 
 /**
@@ -210,13 +230,17 @@ export const FUEL_OPTIONS: readonly FuelOption[] = [
     specificEnergy: v(HYDROGEN_ENERGY.lowerHeatingValue),
     /** @derived 13.4 kg of lift lost per kilogram drawn; see the module docstring. */
     liftCostPerKilogram: 13.4,
-    /** @derived The ship goes 12.4 kg heavy per kilogram burned, before any water. */
-    trimExcursionPerKilogram: 12.4,
+    /**
+     * @derived The ship goes this much heavier per kilogram burned, before any
+     * water is recovered. Computed rather than restated: it was the literal
+     * 12.4, which is this number with the gas's own kilogram subtracted twice.
+     */
+    trimExcursionPerKilogram: heavinessPerKilogramOfCellHydrogenBurned(1.225, 0.0852),
     /** @derived Even full recovery cannot hold trim; see the module docstring. */
     waterRecoveryForNeutrality: Infinity,
     condenserOutletTemperature: HYDROGEN_CONDENSER_OUTLET,
     note:
-      'THE ARCHITECTURALLY ELEGANT OPTION, AND IT DOES NOT WORK. Burning cell hydrogen makes the ship 12.4 kg heavy per kilogram burned while producing only 8.94 kg of water, so no recovery fraction can hold trim. Recovering the water makes it worse, not better.',
+      'THE ARCHITECTURALLY ELEGANT OPTION, AND IT DOES NOT WORK. Burning cell hydrogen makes the ship 13.4 kg heavy per kilogram burned while producing only 8.94 kg of water, so no recovery fraction can hold trim. Recovering the water makes it worse, not better.',
   },
   {
     id: 'hydrogen-700bar',

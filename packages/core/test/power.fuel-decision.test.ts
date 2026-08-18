@@ -41,7 +41,16 @@ describe('the fuel decision is settled by lift cost, not energy density', () => 
     // of lift per kilogram carried, because the cell it occupies could have
     // held hydrogen.
     const ranked = rankedByLiftCost()
-    expect(ranked[0]?.option.id).toBe('air-density-blend')
+
+    // AN air-density gas wins, not one specific one. Blaugas and the modern
+    // blend are within a third of a percent of each other, and which of them
+    // comes first is decided by Blaugas being very slightly LIGHTER than air.
+    // Pinning the id made this test assert a tie-break rather than the result,
+    // and it flipped when the lift cost was corrected to difference against the
+    // FUEL's density rather than against air's.
+    const top = ranked[0]?.option.id ?? ''
+    expect(['air-density-blend', 'historical-blaugas']).toContain(top)
+    expect((ranked[1]?.energyPerLift ?? 0) / (ranked[0]?.energyPerLift ?? 1)).toBeGreaterThan(0.95)
 
     const best = ranked[0]?.energyPerLift ?? 0
     const worst = ranked[ranked.length - 1]?.energyPerLift ?? 1
@@ -49,12 +58,19 @@ describe('the fuel decision is settled by lift cost, not energy density', () => 
     expect(best / worst).toBeLessThan(12)
   })
 
-  it('reproduces the independently researched figures for all five options', () => {
-    // The strongest check available: five numbers derived here from densities
-    // and heating values, against five figures compiled from the literature.
+  it('holds the five energy-per-lift figures against regression', () => {
+    // NOT an independent check, whatever it used to say. These five numbers
+    // were produced by this module and pinned, so comparing the module against
+    // them tests that it has not changed, not that it is right. Blaugas at 49.6
+    // was the value the OLD lift-cost formula gave, differencing against air's
+    // density instead of the fuel's, and when that was corrected this test
+    // reported the correction as a failure.
+    //
+    // A genuinely independent check needs published energy-per-lift figures for
+    // airship fuels, and none exist: the comparison is the point of this module.
     const expected: Record<string, number> = {
       'air-density-blend': 50.0,
-      'historical-blaugas': 49.6,
+      'historical-blaugas': 51.7,
       'jet-a': 40.6,
       'hydrogen-cell': 9.0,
       'hydrogen-700bar': 6.2,

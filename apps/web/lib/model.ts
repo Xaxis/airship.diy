@@ -476,12 +476,17 @@ export const burningTheLiftingGas = (() => {
   return {
     /** Gross lift a kilogram of cell hydrogen was generating, kg. */
     liftLost,
-    /** Net heaviness after its own weight leaves with it, kg. */
-    heavinessGained: liftLost - 1,
+    /**
+     * Net heaviness, kg. NOT `liftLost - 1`: `liftLost` is already the buoyancy
+     * lost less the kilogram of gas that left with it, so subtracting again
+     * takes the same kilogram off twice. That is the error the core module's
+     * own docstring made, and I copied it here before the review caught it.
+     */
+    heavinessGained: liftLost,
     /** Water combustion returns per kilogram burned, kg. */
     waterReturned: WATER_PER_HYDROGEN_BURNED,
     /** Heaviness if that water is condensed and kept, kg. */
-    heavinessWithRecovery: liftLost - 1 + WATER_PER_HYDROGEN_BURNED,
+    heavinessWithRecovery: liftLost + WATER_PER_HYDROGEN_BURNED,
   }
 })()
 
