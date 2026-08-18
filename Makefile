@@ -119,6 +119,17 @@ deploy: check web-build ## Build and ship to production
 	# a clean tree and shipped stale output on a dirty one. Vercel builds from
 	# vercel.json's own buildCommand instead, so what ships is what CI checked.
 	@npx vercel deploy --prod --yes
+	# VERIFY THE DEPLOY, because shipping is not the same as having shipped.
+	# The site sat several commits stale for a day with every local check
+	# green, and nothing in this file looked at what the public could read.
+	@node tools/check-deployed.mjs
+	@node tools/check-web-live.mjs $(LIVE_ORIGIN)
+
+# Where production actually answers. NOT the apex domain: airship.diy is
+# registered at Namecheap and its A record still points at the registrar's
+# parking page, so it fails at the TLS handshake. Fixing that is a change to
+# the DNS zone and nothing in this repository can do it.
+LIVE_ORIGIN ?= https://airship-diy.vercel.app/
 
 deploy-check: ## What is actually live, against what this tree would build
 	@node tools/check-deployed.mjs

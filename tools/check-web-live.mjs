@@ -17,6 +17,43 @@ import { join } from 'node:path'
 const ORIGIN = (process.argv[2] ?? 'https://airship.diy/').replace(/\/$/, '')
 
 /**
+ * Can we reach the origin at all, before spending a browser on it?
+ *
+ * WITHOUT THIS, A DEAD DOMAIN LOOKS LIKE A DEAD SITE. When airship.diy pointed
+ * at the registrar's parking page, this tool reported "39 live check(s) failed"
+ * across eleven routes, every one of them net::ERR_SSL_PROTOCOL_ERROR. All the
+ * information was there and none of it was legible: the deployment was
+ * perfectly healthy and the domain was not pointed at it.
+ *
+ * A reachability failure is a different fault from a rendering failure and gets
+ * a different, shorter answer.
+ */
+const preflight = async () => {
+  try {
+    const response = await fetch(ORIGIN + '/', { redirect: 'follow' })
+    if (response.ok) return null
+    return `${ORIGIN} answered ${response.status}.`
+  } catch (error) {
+    const cause = String(error?.cause?.code ?? error?.cause?.message ?? error.message)
+    return (
+      `${ORIGIN} IS NOT REACHABLE (${cause}).\n\n` +
+      `That is a DNS or TLS fault, not a rendering one, so the browser checks\n` +
+      `below would only report it eleven times over. The deployment may be\n` +
+      `perfectly healthy: check the origin Vercel actually serves before\n` +
+      `concluding anything about the site.\n\n` +
+      `  node tools/check-web-live.mjs https://airship-diy.vercel.app/`
+    )
+  }
+}
+
+const unreachable = await preflight()
+if (unreachable !== null) {
+  console.error(`\nLive check: ${ORIGIN}\n`)
+  console.error(`  ${unreachable.replace(/\n/g, '\n  ')}\n`)
+  process.exit(1)
+}
+
+/**
  * What each route must show for the page to count as alive.
  *
  * The site is ten pages now rather than one scroll, so a single set of
