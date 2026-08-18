@@ -11,8 +11,8 @@ import { ballastEndurance, ballastLoop } from '../src/index.js'
  * not, and the reason is that a vehicle afloat is sitting on unlimited ballast.
  */
 
-/** @derived The baseline's superheat excursion at 20 K, kg. */
-const SWING = 2230
+/** @derived The baseline's superheat excursion at 20 K, kg, from superheatHeavinessExcursion. It read 2230 while that helper was dropping the rho_air/(rho_air - rho_gas) prefactor. */
+const SWING = 2477
 /** @derived The landing trim, kg. */
 const TRIM = 600
 /** @derived The continuous habitat load, W. */

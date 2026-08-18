@@ -33,6 +33,7 @@ import {
   navigationPolar,
   propulsorOut,
   superheatHeavinessExcursion,
+  pure,
   vectoredControl,
   DRAG_COEFFICIENT_BOW_ON,
   SIDE_FORCE_COEFFICIENT_BEAM_ON,
@@ -99,7 +100,13 @@ const WATERPLANE = 24
 const SUSPENSION = 1e6
 const ENVELOPE_INERTIA = effectiveHeaveInertia(mass.total, mass.gasVolume)
 
-const excursion = superheatHeavinessExcursion(mass.grossLift, 20)
+const excursion = superheatHeavinessExcursion(
+  mass.seaLevelGrossLift,
+  20,
+  pure(design.gas.species),
+  seaLevel,
+  design.gas.seaLevelFillFraction,
+)
 const ballast = ballastLoop(excursion, LANDING_TRIM, design.loads.habitatPower)
 
 /** @derived Draught at the landing trim, m. */

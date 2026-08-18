@@ -71,9 +71,20 @@ export interface AtmosphereState {
 
 export interface AtmosphereOptions {
   /**
-   * Temperature offset from standard, K. An ISA+20 day in the tropics is a
-   * 7 percent density reduction, which is 7 percent of lift, which for this
-   * vehicle is the difference between holding altitude and not.
+   * Temperature offset from standard, K.
+   *
+   * Density goes as 1/T at fixed pressure, so an ISA+20 day at sea level is a
+   * 6.5 percent density reduction and therefore 6.5 percent of gross lift,
+   * which for this vehicle is the difference between holding altitude and not.
+   *
+   * @derived 1 - 288.15/308.15 = 0.0649. This said "7 percent", the test that
+   * guards it says "about 6.6" in its title and 6.49 in its own comment on the
+   * next line, and the assertion was a band loose enough to admit all three.
+   *
+   * DO NOT CONFLATE THIS WITH SUPERHEAT. An ambient offset moves the air and
+   * the cell gas together at fixed pressure. Superheat moves only the cell gas
+   * and carries a rho_air / (rho_air - rho_gas) prefactor of 1.075, which is
+   * why 20 K of superheat is 7.5 percent and 20 K of ambient is 6.5.
    */
   readonly temperatureOffset?: Kelvin
   /**
@@ -81,9 +92,13 @@ export interface AtmosphereOptions {
    *
    * Humid air is LESS dense than dry air, because water at 18 g/mol displaces
    * nitrogen and oxygen averaging 29. This is counterintuitive enough that it
-   * gets left out of airship models routinely. At 30 degrees C and saturation
-   * it costs about 1.9 percent of density and therefore about 1.9 percent of
-   * gross lift, which on a 10 t ship is 190 kg. That is real ballast.
+   * gets left out of airship models routinely.
+   *
+   * @derived At 30 degrees C and saturation it costs 1.58 percent of density
+   * and therefore 1.58 percent of gross lift, which on a 10 t ship is 158 kg.
+   * That is real ballast. It said 1.9 percent and 190 kg, which is the one
+   * humidity figure a reader lifts straight into a ballast plan, 20 percent
+   * optimistic.
    */
   readonly relativeHumidity?: Fraction
 }

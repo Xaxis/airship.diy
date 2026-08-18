@@ -259,10 +259,21 @@ export const STANDARD_GAS_TEMPERATURE: Kelvin = K(ISA.seaLevelTemperature.value)
  * How far the daily superheat cycle moves static heaviness, kg.
  *
  * THE NUMBER THAT GOVERNS EVERY WATER-CONTACT DESIGN, and it is not obvious
- * until you put it next to one. A partially full cell expands freely at ambient
- * pressure, so a superheat of dT changes lift by dT/T of the gross lift. Twenty
- * kelvin on a 288 K day is 6.9 percent, and on a 29,600 kg gross lift that is
- * 2,057 kg.
+ * until you put it next to one.
+ *
+ * IT DELEGATES TO `superheatResponse` AND MUST CONTINUE TO. This used to be
+ * `(superheat / ambientTemperature) * grossLift`, which drops the
+ * rho_air / (rho_air - rho_gas) prefactor that the docstring eighty lines above
+ * derives for the identical regime. That is 6.9 percent against the correct
+ * 7.5, so one module computed one physical quantity two ways, and the low one
+ * was the one that sized the seawater ballast bladder and the alighting gear.
+ * The error ran in the unsafe direction: it understated the diurnal swing that
+ * no passive device can absorb.
+ *
+ * Delegating also supplies the fill fraction, which this had no way to take. A
+ * cell above about 93 percent full is pressure-limited rather than free to
+ * expand, and the free-expansion answer is simply wrong there: the lift does
+ * not rise, the cell valves and the gas is gone.
  *
  * Set that against a static heaviness of 500 to 1,000 kg, which is what a
  * vehicle trims to before it touches water. THE DIURNAL SWING IS TWO TO FOUR
@@ -276,11 +287,16 @@ export const STANDARD_GAS_TEMPERATURE: Kelvin = K(ISA.seaLevelTemperature.value)
  *
  * @param grossLift Gross aerostatic lift at the condition, kg.
  * @param superheat Cell gas temperature above ambient, K.
- * @param ambientTemperature K.
+ * @param contents What is in the cell, because the prefactor depends on it.
+ * @param air The ambient state the cell sits in.
+ * @param fillFraction How full the cell is, which decides the regime.
  */
 export const superheatHeavinessExcursion = (
   grossLift: number,
   superheat: number,
-  /** @source ISA sea level temperature, 288.15 K. */
-  ambientTemperature = ISA.seaLevelTemperature.value,
-): number => (superheat / ambientTemperature) * grossLift
+  contents: CellContents,
+  air: AtmosphereState,
+  fillFraction: number,
+): number =>
+  superheatResponse(K(superheat), K(air.temperature), contents, air, fillFraction).liftFraction *
+  grossLift

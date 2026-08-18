@@ -561,7 +561,13 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
   const gear = alightingGear(
     kg(liftForGear),
     LANDING_TRIM,
-    superheatHeavinessExcursion(liftForGear, DESIGN_SUPERHEAT),
+    superheatHeavinessExcursion(
+      liftForGear,
+      DESIGN_SUPERHEAT,
+      pure(design.gas.species),
+      seaLevelForGear,
+      design.gas.seaLevelFillFraction,
+    ),
     config.landCapable,
     // What the vehicle can shed to hold trim. Dumping works on land as well as
     // afloat, and the load case the gear is sized by is the COLD one before
@@ -1141,7 +1147,14 @@ export const validateArrangement = (
    */
   // From the SEA LEVEL lift, which is where every ground and water case
   // happens, and the same basis the gear is sized on.
-  const excursion = superheatHeavinessExcursion(statement.seaLevelGrossLift, DESIGN_SUPERHEAT)
+  const seaLevelForSuperheat = atmosphere(m(0))
+  const excursion = superheatHeavinessExcursion(
+    statement.seaLevelGrossLift,
+    DESIGN_SUPERHEAT,
+    pure(design.gas.species),
+    seaLevelForSuperheat,
+    design.gas.seaLevelFillFraction,
+  )
 
   /**
    * The active ballast loop, if the arrangement carries one.

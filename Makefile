@@ -14,7 +14,7 @@ SHELL := /bin/bash
 .PHONY: help install build type-check lint test validate report uncertainty \
         prose check check-fast clean web web-build web-lint web-type-check \
         web-responsive-check operations \
-        web-check deploy deploy-check
+        web-check deploy deploy-check citations
 
 help: ## List available targets
 	@grep -hE '^[a-z][a-z-]*:.*?## ' $(MAKEFILE_LIST) \
@@ -141,4 +141,16 @@ clean: ## Remove build output
 
 check-fast: lint type-check test prose ## Everything except the slow suites
 
-check: check-fast build validate report ## Everything CI runs
+citations: build ## Citation integrity: every source id resolves. Fast.
+	@node tools/report-uncertainty.mjs --fast
+
+check: check-fast build validate report citations web-check ## Everything CI runs
+	# IT NOW ACTUALLY IS, to the extent a single-threaded target can be. This
+	# omitted citation integrity, which CI covers by running `make uncertainty`
+	# in the validation job, and all four website checks, which CI runs in the
+	# web job. A contributor whose `make check` was green could push a source id
+	# that does not resolve and a site that does not build.
+	#
+	# What it runs is the FAST half of `uncertainty`: the integrity check, which
+	# is instantaneous. The sensitivity sweep spawns two processes per uncertain
+	# value and belongs in `make uncertainty`, which CI runs in full.

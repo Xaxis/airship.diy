@@ -24,7 +24,7 @@ import {
   bounds,
   WET_LAYUP,
 } from '@airship/data'
-import { kg, m, N, Pa, rad, K, W } from '@airship/units'
+import { kg, m, N, Nm, Pa, rad, K, W } from '@airship/units'
 
 import type { Provenanced } from '@airship/data'
 
@@ -572,7 +572,7 @@ export const labourEstimate = (design: DesignPoint, config: Configuration): Labo
   const girder = hullBendingMoment(design, config)
   const maxRadius = length / finenessRatio / 2
   const schedule = frameSchedule(
-    girder.designMoment as never,
+    Nm(girder.designMoment),
     m(maxRadius),
     m(length),
     mass.gasVolume,

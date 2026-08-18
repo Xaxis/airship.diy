@@ -439,7 +439,14 @@ export const ballast = (() => {
   const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
   /** @source The superheat excursion the gate is written against, K. */
   const SUPERHEAT = 20
-  const excursion = superheatHeavinessExcursion(statement.grossLift, SUPERHEAT)
+  const superheatAir = atmosphere(m(0))
+  const excursion = superheatHeavinessExcursion(
+    statement.seaLevelGrossLift,
+    SUPERHEAT,
+    pure(BASELINE.gas.species),
+    superheatAir,
+    BASELINE.gas.seaLevelFillFraction,
+  )
   const loop = ballastLoop(excursion, LANDING_TRIM, BASELINE.loads.habitatPower)
   return {
     superheat: SUPERHEAT,

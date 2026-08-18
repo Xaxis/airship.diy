@@ -23,6 +23,16 @@ import { allUncertain, allProvenanced, SOURCES, sourceExists } from '../packages
 const uncertain = allUncertain()
 const all = allProvenanced()
 
+/**
+ * `--fast` does the citation integrity checks and skips the sweep.
+ *
+ * The sweep spawns two processes per uncertain value and takes a couple of
+ * minutes, which is too slow for `make check` to run on every save. The
+ * INTEGRITY half is instantaneous and is the part that must never be skipped: a
+ * source id that does not resolve is a citation that looks real and is not.
+ */
+const fast = process.argv.includes('--fast')
+
 const probe = (sweep) =>
   new Promise((resolve) => {
     execFile(
@@ -60,12 +70,12 @@ const mapLimit = async (items, limit, run) => {
 
 console.log('\n%d provenanced values, %d of them uncertain.\n', all.length, uncertain.length)
 
-const baseline = await probe(null)
+const baseline = fast ? { ok: true, unread: [] } : await probe(null)
 if (!baseline.ok) {
   console.error('The model does not run at its own design point: %s', baseline.error)
   process.exit(1)
 }
-console.log(
+if (!fast) console.log(
   'Design point: %d days, limited by %s. Lift margin %s kg. %d failing gates.\n',
   baseline.days,
   baseline.limit,
@@ -73,9 +83,9 @@ console.log(
   baseline.failures,
 )
 
-console.log('Sweeping %d values, both ends, %d at a time...\n', uncertain.length, CONCURRENCY)
+if (!fast) console.log('Sweeping %d values, both ends, %d at a time...\n', uncertain.length, CONCURRENCY)
 
-const swept = await mapLimit(uncertain, CONCURRENCY, async (entry) => {
+const swept = fast ? [] : await mapLimit(uncertain, CONCURRENCY, async (entry) => {
   const key = `${entry.path}#${entry.ordinal}`
   const [low, high] = await Promise.all([probe(`${key}=low`), probe(`${key}=high`)])
   const span = low.ok && high.ok ? Math.abs(high.days - low.days) : null
@@ -114,7 +124,9 @@ if (movers.every((e) => (e.span ?? 0) === 0)) {
   console.log('longer hull, which is how an unknown reaches the endurance eventually.\n')
 }
 
-console.log('=== WHAT TO MEASURE FIRST ===\n')
+if (fast) console.log('Citation integrity only (--fast). Run `make uncertainty` for the sweep.\n')
+
+if (!fast) console.log('=== WHAT TO MEASURE FIRST ===\n')
 if (movers.length === 0) console.log('  Nothing measured moves the endurance number.\n')
 
 for (const e of movers) {

@@ -76,13 +76,16 @@ describe('geopotential and geometric altitude', () => {
 })
 
 describe('non-standard days', () => {
-  it('an ISA+20 day at sea level costs about 6.6 percent of density', () => {
+  it('an ISA+20 day at sea level costs 6.49 percent of density', () => {
     const standard = atmosphere(m(0))
     const hot = atmosphere(m(0), { temperatureOffset: K(20) })
     const loss = 1 - hot.density / standard.density
     // Density scales as 1/T at fixed pressure: 1 - 288.15/308.15 = 6.49 percent.
-    expect(loss).toBeGreaterThan(0.06)
-    expect(loss).toBeLessThan(0.07)
+    // ASSERT THE VALUE, not a band. The band 0.06 to 0.07 passed for 6.49, for
+    // the 6.6 in the old title, and for the 7 percent the source docstring
+    // claimed, so it could not tell the three apart and none of them was ever
+    // checked against the model.
+    expect(loss).toBeCloseTo(1 - 288.15 / 308.15, 6)
   })
 
   it('humid air is LESS dense than dry air, not more', () => {
@@ -98,8 +101,9 @@ describe('non-standard days', () => {
     const dry = atmosphere(m(0), { temperatureOffset: offset })
     const humid = atmosphere(m(0), { temperatureOffset: offset, relativeHumidity: fraction(1) })
     const loss = 1 - humid.density / dry.density
-    expect(loss).toBeGreaterThan(0.015)
-    expect(loss).toBeLessThan(0.025)
+    // Same reason: this band admitted both 1.58 and the 1.9 the docstring
+    // claimed.
+    expect(loss).toBeCloseTo(0.01584, 4)
   })
 
   it('reproduces the saturation vapour pressure of water at 100 C', () => {

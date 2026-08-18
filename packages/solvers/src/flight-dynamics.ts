@@ -247,7 +247,11 @@ export const forces = (
 
       Z -= wingLift
       X -= wingInduced + wingProfile
-      M += wingLift * wingArm
+      // SAME SIGN AS THE FIN, because it is the same geometry. An upward force
+      // at a positive (aft) arm is a nose-DOWN moment. This read `M +=` while
+      // the fin fifteen lines below reads `M -=` for the identical situation,
+      // so the two surfaces disagreed about which way lift pitches the ship.
+      M -= wingLift * wingArm
     }
 
     if (config.finArea > 0) {

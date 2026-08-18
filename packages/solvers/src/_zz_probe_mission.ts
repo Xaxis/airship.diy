@@ -130,7 +130,7 @@ export interface MissionStores {
  */
 const DEFAULT_HORIZON_DAYS = 2000
 
-export const integrateMission = (
+export const integrateMissionFixed = (
   design: DesignPoint,
   stores: MissionStores,
   horizonDays = DEFAULT_HORIZON_DAYS,
@@ -144,8 +144,9 @@ export const integrateMission = (
 
   const energy = energyBalance(design)
   /** Daily surplus electrical energy available for lift makeup, J. */
+  const annualRequired = energy.days.reduce((s, d) => s + d.solarRequired, 0)
   const dailySurplus = Math.max(
-    (energy.annualGenerated - energy.annualDemand) / SI.DAYS_PER_YEAR,
+    (energy.annualGenerated - annualRequired) / SI.DAYS_PER_YEAR,
     0,
   )
 

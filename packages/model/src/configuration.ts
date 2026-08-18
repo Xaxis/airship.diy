@@ -498,11 +498,17 @@ export const BASELINE_ARRANGEMENT: Configuration = {
       deck: 'keel',
       category: 'machinery',
       station: 0.44,
-      width: 2.4,
+      // GREW FROM 2.4 m WHEN THE SUPERHEAT EXCURSION WAS CORRECTED. The
+      // excursion helper was dropping the rho_air/(rho_air - rho_gas)
+      // prefactor, so the swing read 2,304 kg where it is 2,477, and a bladder
+      // sized on the low figure was 2.400 m3 against the 2.416 the real swing
+      // needs. It failed the gate by sixteen litres. The physics was not
+      // adjusted to keep it green.
+      width: 2.6,
       height: 1.0,
       extent: 1.0,
       rise: 0.6,
-      mass: 100,
+      mass: 110,
       habitable: false,
       netHabitable: false,
       shell: false,
