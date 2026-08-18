@@ -6,6 +6,8 @@ export {
   v,
   bounds,
   allProvenanced,
+  unreadProvenanced,
+  sweeping,
   allUncertain,
 } from './citation.js'
 

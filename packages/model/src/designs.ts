@@ -109,7 +109,7 @@ export const BASELINE: DesignPoint = {
      * 115 m. It is a MASS failure before it is a cost one, and it is the second
      * time this project has grown the hull because a number got honest.
      */
-    moduleArealMass: 2.6,
+    moduleArealMass: v(PHOTOVOLTAIC.cigsArealMass),
     fuelCellRating: 30000,
     electrolyzerRating: 40000,
     batteryEnergy: 150e3 * 3600,

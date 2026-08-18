@@ -160,15 +160,26 @@ export const PHOTOVOLTAIC = under('photovoltaic', () => ({
    * panel that masses more than the lift it enables is a net loss, and on a
    * buoyant vehicle that trade is real in a way it never is on a roof.
    */
-  cigsArealMass: uncertain({
-    low: 0.5,
-    nominal: 1.2,
-    high: 2.5,
+  /**
+   * RESOLVED, and it was resolved a while ago without this being told.
+   *
+   * This was uncertain(0.5 / 1.2 / 2.5) with a resolvedBy reading "select a
+   * specific flexible module and weigh it". That was done: the design point
+   * selected the MiaSole FLEX-03N and recorded 1.9 kg/m2 bare, 2.6 bonded, with
+   * the adhesive part number. But the answer was written into designs.ts as a
+   * bare literal of 2.6 and this value was left declared, unresolved, and read
+   * by NOTHING, so the research queue kept asking for a measurement that
+   * existed and the model used a number 4 percent above the top of the range
+   * this file documented for the same quantity.
+   *
+   * The bonded figure is the one to use, because a module that is not attached
+   * to the hull is not on the vehicle.
+   */
+  cigsArealMass: measured(2.6, {
     unit: 'kg/m^2',
-    reason:
-      'Depends entirely on encapsulation. A bare cell on a thin polymer backing is at the low end; anything with a glass or thick fluoropolymer front sheet is at the high end and probably not viable here.',
-    resolvedBy:
-      'Select a specific flexible module and weigh it, including adhesive and wiring. This is a purchasing decision, not a research problem.',
+    source: 'miasole-flex-03n',
+    relativeUncertainty: 0.08,
+    note: 'FLEX-03N at 1.9 kg/m2 bare plus the 302-191943-00_B adhesive that attaches it. Sunman eArc is 2.89 for comparison, and everything below 1.9 is a laboratory tandem cell rather than a product. The tolerance covers adhesive coverage and wiring, which are installation choices rather than datasheet figures.',
   }),
 
   /** Power temperature coefficient. A dark hull in the tropics runs hot. */

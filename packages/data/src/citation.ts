@@ -65,9 +65,69 @@ export type Provenanced<T extends number> = Measured<T> | Uncertain<T>
 // The registry. Every provenanced value constructed anywhere in the data package
 // lands here, which is what lets `make uncertainty` enumerate them without a
 // separate hand-maintained list that would immediately drift.
-const registry: Array<{ path: string; value: Provenanced<number> }> = []
+const registry: Array<{ path: string; ordinal: number; value: Provenanced<number> }> = []
 
 let currentPath = 'unattributed'
+
+/** How many values have been registered under each path, so each has a stable key. */
+const ordinals = new Map<string, number>()
+
+/**
+ * A sweep instruction, read once from the environment at module load.
+ *
+ * WHY THE ENVIRONMENT AND NOT A FUNCTION CALL. The docstring on `v` has always
+ * promised that "you can afterwards ask what the answer would have been at low
+ * and high instead", and nothing could: `v` returned the nominal unconditionally
+ * and there was no way in. An in-process override would have worked for most
+ * values and silently failed for the handful that are read into module-scope
+ * constants at import time, which is worse than not having one: the sweep would
+ * report those as insensitive when what it had actually measured was its own
+ * inability to move them.
+ *
+ * So a sweep runs in a FRESH PROCESS with this set, which reaches every read
+ * including the module-scope ones, and `tools/report-uncertainty.mjs` spawns one
+ * per value per direction.
+ *
+ * Format: `path#ordinal=low|high|nominal`.
+ */
+const sweep = (() => {
+  const raw = typeof process === 'undefined' ? undefined : process.env?.['AIRSHIP_SWEEP']
+  if (!raw) return null
+  const match = /^(.+)#(\d+)=(low|high|nominal)$/.exec(raw)
+  if (!match) throw new Error(`AIRSHIP_SWEEP is malformed: ${raw}`)
+  return { path: match[1] as string, ordinal: Number(match[2]), end: match[3] as 'low' | 'high' | 'nominal' }
+})()
+
+/** Values the sweep has displaced, by identity. */
+const swept = new WeakMap<object, number>()
+
+/**
+ * Which registered values `v` has actually been asked for.
+ *
+ * A CITATION NOTHING READS IS NOT A CITATION, it is a decoration, and it is
+ * worse than none: it appears in the research queue as though the model depended
+ * on it. This caught `photovoltaic` module areal mass, declared here as
+ * uncertain(0.5 / 1.2 / 2.5) and read by nobody, while the design point carried
+ * a bare literal of 2.6 for the same quantity, above the top of the range the
+ * data package documents.
+ */
+const readValues = new Set<object>()
+
+const register = (value: Provenanced<number>): void => {
+  const ordinal = ordinals.get(currentPath) ?? 0
+  ordinals.set(currentPath, ordinal + 1)
+  registry.push({ path: currentPath, ordinal, value })
+  if (sweep !== null && sweep.path === currentPath && sweep.ordinal === ordinal) {
+    swept.set(
+      value,
+      value.kind === 'uncertain'
+        ? value[sweep.end]
+        : sweep.end === 'nominal'
+          ? value.value
+          : value.value * (sweep.end === 'low' ? 1 - value.relativeUncertainty : 1 + value.relativeUncertainty),
+    )
+  }
+}
 
 /** Namespace subsequent declarations, so the report can say where a value lives. */
 export const under = <T>(path: string, build: () => T): T => {
@@ -91,7 +151,7 @@ export function measured(
   spec: { unit: string; source: string; relativeUncertainty: number; note?: string },
 ): Measured<number> {
   const entry: Measured<number> = { kind: 'measured', value, ...spec }
-  registry.push({ path: currentPath, value: entry })
+  register(entry)
   return entry
 }
 
@@ -111,7 +171,7 @@ export function uncertain(spec: {
   source?: string
 }): Uncertain<number> {
   const entry: Uncertain<number> = { kind: 'uncertain', ...spec }
-  registry.push({ path: currentPath, value: entry })
+  register(entry)
   return entry
 }
 
@@ -122,8 +182,27 @@ export function uncertain(spec: {
  * that you can afterwards ask what the answer would have been at `low` and
  * `high` instead.
  */
-export const v = <T extends number>(q: Provenanced<T>): T =>
-  q.kind === 'measured' ? q.value : q.nominal
+export const v = <T extends number>(q: Provenanced<T>): T => {
+  readValues.add(q)
+  const displaced = swept.get(q)
+  if (displaced !== undefined) return displaced as T
+  return q.kind === 'measured' ? q.value : q.nominal
+}
+
+/** True when this process is running a sensitivity sweep rather than the design point. */
+export const sweeping = (): boolean => sweep !== null
+
+/**
+ * Registered values that nothing has read yet in this process.
+ *
+ * Only meaningful after the model has been exercised, so callers must run the
+ * thing first and ask afterwards.
+ */
+export const unreadProvenanced = (): ReadonlyArray<{
+  path: string
+  ordinal: number
+  value: Provenanced<number>
+}> => registry.filter((e) => !readValues.has(e.value))
 
 /** The low/high pair, for sensitivity sweeps. A `Measured` spans its tolerance. */
 export const bounds = <T extends number>(q: Provenanced<T>): readonly [number, number] =>
@@ -131,10 +210,18 @@ export const bounds = <T extends number>(q: Provenanced<T>): readonly [number, n
     ? [q.low, q.high]
     : [q.value * (1 - q.relativeUncertainty), q.value * (1 + q.relativeUncertainty)]
 
-export const allProvenanced = (): ReadonlyArray<{ path: string; value: Provenanced<number> }> =>
-  registry
+export const allProvenanced = (): ReadonlyArray<{
+  path: string
+  ordinal: number
+  value: Provenanced<number>
+}> => registry
 
-export const allUncertain = (): ReadonlyArray<{ path: string; value: Uncertain<number> }> =>
+export const allUncertain = (): ReadonlyArray<{
+  path: string
+  ordinal: number
+  value: Uncertain<number>
+}> =>
   registry.filter(
-    (e): e is { path: string; value: Uncertain<number> } => e.value.kind === 'uncertain',
+    (e): e is { path: string; ordinal: number; value: Uncertain<number> } =>
+      e.value.kind === 'uncertain',
   )
