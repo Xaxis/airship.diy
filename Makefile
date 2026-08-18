@@ -14,7 +14,7 @@ SHELL := /bin/bash
 .PHONY: help install build type-check lint test validate report uncertainty \
         prose check check-fast clean web web-build web-lint web-type-check \
         web-responsive-check operations \
-        web-check deploy
+        web-check deploy deploy-check
 
 help: ## List available targets
 	@grep -hE '^[a-z][a-z-]*:.*?## ' $(MAKEFILE_LIST) \
@@ -113,8 +113,15 @@ web-responsive-check: ## Load every route at every width a phone actually has
 
 web-check: web-lint web-type-check web-build web-responsive-check ## Every website check
 
-deploy: check ## Build and ship to airship.diy
-	@npx vercel deploy --prebuilt --prod
+deploy: check web-build ## Build and ship to production
+	# NOT `--prebuilt`. That flag ships `.vercel/output`, which only exists
+	# after `vercel build`, and nothing here ever ran it: the target failed on
+	# a clean tree and shipped stale output on a dirty one. Vercel builds from
+	# vercel.json's own buildCommand instead, so what ships is what CI checked.
+	@npx vercel deploy --prod --yes
+
+deploy-check: ## What is actually live, against what this tree would build
+	@node tools/check-deployed.mjs
 
 # --- aggregates --------------------------------------------------------------
 
