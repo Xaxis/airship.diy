@@ -143,9 +143,20 @@ export const integrateMission = (
   const filmArea = cellFilmArea(hull.wettedArea, hull.volume, hull.length, design.hull.cellCount)
 
   const energy = energyBalance(design)
-  /** Daily surplus electrical energy available for lift makeup, J. */
+
+  /**
+   * Daily surplus electrical energy available for lift makeup, J.
+   *
+   * AGAINST `annualRequired`, NOT `annualDemand`. Demand is the raw load;
+   * required is the collection that load actually costs once the storage
+   * round trip is paid for, and on the hydrogen path that round trip is about
+   * a third efficient. Spending the un-penalised figure on electrolysis
+   * overstates the surplus by the whole storage loss, in the direction that
+   * flatters the design, and then spends the overstatement on making lifting
+   * gas: the one place an energy error turns directly into buoyancy.
+   */
   const dailySurplus = Math.max(
-    (energy.annualGenerated - energy.annualDemand) / SI.DAYS_PER_YEAR,
+    (energy.annualGenerated - energy.annualRequired) / SI.DAYS_PER_YEAR,
     0,
   )
 

@@ -73,6 +73,15 @@ export interface EnergyBalanceResult {
   readonly worstDay: number
   readonly annualGenerated: number
   readonly annualDemand: number
+  /**
+   * Collection the demand actually costs once the storage round trip is paid
+   * for, J/year. Larger than `annualDemand` by the storage loss.
+   *
+   * Exposed because the mission integrator spends the surplus on electrolysis
+   * and was computing it against the raw demand, which overstates what is
+   * available by the whole round-trip penalty.
+   */
+  readonly annualRequired: number
   readonly annualMargin: number
 
   // Component breakdown, annualised, in J.
@@ -298,6 +307,7 @@ export const energyBalance = (design: DesignPoint): EnergyBalanceResult => {
     worstDay: worst.dayOfYear,
     annualGenerated,
     annualDemand,
+    annualRequired,
     annualMargin: (annualGenerated - annualRequired) / annualRequired,
     habitatEnergy,
     propulsionEnergy,
