@@ -231,7 +231,11 @@ export default function Page() {
                 <Th align="right">Frame mass</Th>
               </>
             }
-            caption={`Every configuration lands on the four ply minimum practical laminate. THE HULL GIRDER MOMENT DOES NOT SIZE THIS FRAME: what you can lay up does, so each of these masses is a floor rather than an estimate. a/s is the panel aspect ratio, ring spacing over longitudinal spacing, and it is the invariant R38 violated: every rigid airship that did not break sat between 1.31 and 1.81, and R38 was at 4.59 when it broke in half on acceptance trials killing 44. More longitudinals demand SHORTER bays to stay in band, which is why the mass climbs so fast: the rings outweigh the longitudinals by more than two to one.`}
+            caption={`a/s is the panel aspect ratio, ring spacing over longitudinal spacing, and it is the invariant R38 violated: every rigid airship that did not break sat between 1.31 and 1.81, and R38 was at 4.59 when it broke in half on acceptance trials killing 44.
+
+THE MASS CLIMBS WITH THE LONGITUDINAL COUNT, not with the bays. Ring mass here is pinned at Akron's measured 2.17 times the longitudinal mass, so every longitudinal added drags 2.17 kg of ring along with it. Adding RINGS costs nothing in this model, which is why 24 members at 4 m and at 5.4 m come out at the same mass with 31 frames against 23. That is a limitation and not a result: the ratio is Akron's TOTAL transverse against TOTAL longitudinal mass and the spacing it was measured at is not recorded, so scaling it by a ring count would mean inventing one.
+
+Most configurations land on the four ply minimum practical laminate, which means the hull girder moment does not size them and their mass is a floor rather than an estimate. Not all of them do any more: 16 longitudinals at 8 m bays needs five plies once the 1.5 factor of safety is applied, which is a factor that was defined in the data and applied nowhere until it was wired in. Comparing an ultimate buckling allowable against a limit-load gust moment with nothing between them overstated what this frame could carry by exactly that factor.`}
           >
             {frame.schedules.map((s) => (
               <Tr key={`${s.longitudinals}-${s.spacing}`}>

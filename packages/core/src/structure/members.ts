@@ -1,4 +1,4 @@
-import { AKRON_STRUCTURE, PANEL_ASPECT_RATIO } from '@airship/data'
+import { AIRSHIP_LOAD_CASES, AKRON_STRUCTURE, PANEL_ASPECT_RATIO, v } from '@airship/data'
 import type { Meters, NewtonMeters, Pascals } from '@airship/units'
 import { m } from '@airship/units'
 
@@ -253,7 +253,29 @@ export const frameSchedule = (
   // Load per longitudinal from the girder bending moment. The extreme fibre
   // carries M/S, and with N members on a circle S = A*R*N/2, so the LOAD each
   // one carries at the extreme fibre is 2*M/(R*N).
-  const loadPerLongitudinal = (2 * designMoment) / (hullRadius * longitudinalCount)
+  const limitLoadPerLongitudinal = (2 * designMoment) / (hullRadius * longitudinalCount)
+
+  /**
+   * THE FACTOR OF SAFETY, WHICH WAS DEFINED AND APPLIED NOWHERE.
+   *
+   * `designMoment` is a LIMIT load. It is the gust case, and it has already been
+   * REDUCED by MUNK_REAL_FLUID_FACTOR. The buckling allowables it is checked
+   * against, Euler, Johnson and the SP-8007 shell, are ULTIMATE allowables.
+   * Comparing an ultimate capacity against a limit load with no factor between
+   * them overstates what the frame can carry by exactly that factor.
+   *
+   * `AIRSHIP_LOAD_CASES.factorOfSafety` has sat in @airship/data as
+   * measured(1.5) since it was written, cited, and read by nothing. A grep for
+   * it across packages, apps and tools returned its own definition and no call
+   * site.
+   *
+   * It is applied HERE rather than inside `hullBendingMoment`, because the
+   * pressure-stabilised comparison in architecture.ts applies its own factor of
+   * 4 to the same moment and would have become 6, and because the shear and
+   * bending diagram the site renders must stay a limit-load diagram.
+   */
+  const factorOfSafety = v(AIRSHIP_LOAD_CASES.factorOfSafety)
+  const loadPerLongitudinal = limitLoadPerLongitudinal * factorOfSafety
 
   const longitudinal = sizeCompressionMember(
     loadPerLongitudinal,
@@ -289,6 +311,28 @@ export const frameSchedule = (
    */
   const RING_TO_LONGITUDINAL_MASS = AKRON_STRUCTURE.transverseToLongitudinalMass
   const ringCount = Math.max(2, Math.round(hullLength / ringSpacing) + 1)
+
+  /**
+   * RING MASS DOES NOT DEPEND ON THE RING COUNT, AND THAT IS A LIMITATION
+   * RATHER THAN A RESULT.
+   *
+   * The 2.17 ratio is Akron's TOTAL transverse mass against its TOTAL
+   * longitudinal mass, and @airship/data does not record the ring spacing Akron
+   * measured it at. Scaling it by this function's `ringCount` would need that
+   * spacing, and inventing one to make the formula look responsive is exactly
+   * the failure this repository exists to prevent.
+   *
+   * So the ratio is applied as it was measured, and the consequence is stated
+   * instead of hidden: adding rings costs nothing here. `ringCount` is a
+   * LABOUR and BUCKLING driver, not a mass driver, and any caller presenting it
+   * as one is reading this function wrong. It reached the site that way, in a
+   * table showing twenty rings and fifteen rings at the same frame mass under a
+   * caption saying shorter bays are why the mass climbs.
+   *
+   * Resolved by: Akron's main and intermediate frame spacing from NASA
+   * CR-137691, which would let the ratio be split into a per-ring mass and a
+   * count.
+   */
   const ringMass = longitudinalMass * RING_TO_LONGITUDINAL_MASS
 
   const memberMass = longitudinalMass + ringMass
@@ -364,7 +408,7 @@ export const frameSchedule = (
     note:
       `${longitudinalCount} longitudinals of ${(longitudinal.radius * DIAMETER_MM).toFixed(0)} mm diameter and ` +
       `${(longitudinal.thickness * MM).toFixed(1)} mm wall, which is ${longitudinal.plies} plies, on ` +
-      `${ringCount} frames at ${ringSpacing.toFixed(1)} m. Governed by ${longitudinal.governingMode} at ` +
+      `${ringCount} frames at ${ringSpacing.toFixed(1)} m, which sets the unsupported panel length and therefore the buckling mode, NOT the ring mass: that is anchored on Akron's total transverse share and does not vary with the count. Governed by ${longitudinal.governingMode} at ` +
       `${(longitudinal.allowableStress / MPA).toFixed(0)} MPa, against a material strength of ` +
       `${(strength / MPA).toFixed(0)} MPa: the frame runs at ` +
       `${((longitudinal.allowableStress / strength) * 100).toFixed(0)} percent of what the laminate could do, ` +

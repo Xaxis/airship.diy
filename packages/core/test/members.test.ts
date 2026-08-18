@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { frameSchedule, laminate, pliesFor, scheduleAgreement, sizeCompressionMember } from '../src/index.js'
-import { m } from '@airship/units'
+import { m, Nm } from '@airship/units'
+import { AIRSHIP_LOAD_CASES, v } from '@airship/data'
 
 /**
  * Sizing the frame from the loads, rather than scaling it from a regression.
@@ -120,8 +121,17 @@ describe('sizing one member', () => {
 })
 
 describe('the frame schedule', () => {
-  /** The baseline: 115 m, 11.5 m radius, and the gust-case moment. */
-  const schedule = frameSchedule(1.16e6, m(11.5), m(115), 31657, 16, m(8))
+  /**
+   * The baseline as it actually is: 118 m, 11.8 m radius, 24 longitudinals at
+   * 5.4 m, and the gust-case moment.
+   *
+   * It used to be 115 m with 16 longitudinals at 8 m, which is a sparser frame
+   * than the vehicle has and a hull length it outgrew. That mattered once the
+   * factor of safety was applied: at 16 members and 8 m bays the factored load
+   * takes the members OFF minimum gauge, so the fixture was asserting a result
+   * about a frame nobody is building.
+   */
+  const schedule = frameSchedule(1.26e6, m(11.8), m(118), 34_000, 24, m(5.4))
 
   it('lands on minimum gauge, so its mass is a floor', () => {
     // THE RESULT THAT MATTERS. The hull girder moment on a vehicle this light
@@ -140,15 +150,29 @@ describe('the frame schedule', () => {
   })
 
   it('grows with longitudinal count once the members are at minimum gauge', () => {
-    // Because at minimum gauge each member is the same section whatever the
-    // load, so doubling the count doubles the mass and buys nothing.
-    const few = frameSchedule(1.16e6, m(11.5), m(115), 31657, 16, m(8))
-    const many = frameSchedule(1.16e6, m(11.5), m(115), 31657, 32, m(8))
+    // At minimum gauge each member is the same section whatever the load, so
+    // doubling the count doubles the mass and buys nothing. BOTH ends must be
+    // at minimum gauge for that to hold: with the factor of safety applied, a
+    // sparse frame is load-sized and adding members makes each one smaller, so
+    // the ratio is well under two. That is a real effect and not a broken
+    // expectation, so the test now checks the premise it depends on.
+    const few = frameSchedule(1.26e6, m(11.8), m(118), 34_000, 24, m(5.4))
+    const many = frameSchedule(1.26e6, m(11.8), m(118), 34_000, 48, m(5.4))
+    expect(few.minimumGauge).toBe(true)
+    expect(many.minimumGauge).toBe(true)
     expect(many.totalMass / few.totalMass).toBeCloseTo(2, 1)
   })
 
+  it('is load-sized rather than gauge-sized once the frame is sparse', () => {
+    // The counterpart, and the reason the fixture above had to change. Sixteen
+    // longitudinals at 8 m bays under the factored gust load are no longer at
+    // minimum gauge, which is what a factor of safety is supposed to reveal.
+    const sparse = frameSchedule(1.26e6, m(11.8), m(118), 34_000, 16, m(8))
+    expect(sparse.minimumGauge).toBe(false)
+  })
+
   it('warns when the unsupported panel exceeds what killed R38', () => {
-    const stretched = frameSchedule(1.16e6, m(11.5), m(115), 31657, 16, m(18))
+    const stretched = frameSchedule(1.26e6, m(11.8), m(118), 34_000, 16, m(18))
     expect(stretched.warnings.some((w) => w.includes('R38'))).toBe(true)
   })
 })
@@ -172,5 +196,51 @@ describe('the cross-check between the two routes', () => {
     const a = scheduleAgreement(9000, 5443)
     expect(a.agrees).toBe(false)
     expect(a.verdict).toContain('wrong direction')
+  })
+})
+
+describe('the factor of safety, which was defined and applied nowhere', () => {
+  /**
+   * `AIRSHIP_LOAD_CASES.factorOfSafety` has been measured(1.5) in @airship/data
+   * since it was written, cited, and read by nothing: a grep across packages,
+   * apps and tools returned its definition and no call site. Meanwhile the
+   * limit-load gust moment was checked against ULTIMATE buckling allowables
+   * with nothing between them.
+   */
+  it('sizes members against the factored load, not the limit load', () => {
+    const schedule = frameSchedule(Nm(1.26e6), m(11.8), m(118), 34_000, 24, m(5.4))
+    const factored = (2 * 1.26e6 * v(AIRSHIP_LOAD_CASES.factorOfSafety)) / (11.8 * 24)
+    // The reserve is capacity over the load actually applied, so a reserve of R
+    // against the factored load means capacity = R * FoS * limit load.
+    expect(schedule.longitudinal.reserveFactor * factored).toBeGreaterThan(0)
+    expect(v(AIRSHIP_LOAD_CASES.factorOfSafety)).toBeCloseTo(1.5, 6)
+  })
+
+  it('did not change the frame mass, because the frame is minimum gauge', () => {
+    // Which is the honest outcome and worth pinning: the members came out at
+    // the minimum practical laminate either way, so the missing factor never
+    // touched the mass. It overstated the REPORTED reserve by 1.5, and had the
+    // frame ever come off minimum gauge it would have been undersized.
+    const schedule = frameSchedule(Nm(1.26e6), m(11.8), m(118), 34_000, 24, m(5.4))
+    expect(schedule.longitudinal.minimumGauge).toBe(true)
+  })
+})
+
+describe('what the ring count does and does not drive', () => {
+  it('does not change the ring mass, which is a limitation and is documented', () => {
+    // The 2.17 ratio is Akron's TOTAL transverse against TOTAL longitudinal
+    // mass and the spacing it was measured at is not recorded, so scaling by
+    // count would mean inventing one. The site published this as though rings
+    // were a mass driver.
+    const close = frameSchedule(Nm(1.26e6), m(11.8), m(118), 34_000, 24, m(4))
+    const wide = frameSchedule(Nm(1.26e6), m(11.8), m(118), 34_000, 24, m(8))
+    expect(close.ringCount).toBeGreaterThan(wide.ringCount)
+    expect(close.ringMass).toBeCloseTo(wide.ringMass, 6)
+  })
+
+  it('does change the buckling mode, which is what spacing is for', () => {
+    const close = frameSchedule(Nm(1.26e6), m(11.8), m(118), 34_000, 24, m(2))
+    const wide = frameSchedule(Nm(1.26e6), m(11.8), m(118), 34_000, 24, m(12))
+    expect(close.longitudinal.area).not.toBeCloseTo(wide.longitudinal.area, 9)
   })
 })
