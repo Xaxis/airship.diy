@@ -16,6 +16,9 @@ import {
   specificLift,
   pure,
   hullGeometry,
+  gasDensity,
+  heavinessPerKilogramOfCellHydrogenBurned,
+  WATER_PER_HYDROGEN_BURNED,
   ballastLoop,
   superheatHeavinessExcursion,
   hullShapeForPrismatic,
@@ -446,6 +449,29 @@ export const ballast = (() => {
     shareOfHabitatLoad: loop.shareOfHabitatLoad,
     systemMass: loop.systemMass,
     note: loop.note,
+  }
+})()
+
+/**
+ * What burning the lifting gas actually costs, computed rather than quoted.
+ *
+ * The energy page carried these four numbers as prose. They are the whole
+ * argument against the most attractive idea in the propulsion module, so they
+ * are exactly the ones that must not be able to drift from the physics.
+ */
+export const burningTheLiftingGas = (() => {
+  const air = atmosphere(m(BASELINE.mission.altitude))
+  const hydrogen = gasDensity(pure('hydrogen'), air.pressure, air.temperature)
+  const liftLost = heavinessPerKilogramOfCellHydrogenBurned(air.density, hydrogen)
+  return {
+    /** Gross lift a kilogram of cell hydrogen was generating, kg. */
+    liftLost,
+    /** Net heaviness after its own weight leaves with it, kg. */
+    heavinessGained: liftLost - 1,
+    /** Water combustion returns per kilogram burned, kg. */
+    waterReturned: WATER_PER_HYDROGEN_BURNED,
+    /** Heaviness if that water is condensed and kept, kg. */
+    heavinessWithRecovery: liftLost - 1 + WATER_PER_HYDROGEN_BURNED,
   }
 })()
 

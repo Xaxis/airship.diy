@@ -8,6 +8,9 @@ import {
   wingPayloadEnvelope,
   wingSolarAdvantage,
   wingTrade,
+  panelLiftFactor,
+  WING_PROFILE_DRAG_COEFFICIENT,
+  WING_STALL_COEFFICIENT,
 } from '../src/index.js'
 import { m, rad } from '@airship/units'
 
@@ -60,10 +63,22 @@ describe('the crossover, which answers the wrong question', () => {
 
   it('charges its profile drag every hour the vehicle is on station', () => {
     const t = wingTrade(WING, HULL, GROSS_WEIGHT, 0.7, STATION_SPEED, AIR.density, HULL_DRAG, ETA)
-    expect(t.stationKeepingPowerPenalty).toBeGreaterThan(0.1)
-    // Which is the argument for folding wings, and unlike the folding ENVELOPE
-    // this one is buildable: a wing is a rigid structure with a hinge, and no
-    // lifting gas has to go anywhere.
+
+    // Charged on the WETTED PANEL, not the reference area. The span inside the
+    // hull has no wetted surface of its own: it is a beam inside an envelope
+    // that already pays its own drag. This assertion used to read 0.1 against a
+    // penalty computed on the whole planform, which overstated it by the
+    // carryover fraction, and on a fat body that is most of the wing.
+    const q = 0.5 * AIR.density * STATION_SPEED * STATION_SPEED
+    expect(t.stationKeepingDragPenalty).toBeCloseTo(
+      WING_PROFILE_DRAG_COEFFICIENT * q * WING.exposedArea,
+      6,
+    )
+
+    // Still real, and still the argument for folding wings. Unlike the folding
+    // ENVELOPE this one is buildable: a wing is a rigid structure with a hinge,
+    // and no lifting gas has to go anywhere.
+    expect(t.stationKeepingPowerPenalty).toBeGreaterThan(0.05)
   })
 })
 
@@ -85,11 +100,69 @@ describe('what the wing actually buys', () => {
     expect(env.bestSpeed).toBeLessThan(t.crossoverSpeed / 2)
   })
 
-  it('never asks the section for more lift coefficient than it has', () => {
+  it('never asks the PANELS for more lift coefficient than they have', () => {
+    // The old version of this test asserted the REFERENCE coefficient against
+    // the section stall value, which is not the same quantity and was passing
+    // while the panels ran at nearly three times their maximum. A section stall
+    // is a property of the aerofoil, so it binds on the exposed panels, and
+    // getting from one to the other needs the wing-body interference split.
     const env = wingPayloadEnvelope(WING, HULL, AIR.density, HULL_DRAG, INSTALLED, ETA)
+    const lambda = WING.bodySpanFraction
+    const carryover = (1 + lambda) ** 2
+
     for (const p of env.points) {
-      expect(p.liftCoefficient).toBeLessThanOrEqual(1.2)
+      const panelCoefficient =
+        ((p.liftCoefficient * WING.area) / WING.exposedArea) *
+        (panelLiftFactor(lambda) / carryover)
+      expect(panelCoefficient).toBeLessThanOrEqual(WING_STALL_COEFFICIENT + 1e-9)
     }
+  })
+
+  it('says which branch produced the answer', () => {
+    // A caller that cannot tell stall-limited from power-limited cannot tell
+    // whether more power would buy anything, and both branches are reachable on
+    // one wing: slow, the required coefficient exceeds what the panels have;
+    // fast, the powerplant runs out first.
+    const env = wingPayloadEnvelope(WING, HULL, AIR.density, HULL_DRAG, INSTALLED, ETA)
+    expect(env.points.some((p) => p.stallLimited)).toBe(true)
+    expect(env.points.some((p) => !p.stallLimited)).toBe(true)
+
+    // And the slow end is the stalled one, not the fast end.
+    expect(env.points[0]?.stallLimited).toBe(true)
+  })
+
+  it('spends exactly what it has on the power-limited branch', () => {
+    // This comparison sits on its own boundary by construction, so it is where
+    // a floating-point verdict would silently report the optimum as
+    // unaffordable.
+    const env = wingPayloadEnvelope(WING, HULL, AIR.density, HULL_DRAG, INSTALLED, ETA)
+    const best = env.points.find((p) => p.speed === env.bestSpeed)
+    expect(best?.affordable).toBe(true)
+    expect(best?.power).toBeLessThanOrEqual(INSTALLED * (1 + 1e-9))
+  })
+
+  it('knows the hull is there at all', () => {
+    // Before the stall cap was referred to the panels, the payload envelope
+    // read only wing.area and wing.aspectRatio, so a wing with two thirds of
+    // its span buried in the envelope carried exactly what a free-standing one
+    // carried. That is the defect this asserts against.
+    const free = wingPayloadEnvelope(
+      wingGeometry(60, 450, 0),
+      HULL,
+      AIR.density,
+      HULL_DRAG,
+      INSTALLED,
+      ETA,
+    )
+    const buried = wingPayloadEnvelope(
+      wingGeometry(60, 450, 40),
+      HULL,
+      AIR.density,
+      HULL_DRAG,
+      INSTALLED,
+      ETA,
+    )
+    expect(buried.bestPayload).toBeLessThan(free.bestPayload)
   })
 
   it('scales its payload with area but its cost with area too', () => {

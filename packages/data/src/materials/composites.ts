@@ -507,3 +507,36 @@ export const maximumOperatingTemperature = (
   dryGlassTransition -
   TEMPERATURE_LIMITS.glassTransitionDropPerMoistureFraction.value * moistureFraction -
   TEMPERATURE_LIMITS.requiredMarginBelowWetTg.value
+
+/**
+ * Areal mass of a carbon-framed, film-covered aerodynamic surface.
+ *
+ * ONE HOME FOR IT, because the fins and the wing were carrying separate copies
+ * in separate packages: 2.2 kg/m2 in `packages/model/src/arrangement.ts` and
+ * `2.2 * 1.4` in `packages/core/src/aerodynamics/wing.ts`, unlinked, so
+ * changing either left the other silently stale.
+ *
+ * THE 1.4 UPLIFT WAS A DOUBLE COUNT. It was justified as "the spar carry-through
+ * and the attachment fittings", but the wing module charges the carry-through
+ * separately at half areal mass across the buried span, and the fin figure's own
+ * source already includes the attachment fitting and the local reinforcement
+ * where it meets the hull. So the uplift charged one thing twice and the other
+ * against a citation that already contained it.
+ *
+ * It is uncertain rather than measured because nobody has built and weighed an
+ * article of this size. A wing reacting a payload bending moment into a fabric
+ * hull is heavier per square metre than a fin reacting an aerodynamic side load,
+ * and how much heavier is not something the record answers.
+ */
+export const AERODYNAMIC_SURFACE_AREAL_MASS = under('aerodynamicSurface', () => ({
+  arealMass: uncertain({
+    low: 2.2,
+    nominal: 2.6,
+    high: 3.4,
+    unit: 'kg/m^2',
+    reason:
+      'No built article of this size has been weighed. The low end is a control surface of the kind the fin figure describes; the high end allows for a wing whose root fitting has to react a payload bending moment into a mostly fabric structure.',
+    resolvedBy:
+      'Weighing a built panel, or a detailed structural layout of the root joint and its carry-through.',
+  }),
+}))

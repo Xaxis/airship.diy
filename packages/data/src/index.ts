@@ -40,6 +40,7 @@ export {
   WET_LAYUP,
   WOVEN_KNOCKDOWN,
   LAMINATE_ANCHORS,
+  AERODYNAMIC_SURFACE_AREAL_MASS,
   TEMPERATURE_LIMITS,
   maximumOperatingTemperature,
 } from './materials/composites.js'

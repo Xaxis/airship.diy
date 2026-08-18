@@ -11,6 +11,7 @@ import { SystemDiagram } from '../../components/SystemDiagram'
 import { Shell } from '../../components/site/Shell'
 import {
   baseline,
+  burningTheLiftingGas,
   designs,
   fuelRanking,
   mission,
@@ -230,10 +231,13 @@ export default function Page() {
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
             &ldquo;One gas for lift and fuel&rdquo; is the most attractive idea in the propulsion
             module and it does not survive the buoyancy budget. Removing 1 kg of hydrogen from a
-            cell removes 1 kg of weight and about 13.4 kg of gross lift, so the ship goes 12.4 kg{' '}
-            <em>heavy</em> per kilogram burned, while combustion returns only 8.94 kg of water. No
-            recovery fraction can hold trim, and recovering the water makes it worse rather than
-            better: 21.3 kg heavy instead of 12.4.
+            cell removes 1 kg of weight and {burningTheLiftingGas.liftLost.toFixed(1)} kg of gross
+            lift, so the ship goes {burningTheLiftingGas.heavinessGained.toFixed(1)} kg{' '}
+            <em>heavy</em> per kilogram burned, while combustion returns only{' '}
+            {burningTheLiftingGas.waterReturned.toFixed(2)} kg of water. No recovery fraction can
+            hold trim, and recovering the water makes it worse rather than better:{' '}
+            {burningTheLiftingGas.heavinessWithRecovery.toFixed(1)} kg heavy instead of{' '}
+            {burningTheLiftingGas.heavinessGained.toFixed(1)}.
           </p>
           <p className="mt-3 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
             A modern buoyancy-neutral blend is trivial to formulate and better than the historical

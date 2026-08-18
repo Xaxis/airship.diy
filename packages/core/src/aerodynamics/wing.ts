@@ -1,6 +1,7 @@
 import type { HullGeometry } from '../geometry/hull.js'
 import { liftCurveSlope } from './lifting-body.js'
 import type { Newtons, Radians } from '@airship/units'
+import { AERODYNAMIC_SURFACE_AREAL_MASS, v } from '@airship/data'
 import { N } from '@airship/units'
 
 /**
@@ -11,14 +12,23 @@ import { N } from '@airship/units'
  *
  * Induced drag goes as L^2 / (q * pi * b^2 * e). It depends on SPAN SQUARED and
  * not on planform area, which is the single fact that decides how to add a
- * lifting surface to an airship. Flattening the hull into lobes buys span the
- * expensive way: going from one lobe to three gains 33 percent more span for 48
- * percent more fabric, and delivers a surface with a span efficiency near 0.6 at
- * an aspect ratio around 0.5, where Helmbold gives 0.74 per radian against 2*pi
- * for a real wing. A wing of the same added area at aspect ratio 6 to 8 has a
- * span efficiency near 0.85 and, far more importantly, puts that area at the
- * EXTREMITIES where it extends b. Per square metre added it is worth roughly ten
- * times as much.
+ * lifting surface to an airship. Flattening the hull into lobes does buy span,
+ * and the fabric bill is not what kills it. What kills it is the QUALITY of that
+ * span: a lobed hull is a very low aspect ratio surface, and `lifting-body.ts`
+ * measures what that costs rather than assuming it. Its calibration against the
+ * Airlander gives an aspect ratio of 0.581, a lift-curve slope of 0.387 per
+ * radian after HULL_LIFT_EFFICIENCY, and an induced-drag law of
+ * CDi = 1.976 CL^2, which is a span efficiency of 0.28.
+ *
+ * Do not restate those three here, and in particular do not quote a span
+ * efficiency without the aspect ratio it belongs to: the repo's hull law is a
+ * flat CDi = 1.976 CL^2, so e = 1 / (pi * AR * 1.976) and it MOVES with AR.
+ * Quoting one without the other is how "near 0.6" survived in this comment
+ * while the module next door had measured 0.28.
+ *
+ * A wing of the same added area at aspect ratio 6 to 8 has a span efficiency
+ * near 0.85 against that, and, far more importantly, puts its area at the
+ * EXTREMITIES where it extends b.
  *
  * So if this vehicle is to carry part of its weight aerodynamically, it should
  * do it with wings and not by fattening the envelope. That is settled.
@@ -32,20 +42,30 @@ import { N } from '@airship/units'
  * therefore describes a vehicle deliberately flown heavy.
  *
  * On that footing: hull drag saved by flying lighter grows as v^3 while induced
- * drag falls as 1/v^2, so a crossover must exist, and it does: around 33 to 38
- * m/s for a realistic wing at a buoyancy ratio of 0.7. At that
- * speed the vehicle needs of order 870 kW against an annual-average solar
- * harvest of about 31 kW. The crossover is real and it is outside the
- * powerplant by a factor of nearly thirty. Any transit at a reduced buoyancy
- * ratio is a FUEL-BURNING DASH and has to be priced against stored hydrogen,
- * never against the array.
+ * drag falls as 1/v^2, so a crossover must exist. `wingTrade` finds it, and the
+ * speed and the power are ITS answer rather than numbers written here. This
+ * comment used to quote 870 kW, the solver returned 592, and the arrangement
+ * told the reader "half a megawatt": three numbers for one quantity, which is
+ * the failure CLAUDE.md names first.
+ *
+ * What is safe to say without computing it is the SHAPE of the answer. The
+ * crossover is always fast, because of the v^3 against 1/v^2. It is always far
+ * outside this vehicle's installed shaft power, which is tens of kilowatts
+ * against the hundreds the crossover needs, and further still outside the
+ * annual-average solar harvest. So any transit at a reduced buoyancy ratio is a
+ * FUEL-BURNING DASH and has to be priced against stored hydrogen, never against
+ * the array.
  *
  * THE SECOND REASON FOR A WING, which nobody costs, is that it is FLAT. A hull
  * is a doubly curved surface whose photovoltaic modules spend most of the day at
  * a poor incidence, and the cosine losses are large. A wing's upper surface is
  * very nearly horizontal, which is the best orientation available to a vehicle
- * that cannot tilt its array. `wingSolarAdvantage` prices that, and on this
- * vehicle it turns out to be the larger of the two effects.
+ * that cannot tilt its array. `wingSolarAdvantage` prices that, AND IT IS THE
+ * SMALLER OF THE TWO EFFECTS, because this project already took most of that
+ * win elsewhere. The advantage goes as b / sin(b) in the array band half-angle
+ * b, which is 36 percent at the 75 degrees this design started with and 5
+ * percent at the 32 degrees it cut to. Five percent on the wing's own area is a
+ * rounding error against what the hull band collects.
  */
 
 export interface WingGeometry {
@@ -73,6 +93,13 @@ export interface WingGeometry {
    * the most concentrated load path on the vehicle.
    */
   readonly mass: number
+  /**
+   * Body radius over wing semispan. Zero for a free-standing wing, and it is
+   * what lets the payload envelope know a hull is there at all: before this
+   * existed, a wing with 40 of its 60 m buried carried exactly what a
+   * free-standing one carried.
+   */
+  readonly bodySpanFraction: number
 }
 
 /**
@@ -85,13 +112,15 @@ const TAPER_RATIO = 0.4
 /**
  * Areal mass of a wing built the way this project builds everything else.
  *
- * @source A carbon-framed, film-covered surface at the same 2.2 kg/m2 the fins
- * use, plus 40 percent for the spar carry-through and the attachment fittings,
- * which a fin does not need because it is not carrying a bending moment into a
- * pressurised hull. A wing root fitting on a fabric-covered airship is a hard
- * point and hard points are heavy.
+ * FROM @airship/data, not restated here. It used to read `2.2 * 1.4`, where the
+ * 40 percent uplift was justified as "the spar carry-through and the attachment
+ * fittings". Both halves of that were wrong: this module charges the
+ * carry-through separately, a few lines below, and the 2.2 it borrowed from the
+ * fins already includes the attachment fitting by its own citation. So the
+ * uplift charged the carry-through twice and the fittings against a source that
+ * already contained them.
  */
-const WING_AREAL_MASS = 2.2 * 1.4
+const WING_AREAL_MASS = v(AERODYNAMIC_SURFACE_AREAL_MASS.arealMass)
 
 /**
  * What the carryover section costs, as a fraction of the exposed wing's areal
@@ -127,6 +156,30 @@ export const WING_SPAN_EFFICIENCY = 0.85
 export const WING_PROFILE_DRAG_COEFFICIENT = 0.01
 
 /**
+ * Lift coefficient at which the section stops working.
+ *
+ * ONE NUMBER, because the force model and the payload envelope have to agree
+ * about where the wing stops flying. It lived as a private default parameter on
+ * `wingPayloadEnvelope` and again as prose on `WingPayload.liftCoefficient`,
+ * and `wingForces` knew about neither: it would return CL = 3.4 at 40 degrees
+ * and an induced drag computed from it, and a caller would use that number.
+ *
+ * @source A clean section with modest camber stalls around here.
+ */
+export const WING_STALL_COEFFICIENT = 1.2
+
+/**
+ * Relative tolerance on "can the powerplant afford this".
+ *
+ * @derived On the power-limited branch the comparison sits exactly on its own
+ * boundary by construction: the induced drag was sized to spend the whole
+ * budget, so the recomputed power equals the installed power and floating point
+ * decides the verdict. This is the difference between "spends exactly what it
+ * has" and "unaffordable", and it is not a physical quantity.
+ */
+const AFFORDABILITY_EPSILON = 1e-9
+
+/**
  * @param hullWidth Beam of the body the wing crosses, m. The part of the span
  *   inside it is carryover rather than structure, and passing zero gives a
  *   free-standing wing.
@@ -142,12 +195,64 @@ export const WING_PROFILE_DRAG_COEFFICIENT = 0.01
  * The drawing showed this before the model did: the wings barely project past
  * the hull, and the reason is that on a fat body a modest span is mostly body.
  */
+/**
+ * Lift on the exposed panels in the presence of the body, K_W(B).
+ *
+ * Slender-body wing-body interference, NACA TR 1307 (Pitts, Nielsen and
+ * Kaattari). Referenced to the wing formed by joining the exposed panels, so
+ * K_W(B) > 1: a panel next to a body carries more than the same panel alone,
+ * because the body's own upwash field adds to its incidence. The body's share
+ * is K_B(W), and the two sum to (1 + lambda)^2 with lambda the body radius over
+ * the wing semispan.
+ *
+ * THIS EXISTS TO CAP THE STALL. A section stall coefficient is a property of
+ * the aerofoil, so it binds on the PANELS. Comparing it against a lift
+ * coefficient referenced to the whole planform, most of which is hull, asks the
+ * panels for a coefficient they do not have.
+ *
+ * @source Reproduces the published K_W(B) = 1.16 at lambda = 0.2.
+ * Validity: 0 <= lambda < 1. At lambda -> 1 the hull has swallowed the span and
+ * there is no panel left to stall.
+ */
+export const panelLiftFactor = (lambda: number): number => {
+  if (lambda <= 0) return 1
+  if (lambda >= 1) return Infinity
+  /** @derived The slender-body integral, TR 1307 equation for K_W(B). */
+  const numerator =
+    (2 / Math.PI) *
+    ((1 + lambda ** 4) * (0.5 * Math.atan(0.5 * (1 / lambda - lambda)) + Math.PI / 4) -
+      lambda * lambda * (1 / lambda - lambda + 2 * Math.atan(lambda)))
+  return numerator / (1 - lambda) ** 2
+}
+
 export const wingGeometry = (span: number, area: number, hullWidth = 0): WingGeometry => {
   const meanChord = area / span
   const rootChord = (2 * meanChord) / (1 + TAPER_RATIO)
   const exposedSemiSpan = Math.max((span - hullWidth) / 2, 0)
-  /** @derived Exposed area is the reference area less what the hull occupies. */
-  const exposedArea = area * (Math.min(hullWidth, span) > 0 ? 1 - Math.min(hullWidth, span) / span : 1)
+
+  /**
+   * @derived Buried area by INTEGRATING THE DECLARED PLANFORM, not by taking a
+   * fraction of the span. For a straight taper c(y) = rootChord * (1 - (1 -
+   * TAPER_RATIO) * 2y / span), the area inboard of a half-width y is
+   * 2 * rootChord * (y - (1 - TAPER_RATIO) * y^2 / span).
+   *
+   * `area * hullWidth / span` is the RECTANGULAR wing's answer, and this wing
+   * is declared tapered a few lines above. The buried centre section is the
+   * widest-chord part of the planform, so the rectangular form understates what
+   * the hull swallows and overstates the panel. It ran the wrong way twice: the
+   * panel it inflated is what the stall cap and the mass both key off, and the
+   * carry-through it deflated is the most concentrated load path on the
+   * vehicle. On a 40 m wing of 200 m2 across a 23.3 m hull it is the difference
+   * between 84 m2 of panel and 63.
+   */
+  const buriedSemiSpan = Math.min(hullWidth, span) / 2
+  const coveredArea =
+    2 * rootChord * (buriedSemiSpan - ((1 - TAPER_RATIO) * buriedSemiSpan * buriedSemiSpan) / span)
+  const exposedArea = Math.max(area - coveredArea, 0)
+
+  /** @derived Body radius over wing semispan, the slender-body interference parameter. */
+  const bodySpanFraction = span > 0 ? Math.min(hullWidth, span) / span : 0
+
   return {
     span,
     area,
@@ -157,6 +262,7 @@ export const wingGeometry = (span: number, area: number, hullWidth = 0): WingGeo
     tipChord: rootChord * TAPER_RATIO,
     exposedArea,
     exposedSemiSpan,
+    bodySpanFraction,
     mass:
       exposedArea * WING_AREAL_MASS +
       (area - exposedArea) * WING_AREAL_MASS * CARRY_THROUGH_FRACTION,
@@ -186,6 +292,22 @@ export const wingForces = (
 ): WingForces => {
   const slope = liftCurveSlope(wing.aspectRatio)
   const liftCoefficient = slope * incidence
+
+  // GUARD ON THE COEFFICIENT, not on a fixed angle, because the angle at which a
+  // wing stalls depends on its aspect ratio through the lift-curve slope. Past
+  // the section maximum the linear CL = a * alpha is not an approximation that
+  // degrades, it is a different flow: lift falls rather than rises and the drag
+  // is separation drag rather than induced. A number returned there would be
+  // used, which is the whole reason this repository throws instead.
+  if (Math.abs(liftCoefficient) > WING_STALL_COEFFICIENT) {
+    throw new RangeError(
+      `wingForces called at ${((incidence * 180) / Math.PI).toFixed(1)} degrees, where the ` +
+        `lift coefficient would be ${liftCoefficient.toFixed(2)} against a section maximum of ` +
+        `${WING_STALL_COEFFICIENT}. Past the stall the linear lift-curve slope does not describe ` +
+        `the flow at all, and neither does the induced drag computed from it.`,
+    )
+  }
+
   const lift = liftCoefficient * dynamicPressure * wing.area
   const inducedCoefficient =
     (liftCoefficient * liftCoefficient) /
@@ -245,7 +367,10 @@ export const wingTrade = (
    */
   const shrunkReference = (hull.volume * buoyancyRatio) ** (2 / 3)
 
-  const netDragAt = (speed: number): number => {
+  // Returned as components rather than a net, so the power at the crossover can
+  // be assembled from the same three terms the root was found from and the
+  // induced-drag formula is not written twice.
+  const dragsAt = (speed: number) => {
     const q = 0.5 * airDensity * speed * speed
     const hullSaved = hullDragCoefficient * q * (reference - shrunkReference)
     // The wing must make exactly the lift the buoyancy no longer does.
@@ -256,37 +381,65 @@ export const wingTrade = (
       q *
       wing.area
     const profile = WING_PROFILE_DRAG_COEFFICIENT * q * wing.area
-    return hullSaved - induced - profile
+    const shrunkHull = hullDragCoefficient * q * shrunkReference
+    return { q, hullSaved, induced, profile, shrunkHull, net: hullSaved - induced - profile }
   }
+  const netDragAt = (speed: number): number => dragsAt(speed).net
 
   /** @derived Lower search bound, m/s. Below this the wing makes no lift worth the name. */
   const SEARCH_LOW = 1
   /** @derived Upper search bound, m/s. Nothing above this is reachable by any powerplant here. */
   const SEARCH_HIGH = 200
+
+  // BRACKET, THEN BISECT. The old loop returned the first grid point at or past
+  // the sign change and never interpolated, so it was biased high by up to a
+  // step and never low, on a number the website prints.
   let crossover = 0
-  let previous = netDragAt(SEARCH_LOW)
-  /** @derived Steps across the search range. */
-  const STEPS = 400
-  for (let i = 1; i <= STEPS; i += 1) {
-    const speed = SEARCH_LOW + ((SEARCH_HIGH - SEARCH_LOW) * i) / STEPS
-    const value = netDragAt(speed)
-    if (previous < 0 && value >= 0) {
-      crossover = speed
-      break
+  const low = netDragAt(SEARCH_LOW)
+  const high = netDragAt(SEARCH_HIGH)
+  if (low < 0 && high >= 0) {
+    let a = SEARCH_LOW
+    let b = SEARCH_HIGH
+    /** @derived Bisections. netDragAt is monotone across the bracket (hull saved and profile go as v^2, induced as 1/v^2), so 60 steps is exact to well below a millimetre per second. */
+    const BISECTIONS = 60
+    for (let i = 0; i < BISECTIONS; i += 1) {
+      const mid = (a + b) / 2
+      if (netDragAt(mid) < 0) a = mid
+      else b = mid
     }
-    previous = value
+    crossover = (a + b) / 2
   }
   const crossoverExists = crossover > 0
 
-  const crossoverQ = 0.5 * airDensity * crossover * crossover
+  /**
+   * Power the WHOLE VEHICLE needs at the crossover, which is what the field is
+   * documented as and what the verdict string prints.
+   *
+   * This used to charge only the shrunk hull's parasite drag and omit the wing's
+   * own induced and profile drag entirely. At the crossover those are not
+   * negligible: by its definition they are exactly equal to the hull drag saved,
+   * so leaving them out understated the cost of the dash by the full ratio of
+   * the two references, and in the direction that flatters the wing.
+   *
+   * The identity is worth stating because it is also the test: at the crossover
+   * the winged vehicle costs exactly what the unshrunk fully buoyant one costs.
+   */
+  const atCrossover = dragsAt(crossover)
   const crossoverPower = crossoverExists
-    ? (hullDragCoefficient * crossoverQ * shrunkReference * crossover) / propulsiveEfficiency
+    ? ((atCrossover.shrunkHull + atCrossover.induced + atCrossover.profile) * crossover) /
+      propulsiveEfficiency
     : Infinity
 
   // What it costs on station, which is where the vehicle spends its life. At
   // station-keeping speed the wing makes no useful lift and is pure parasite.
   const stationQ = 0.5 * airDensity * stationKeepingSpeed * stationKeepingSpeed
-  const stationKeepingDragPenalty = WING_PROFILE_DRAG_COEFFICIENT * stationQ * wing.area
+  // Charged on the EXPOSED PANELS. Profile drag is skin friction plus form drag
+  // on a wetted surface, and the span inside the hull has no wetted surface of
+  // its own: it is a beam inside an envelope that is already paying its own
+  // drag. Charging the reference area overstated the penalty by area over
+  // exposed area, which on a fat body is most of it.
+  const stationKeepingDragPenalty =
+    WING_PROFILE_DRAG_COEFFICIENT * stationQ * (wing.exposedArea > 0 ? wing.exposedArea : wing.area)
   const hullStationDrag = hullDragCoefficient * stationQ * reference
   const stationKeepingPowerPenalty = stationKeepingDragPenalty / hullStationDrag
 
@@ -383,8 +536,20 @@ export interface WingPayload {
   readonly power: number
   /** True when that power is inside what is installed. */
   readonly affordable: boolean
-  /** Wing lift coefficient required. Above about 1.2 it is stalled. */
+  /**
+   * Lift coefficient required, referenced to the WING AREA and therefore not
+   * comparable to a section stall value directly: see `stallLimited`.
+   */
   readonly liftCoefficient: number
+  /**
+   * True when the exposed panels reached their section maximum before the
+   * powerplant ran out. On a wing whose span is mostly hull this is the usual
+   * case, and a caller that cannot tell which branch produced the answer cannot
+   * tell whether more power would buy anything.
+   */
+  readonly stallLimited: boolean
+  /** Incidence the reference coefficient implies, rad. */
+  readonly requiredIncidence: number
 }
 
 export interface WingPayloadEnvelope {
@@ -423,10 +588,36 @@ export const wingPayloadEnvelope = (
   hullDragCoefficient: number,
   installedPower: number,
   propulsiveEfficiency: number,
-  /** @source A clean section with modest camber stalls around here. */
-  stallCoefficient = 1.2,
+  stallCoefficient = WING_STALL_COEFFICIENT,
 ): WingPayloadEnvelope => {
   const reference = hull.volume ** (2 / 3)
+
+  /**
+   * THE STALL BINDS ON THE PANELS, NOT ON THE PLANFORM.
+   *
+   * `stallCoefficient` is a section property. The lift coefficient this sweep
+   * computes is referenced to `wing.area`, most of which is hull on a fat body:
+   * on the baseline, 69 percent of the reference area is inside the envelope.
+   * Comparing the two directly asked the 63 m2 of real panel for a coefficient
+   * of 3.8, which is a deeply stalled wing reported as an unstalled one, and
+   * because the optimum sits exactly on this cap it set the headline answer.
+   *
+   * Converting between them needs the wing-body interference split. The panels
+   * carry K_W(B) / (1 + lambda)^2 of the configuration's lift on
+   * exposedArea / area of its reference area, so the reference coefficient at
+   * which they reach their section maximum is the section value scaled by both.
+   *
+   * The limits are the check that this is the right form: at lambda = 0 it
+   * recovers the section value for a free-standing wing, and as the hull
+   * swallows the span it goes to zero.
+   */
+  const lambda = wing.bodySpanFraction
+  const referenceStallCoefficient =
+    lambda <= 0
+      ? stallCoefficient
+      : (stallCoefficient * (wing.exposedArea / wing.area) * (1 + lambda) ** 2) /
+        panelLiftFactor(lambda)
+
   /** @derived Standard gravity, m/s2, for turning a force into a mass. */
   const G0 = 9.80665
   /** @derived Lowest speed swept, m/s. Below this the wing makes no useful lift. */
@@ -459,7 +650,8 @@ export const wingPayloadEnvelope = (
         (dragBudget * Math.PI * wing.aspectRatio * WING_SPAN_EFFICIENCY) / (q * wing.area),
       )
     }
-    const capped = Math.min(liftCoefficient, stallCoefficient)
+    const capped = Math.min(liftCoefficient, referenceStallCoefficient)
+    const stallLimited = liftCoefficient > referenceStallCoefficient
     const lift = capped * q * wing.area
     const extraPayload = lift / G0
 
@@ -478,8 +670,15 @@ export const wingPayloadEnvelope = (
       speed,
       extraPayload,
       power,
-      affordable: power <= installedPower,
+      affordable: power <= installedPower * (1 + AFFORDABILITY_EPSILON),
       liftCoefficient: capped,
+      stallLimited,
+      /**
+       * @derived Incidence the reference coefficient implies, rad. Reported so
+       * a caller can see whether the answer sits on a trim state the vehicle
+       * could actually hold.
+       */
+      requiredIncidence: capped / liftCurveSlope(wing.aspectRatio),
     })
   }
 

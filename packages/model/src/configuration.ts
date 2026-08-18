@@ -665,12 +665,17 @@ export const BASELINE_ARRANGEMENT: Configuration = {
   finStation: 0.9,
   finSpanFraction: 1.3,
 
-  // A modest wing. 40 m of span and 200 m2 carries 2,414 kg of extra weight at
-  // 14 m/s on the installed power, for 616 kg of structure. A 60 m wing carries
-  // 4,189 kg for 1,386 kg, which is a better ratio and does not fit: it takes
-  // the lift margin below the 15 percent reserve the design keeps for superheat,
-  // rain and a torn cell. The bigger wing needs about five more metres of hull,
-  // and the design explorer is where that trade belongs rather than here.
+  // A modest wing. What it carries is `wingSizing`'s answer rather than a
+  // number typed here: this comment used to quote a payload that predated the
+  // stall cap being referred to the exposed panels, and was high by a factor of
+  // two. Ask the solver.
+  //
+  // The SHAPE of the trade is what belongs in a comment, and it does not move:
+  // a bigger wing carries more and nets more, and the limit is not aerodynamic.
+  // It is that a wing large enough to be clearly worth it takes the lift margin
+  // below the reserve the design keeps for superheat, rain and a torn cell, and
+  // then needs more hull to put it back. The design explorer is where that
+  // trade belongs.
   wingSpan: 40,
   wingArea: 200,
   // At the centre of buoyancy, so the wing makes lift without making trim. The

@@ -114,8 +114,10 @@ export {
   wingTrade,
   wingSolarAdvantage,
   wingPayloadEnvelope,
+  panelLiftFactor,
   WING_SPAN_EFFICIENCY,
   WING_PROFILE_DRAG_COEFFICIENT,
+  WING_STALL_COEFFICIENT,
 } from './aerodynamics/wing.js'
 
 export type { Attitude, WindLoad } from './marine/windage.js'

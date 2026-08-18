@@ -13,9 +13,9 @@ building it. The reasoning is on the site; the limits are here.
 |---|---|
 | Length | 118 m at fineness 5 |
 | Envelope | 34,305 m³, 12 cells |
-| Gross weight | 26,631 kg |
+| Gross weight | 26,536 kg |
 | Gross lift | 32,124 kg |
-| Lift margin | 5,494 kg (17.1 %) |
+| Lift margin | 5,589 kg (17.4 %) |
 | Dumpable water ballast | 2,500 kg |
 | Propulsion | 4 × 5.5 m ducted, 72 kW |
 | Food aboard | 584 kg |
