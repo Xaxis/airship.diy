@@ -76,6 +76,7 @@ const finSet = {
   momentArm:
     (config.finStation - mass.centreOfBuoyancy.x / design.hull.length) * design.hull.length,
   aspectRatio: fins.span ** 2 / (fins.area / 4),
+  rudderChordFraction: config.rudderChordFraction,
 }
 const WATERLINE = 12
 const polarAt = (wind) =>

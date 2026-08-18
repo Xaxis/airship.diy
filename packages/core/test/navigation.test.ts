@@ -35,7 +35,7 @@ const PROPULSORS = 4
 const OFFSET = m(13.6)
 
 /** The corrected tail: 825 m2 of cruciform, so 413 m2 of vertical fin. */
-const FINS = { verticalArea: 413, momentArm: 52, aspectRatio: 1.08 }
+const FINS = { verticalArea: 413, momentArm: 52, aspectRatio: 1.08, rudderChordFraction: 0.3 }
 
 const polar = (windSpeed: number, lateralArea: number) =>
   navigationPolar(
@@ -105,8 +105,14 @@ describe('leeway, which is where the honest answer lives', () => {
     const bare = polar(10, 0.5)
     const board = polar(10, CENTREBOARD)
 
-    expect(bare.widestUsefulHeading).toBeLessThan((15 * Math.PI) / 180)
+    // Bare, the cone is a fifth of what the board opens: the vehicle points
+    // where the fins say and goes where the wind says. The threshold moved from
+    // 15 to 45 degrees when the leeway balance was corrected to let the drift
+    // see the wind it produces, which bounded a balance that had been returning
+    // drift speeds faster than the wind driving them.
+    expect(bare.widestUsefulHeading).toBeLessThan((45 * Math.PI) / 180)
     expect(board.widestUsefulHeading).toBeGreaterThan((90 * Math.PI) / 180)
+    expect(board.widestUsefulHeading).toBeGreaterThan(bare.widestUsefulHeading * 3)
 
     // And the speed through the water is unchanged, which is the point: this is
     // not a power problem and no amount of thrust fixes it.

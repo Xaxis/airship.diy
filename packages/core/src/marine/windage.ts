@@ -213,11 +213,24 @@ export const handlingToSurvivalRatio = (): number =>
  *
  * @param immersedLateralArea Underwater lateral area, m2. Tiny by construction.
  */
+/**
+ * Drag coefficient of an immersed lateral surface pushed sideways through
+ * water.
+ *
+ * ONE OF THESE. `leeway` here defaulted to 1.0 and `navigationPolar` carried
+ * its own 1.2 for the same physical quantity, unlinked.
+ *
+ * @source A flat plate broadside on, which is the least favourable and most
+ * defensible assumption available without a hull form. A shaped centreboard
+ * would be lower and a fouled one higher.
+ */
+export const BROADSIDE_WATER_DRAG_COEFFICIENT = 1.2
+
 export const leeway = (
   windForce: Newtons,
   immersedLateralArea: SquareMeters,
   windSpeed: MetersPerSecond,
-  waterDragCoefficient = 1.0,
+  waterDragCoefficient = BROADSIDE_WATER_DRAG_COEFFICIENT,
   salt = true,
 ): { driftSpeed: MetersPerSecond; leewayRatio: number } => {
   const waterDensity = salt ? v(WATER.seawaterDensity) : v(WATER.freshwaterDensity)

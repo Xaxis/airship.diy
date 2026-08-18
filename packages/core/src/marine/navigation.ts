@@ -1,12 +1,13 @@
 import type { AtmosphereState } from '../atmosphere.js'
 import type { HullGeometry } from '../geometry/hull.js'
-import { boatResistance } from './boat.js'
+import { boatResistance, porpoisingSpeed } from './boat.js'
 import {
+  BROADSIDE_WATER_DRAG_COEFFICIENT,
   DRAG_COEFFICIENT_BOW_ON,
   SIDE_FORCE_COEFFICIENT_BEAM_ON,
   YAW_MOMENT_COEFFICIENT_BEAM_ON,
 } from './windage.js'
-import { CONSTANTS } from '@airship/data'
+import { WATER, v } from '@airship/data'
 import type { Kilograms, Meters, Newtons } from '@airship/units'
 import { N } from '@airship/units'
 
@@ -57,6 +58,12 @@ export interface NavigationPoint {
   /** Yaw moment the propulsors can make, N m. */
   readonly yawAuthority: number
   /** True when both the thrust and the yaw moment are within what is installed. */
+  /**
+   * True when the net yaw moment grows with sideslip here, so an excursion runs
+   * away and the propulsors have to catch it. False means the heading is a
+   * stable equilibrium the vehicle sits at on its own.
+   */
+  readonly divergent: boolean
   readonly holdable: boolean
   readonly limitedBy: 'thrust' | 'yaw' | null
 }
@@ -68,6 +75,19 @@ export interface FinSet {
   readonly momentArm: number
   /** Geometric aspect ratio of one fin, for its lift-curve slope. */
   readonly aspectRatio: number
+  /**
+   * Chord fraction of the movable trailing-edge surface, if there is one.
+   *
+   * THE RUDDER HAS TO BE IN THE YAW BALANCE. Leaving it out understates the
+   * vehicle's ability to hold a heading exactly as badly as leaving the fins
+   * out understated its tendency to weathervane, and for the same reason: it is
+   * a large surface at a long arm. Differential thrust alone loses to the tail
+   * by a factor of five, which would say a vehicle with rudders can only ever
+   * point into the wind.
+   *
+   * Zero for a fixed fin.
+   */
+  readonly rudderChordFraction?: number
 }
 
 export interface NavigationPolar {
@@ -106,6 +126,35 @@ export interface NavigationPolar {
  * vehicle afloat has at zero speed: a rudder needs flow over it, and there is
  * almost no flow.
  */
+/**
+ * Lift-curve slope of a fin on a hull, per radian, from its EXPOSED aspect
+ * ratio.
+ *
+ * ONE OF THESE, because the same physical surface had two. This module ran
+ * Helmbold on the exposed aspect ratio directly; the arrangement doubled the
+ * aspect ratio for the hull reflection plane and knocked 15 percent off for the
+ * tail's boundary layer. On the baseline fin that is 1.59 per radian against
+ * 2.34, on the identical surface, and the polar and the yaw gate each believed
+ * their own.
+ *
+ * @source Helmbold's low-aspect-ratio relation, on the effective aspect ratio.
+ * A fin against a body sees its own reflection in the hull, so its effective
+ * aspect ratio is twice its geometric one.
+ */
+export const finLiftCurveSlope = (exposedAspectRatio: number): number => {
+  /** @derived The hull acts as a reflection plane, doubling the effective aspect ratio. */
+  const effective = exposedAspectRatio * 2
+  const helmbold = (2 * Math.PI * effective) / (2 + Math.sqrt(effective * effective + 4))
+  return helmbold * TAIL_DYNAMIC_PRESSURE_RATIO
+}
+
+/**
+ * @source Ratio of the dynamic pressure at the tail to the free-stream value.
+ * The tail sits in the hull's boundary layer and wake, and 0.85 is the standard
+ * allowance for it.
+ */
+export const TAIL_DYNAMIC_PRESSURE_RATIO = 0.85
+
 export const differentialYawMoment = (
   thrustPerPropulsor: Newtons,
   lateralOffset: Meters,
@@ -155,10 +204,11 @@ export const navigationPolar = (
   /** Immersed lateral area of the hulls plus any skeg or centreboard, m2. */
   lateralWaterArea: number,
 ): NavigationPolar => {
-  /** @source Seawater density at 15 C, kg/m3. */
-  const waterDensity = 1025
-  /** @source Drag coefficient of a flat plate broadside on, the least favourable case. */
-  const BROADSIDE_HULL_DRAG = 1.2
+  // From the data layer and from windage.ts, not restated. This module used to
+  // carry its own 1025 (dropping seawaterDensity's uncertainty and its note)
+  // and its own 1.2 broadside coefficient beside windage.ts's leeway(), which
+  // used 1.0 for the same physical quantity.
+  const waterDensity = v(WATER.seawaterDensity)
   /**
    * @source Drift angle above which a heading stops being useful navigation.
    * Twenty degrees of leeway is the point at which a sailing vessel is judged
@@ -190,11 +240,33 @@ export const navigationPolar = (
   // The yaw moment is referenced to VOLUME, not to volume to the two thirds,
   // which is why it dominates: it carries an extra length in it.
   const beamOnYawMoment = Math.abs(YAW_MOMENT_COEFFICIENT_BEAM_ON) * q * hull.volume
-  const yawAuthority = differentialYawMoment(
+  const thrustYawAuthority = differentialYawMoment(
     N(availableThrust / propulsorCount),
     lateralOffset,
     propulsorCount,
   )
+
+  /**
+   * Yaw moment from the rudders at full deflection.
+   *
+   * @source A trailing-edge flap of chord fraction tau changes the surface's
+   * effective incidence by a fraction of its own deflection. The classical
+   * thin-aerofoil result is 1 - (theta - sin theta)/pi with
+   * theta = acos(2 tau - 1), which gives 0.66 at the 0.3 chord fraction typical
+   * of an aircraft control surface. Applied to the same lift-curve slope the
+   * fixed fin uses, at the same arm.
+   *
+   * NOTE THAT THIS IS WIND-INDEPENDENT AGAINST THE MUNK MOMENT, because both
+   * carry the same dynamic pressure and it cancels. Whether a heading can be
+   * held is a geometry question, not a question of how hard the wind blows.
+   */
+  /** @source Maximum useful rudder deflection, radians. Beyond about 25 degrees a plain flap stalls and gives back less than it costs. */
+  const MAXIMUM_RUDDER_DEFLECTION = (25 * Math.PI) / 180
+  const rudderChord = fins.rudderChordFraction ?? 0
+  const flapEffectiveness =
+    rudderChord > 0
+      ? 1 - (Math.acos(2 * rudderChord - 1) - Math.sin(Math.acos(2 * rudderChord - 1))) / Math.PI
+      : 0
 
   /**
    * The Munk moment at a yaw angle.
@@ -220,9 +292,12 @@ export const navigationPolar = (
    * aspect ratio. The force acts at the fin centre of pressure and the moment is
    * that force times the arm.
    */
-  const finLiftSlope =
-    (2 * Math.PI * fins.aspectRatio) /
-    (2 + Math.sqrt(fins.aspectRatio ** 2 + 4))
+  const finLiftSlope = finLiftCurveSlope(fins.aspectRatio)
+
+  const rudderYawAuthority =
+    q * fins.verticalArea * finLiftSlope * flapEffectiveness * MAXIMUM_RUDDER_DEFLECTION *
+    fins.momentArm
+  const yawAuthority = thrustYawAuthority + rudderYawAuthority
   const finMomentAt = (psi: number): number =>
     q * fins.verticalArea * finLiftSlope * Math.sin(psi) * Math.cos(psi) * fins.momentArm
 
@@ -248,6 +323,16 @@ export const navigationPolar = (
    */
   const CONTROL_TOLERANCE = (10 * Math.PI) / 180
 
+  /**
+   * @derived A small angle for the numerical slope of the net moment, radians.
+   * The moment is smooth and sinusoidal in sideslip, so anything well below the
+   * control tolerance gives the same sign.
+   */
+  const STABILITY_PROBE = 0.01
+
+  /** @derived Angular tolerance for "the cone reaches all the way round", radians. */
+  const ANGLE_EPSILON = 1e-9
+
   const points: NavigationPoint[] = []
   let widestHoldable = 0
   let widestUseful = 0
@@ -256,16 +341,42 @@ export const navigationPolar = (
 
   for (let i = 0; i < STEPS; i += 1) {
     const headingOffWind = (i / (STEPS - 1)) * Math.PI
-    const { axial, lateral } = yawedForceCoefficients(headingOffWind)
+    const { axial } = yawedForceCoefficients(headingOffWind)
 
     const yawMoment = Math.abs(momentAt(headingOffWind))
-    // The moment the propulsors must beat is the worst one inside the control
-    // band, not the one exactly at the nominal heading.
-    const worstNearby = Math.max(
-      Math.abs(momentAt(headingOffWind - CONTROL_TOLERANCE)),
-      Math.abs(momentAt(headingOffWind)),
-      Math.abs(momentAt(headingOffWind + CONTROL_TOLERANCE)),
-    )
+
+    /**
+     * IS THIS HEADING A STABLE EQUILIBRIUM, OR ONE THE CONTROLLER HAS TO HOLD?
+     *
+     * The net moment is beamOnYawMoment * sin(2 psi) - finMoment(psi), and the
+     * fin term carries the SAME sin(2 psi) shape, so the whole thing collapses
+     * to K * sin(2 psi) for a single constant K. Its slope decides everything:
+     * negative means an excursion is self-arresting and the propulsors need do
+     * nothing, positive means it runs away and they must catch it.
+     *
+     * The previous check took the largest ABSOLUTE moment in a band either side
+     * of the heading. Because |sin(2 psi)| is symmetric about 45 degrees that
+     * gave bit-identical answers at the stable bow-on equilibrium and the
+     * unstable beam-on one, so it never rejected lying across the wind, which is
+     * the single failure mode the whole marine strategy exists to avoid. It also
+     * charged the propulsors for restoring moments they never have to make, so
+     * MORE fin made the vehicle look less able to hold a heading.
+     */
+    const slope =
+      (momentAt(headingOffWind + STABILITY_PROBE) - momentAt(headingOffWind - STABILITY_PROBE)) /
+      (2 * STABILITY_PROBE)
+    const divergent = slope > 0
+
+    // Sitting at the heading always costs the steady moment. Only a DIVERGENT
+    // heading also costs the excursion, because only there does the excursion
+    // grow on its own.
+    const worstNearby = divergent
+      ? Math.max(
+          Math.abs(momentAt(headingOffWind - CONTROL_TOLERANCE)),
+          Math.abs(momentAt(headingOffWind)),
+          Math.abs(momentAt(headingOffWind + CONTROL_TOLERANCE)),
+        )
+      : yawMoment
     const yawHoldable = worstNearby <= yawAuthority
 
     /**
@@ -282,14 +393,38 @@ export const navigationPolar = (
     // sign wrong makes the vehicle appear to motor to windward at ten metres a
     // second, which is roughly the speed of the wind it is fighting.
     const axialWind = windSpeed * Math.cos(headingOffWind)
+
+    /**
+     * ONE FORCE MODEL, and the water and air terms taken from where they belong.
+     *
+     * This used to call boatResistance with headwind = 0 and then add its own
+     * axial air term, which charged the still-air drag TWICE: boatResistance
+     * already computes it, and the headwind parameter exists precisely so a
+     * caller does not have to. It also applied cos^2 twice, because
+     * yawedForceCoefficients returns a coefficient referenced to the FULL
+     * apparent dynamic pressure and the code then multiplied it by a dynamic
+     * pressure built from the axial component alone.
+     *
+     * The water terms come from boatResistance. The air term is built here,
+     * because at a yaw angle the axial coefficient is not the bow-on one that
+     * boatResistance assumes.
+     */
     const netForce = (speed: number): number => {
-      const hullDrag = boatResistance(waterborneLoad, waterlineLength, speed, hull.volume, 0).total
+      const water = boatResistance(waterborneLoad, waterlineLength, speed, hull.volume, 0)
+      const hullDrag = (water.frictional as number) + (water.residuary as number)
       const apparent = speed + axialWind
-      const airAxial = Math.abs(axial) * 0.5 * air.density * reference * apparent * Math.abs(apparent)
+      // Referenced to the FULL apparent dynamic pressure, which is the
+      // convention yawedForceCoefficients is defined in.
+      const airAxial =
+        Math.abs(axial) * 0.5 * air.density * reference * apparent * Math.abs(apparent)
       return availableThrust - hullDrag - airAxial
     }
 
-    const ceiling = Math.min(SEARCH_CEILING, Math.sqrt(CONSTANTS.g0.value * waterlineLength))
+    // Bracketed at the PORPOISING speed, which is Froude 0.9. The previous
+    // ceiling was sqrt(g * L), Froude 1.0, which is 11 percent past the limit
+    // this module's own sibling declares and outside the validity of the
+    // resistance model being solved.
+    const ceiling = Math.min(SEARCH_CEILING, porpoisingSpeed(waterlineLength))
     let speed = 0
     if (netForce(0) > 0) {
       let low = 0
@@ -302,10 +437,12 @@ export const navigationPolar = (
       speed = low
     }
 
-    const thrustRequired =
-      boatResistance(waterborneLoad, waterlineLength, Math.max(speed, PROBE_SPEED), hull.volume, 0)
-        .total +
-      Math.abs(axial) * q * reference
+    // From the SAME model the speed came out of, evaluated at the speed the
+    // vehicle actually reaches. It used to be a third force model with the
+    // true-wind dynamic pressure and an absolute value that charged a tailwind
+    // as a resistance.
+    const probeSpeed = Math.max(speed, PROBE_SPEED)
+    const thrustRequired = (availableThrust as number) - netForce(probeSpeed)
 
     /**
      * LEEWAY, WHICH IS WHERE THE HONEST ANSWER LIVES.
@@ -321,26 +458,64 @@ export const navigationPolar = (
      * in water at its immersed lateral area, which is the least favourable and
      * most defensible assumption available without a hull form.
      */
-    const lateralAirForce = Math.abs(lateral) * q * reference
+    /**
+     * THE DRIFT HAS TO SEE ITSELF.
+     *
+     * This balanced the water's lateral drag against the side force at the TRUE
+     * wind, so the aerodynamic term never noticed the drift velocity it was
+     * producing. That balance is unbounded: it returned drift speeds faster than
+     * the wind driving them, which no pure drag balance can do. Once the
+     * vehicle moves sideways at u, the apparent lateral wind is (W sin psi - u)
+     * and the force falls with it.
+     *
+     * @derived Setting rho_air * C_lat * ref * (Ws - u)^2 = rho_water * Cd * A * u^2
+     * and taking the root with u < Ws gives u = Ws * sqrt(a) / (sqrt(a) + sqrt(b)),
+     * which is bounded by the wind by construction and has the right limits: no
+     * lateral area drifts at the wind speed, infinite lateral area does not
+     * drift at all.
+     */
+    const lateralWind = windSpeed * Math.sin(headingOffWind)
+    const airSide = air.density * SIDE_FORCE_COEFFICIENT_BEAM_ON * reference
+    const waterSide = waterDensity * BROADSIDE_WATER_DRAG_COEFFICIENT * lateralWaterArea
     const leeway =
       lateralWaterArea > 0
-        ? Math.sqrt(
-            (2 * lateralAirForce) / (waterDensity * BROADSIDE_HULL_DRAG * lateralWaterArea),
-          )
-        : Infinity
+        ? (lateralWind * Math.sqrt(airSide)) / (Math.sqrt(airSide) + Math.sqrt(waterSide))
+        : lateralWind
     const driftAngle = speed > STEERAGE_WAY ? Math.atan2(leeway, speed) : Math.PI / 2
-    // The track is the vector sum. Its component along the intended heading is
-    // what is actually made good, and the drift is always downwind, so at a
-    // heading off the wind it eats into progress.
-    const speedMadeGood = speed * Math.cos(driftAngle) - leeway * Math.sin(driftAngle) * 0
+
+    /**
+     * SPEED MADE GOOD TO WINDWARD, which is the quantity that decides whether a
+     * heading is worth steering.
+     *
+     * The forward velocity contributes speed * cos(psi) upwind, and the leeway
+     * is perpendicular to the hull and directed downwind, so it takes away
+     * leeway * sin(psi). The old expression used the DRIFT angle where the
+     * HEADING belongs and then multiplied the leeway term by zero, which turned
+     * a real correction into dead code that read as live physics. What it
+     * actually computed, speed * cos(driftAngle), is neither the projection on
+     * the heading (that is just `speed`) nor the track magnitude.
+     */
+    const speedMadeGood =
+      speed * Math.cos(headingOffWind) - leeway * Math.sin(headingOffWind)
 
     if (i === 0) upwindSpeed = speedMadeGood
-    if (yawHoldable && speed > STEERAGE_WAY) {
-      widestHoldable = Math.max(widestHoldable, headingOffWind)
-      // Contiguous from dead upwind: stop widening at the first heading whose
-      // leeway is too large, rather than taking a maximum that jumps the gap.
-      if (driftAngle <= USEFUL_DRIFT_ANGLE && !coneClosed) widestUseful = headingOffWind
-      else if (driftAngle > USEFUL_DRIFT_ANGLE) coneClosed = true
+    const holdable = yawHoldable && speed > STEERAGE_WAY
+
+    // THE CONE IS CONTIGUOUS FROM DEAD UPWIND, and it closes at the first
+    // heading that fails for ANY reason. Closing it only on leeway let an
+    // unholdable band in the middle be jumped over: with a big tail the
+    // vehicle cannot hold anything much off the wind, and the old logic then
+    // reported a 180 degree cone on the strength of dead downwind being fine.
+    if (!coneClosed) {
+      if (holdable && driftAngle <= USEFUL_DRIFT_ANGLE) {
+        widestUseful = headingOffWind
+        widestHoldable = headingOffWind
+      } else if (holdable) {
+        widestHoldable = headingOffWind
+        coneClosed = true
+      } else {
+        coneClosed = true
+      }
     }
 
     points.push({
@@ -352,7 +527,8 @@ export const navigationPolar = (
       thrustRequired,
       yawMoment,
       yawAuthority,
-      holdable: yawHoldable && speed > STEERAGE_WAY,
+      divergent,
+      holdable,
       limitedBy: !yawHoldable ? 'yaw' : speed <= STEERAGE_WAY ? 'thrust' : null,
     })
   }
@@ -362,7 +538,18 @@ export const navigationPolar = (
     availableThrust / (DRAG_COEFFICIENT_BOW_ON * 0.5 * air.density * reference),
   )
 
-  const yawDeficit = beamOnYawMoment / yawAuthority
+  /**
+   * How far short the propulsors are of the WORST net moment they might have to
+   * beat, which is the same net-of-fins moment every `holdable` flag uses.
+   *
+   * It used to report the bare Munk moment against the authority while the
+   * flags used the net, so the object said the propulsors lose ten to one and
+   * that every heading is holdable, in the same breath.
+   */
+  const worstNetMoment = Math.max(
+    ...Array.from({ length: STEPS }, (_, i) => Math.abs(momentAt((i / (STEPS - 1)) * Math.PI))),
+  )
+  const yawDeficit = worstNetMoment / yawAuthority
   const widestDegrees = (widestHoldable * 180) / Math.PI
 
   // Bow-on is a stable equilibrium when the fins beat the Munk moment there,
@@ -387,18 +574,27 @@ export const navigationPolar = (
     note:
       (weathervanesUnaided
         ? `THE FINS HOLD IT BOW-ON BY THEMSELVES, so the propulsors are free to make way instead of ` +
-          `spending themselves on heading. `
-        : `THE FINS DO NOT HOLD IT BOW-ON at this wind and the propulsors must, which is most of ` +
-          `what they have. `) +
+          `spending themselves on heading. That is a GEOMETRY result and not a wind-strength one: ` +
+          `the Munk moment and the fin moment carry the same dynamic pressure and it cancels, so ` +
+          `a vehicle that weathervanes at all weathervanes at every wind speed. `
+        : `THE FINS DO NOT HOLD IT BOW-ON, at any wind: the Munk moment and the fin moment carry ` +
+          `the same dynamic pressure and it cancels, so this is a tail-area verdict rather than a ` +
+          `weather one. The rudders and the propulsors must hold the heading. `) +
       `Upwind at ${upwindSpeed.toFixed(1)} m/s in ${windSpeed} m/s of wind, and it holds up to ` +
-      `${widestDegrees.toFixed(0)} degrees off the wind before it cannot be held there, and only ` +
-      `${((widestUseful * 180) / Math.PI).toFixed(0)} degrees before LEEWAY makes the heading ` +
-      `meaningless: it points where the fins say and goes where the wind says. Bow-on the hull is ` +
+      `${widestDegrees.toFixed(0)} degrees off the wind before it cannot be held there, and ` +
+      `${((widestUseful * 180) / Math.PI).toFixed(0)} degrees before either LEEWAY or the yaw ` +
+      `balance ends it. Where leeway is what ends it, the vehicle points where the fins say and ` +
+      `goes where the wind says. Bow-on the hull is ` +
       `an equivalent area of only ` +
       `${(DRAG_COEFFICIENT_BOW_ON * reference).toFixed(0)} m2, against ` +
       `${(SIDE_FORCE_COEFFICIENT_BEAM_ON * reference).toFixed(0)} m2 across the wind, which is why ` +
-      `the vehicle that cannot make way is the one lying across it. Boat mode is a line rather ` +
-      `than a compass: upwind and downwind, with a cone either side, and nothing in between.`,
+      `the vehicle that cannot make way is the one lying across it. ` +
+      (widestUseful >= Math.PI - ANGLE_EPSILON
+        ? `The whole compass is available here, which is the centreboard's doing rather than the ` +
+          `propulsion's: without immersed lateral area the same thrust reaches the same speed ` +
+          `through the water and goes somewhere else.`
+        : `Boat mode is a cone rather than a compass: upwind, downwind, and a limited arc either ` +
+          `side, with nothing usable across the wind.`),
   }
 }
 

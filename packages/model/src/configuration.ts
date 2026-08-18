@@ -158,6 +158,16 @@ export interface Configuration {
   /** Fin root station and the fin span as a fraction of max radius. */
   readonly finStation: number
   readonly finSpanFraction: number
+  /**
+   * Chord fraction of the movable trailing-edge surface on each fin.
+   *
+   * This is the rudder, and it is what lets the vehicle hold a heading off the
+   * wind in boat mode. Differential thrust alone loses to this tail by a factor
+   * of five, so without it the model says the vehicle can only ever point into
+   * the wind, which would be true of a ship with no rudder and is not true of
+   * this one.
+   */
+  readonly rudderChordFraction: number
 
   /**
    * Outboard wings: span in metres and planform area in square metres.
@@ -664,6 +674,9 @@ export const BASELINE_ARRANGEMENT: Configuration = {
    */
   finStation: 0.9,
   finSpanFraction: 1.3,
+  // The usual aircraft control-surface proportion. Larger buys authority the
+  // vehicle does not need and costs hinge line and actuation.
+  rudderChordFraction: 0.3,
 
   // A modest wing. What it carries is `wingSizing`'s answer rather than a
   // number typed here: this comment used to quote a payload that predated the

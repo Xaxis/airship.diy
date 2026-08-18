@@ -98,6 +98,8 @@ export {
   yawedForceCoefficients,
   differentialYawMoment,
   finAreaToHoldHeading,
+  finLiftCurveSlope,
+  TAIL_DYNAMIC_PRESSURE_RATIO,
 } from './marine/navigation.js'
 
 export type {
@@ -134,6 +136,7 @@ export {
   DRAG_COEFFICIENT_BOW_ON,
   YAW_MOMENT_COEFFICIENT_BEAM_ON,
   WEATHERVANING_UNSTABLE_BELOW_YAW,
+  BROADSIDE_WATER_DRAG_COEFFICIENT,
 } from './marine/windage.js'
 
 export type { InertiaCoefficients, AddedMassMatrix } from './dynamics/added-mass.js'

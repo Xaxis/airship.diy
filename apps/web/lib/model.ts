@@ -16,6 +16,7 @@ import {
   specificLift,
   pure,
   hullGeometry,
+  finLiftCurveSlope,
   gasDensity,
   heavinessPerKilogramOfCellHydrogenBurned,
   WATER_PER_HYDROGEN_BURNED,
@@ -1336,6 +1337,7 @@ export const navigation = (() => {
       (BASELINE_ARRANGEMENT.finStation - statement.centreOfBuoyancy.x / BASELINE.hull.length) *
       BASELINE.hull.length,
     aspectRatio: fins.span ** 2 / (fins.area / 4),
+    rudderChordFraction: BASELINE_ARRANGEMENT.rudderChordFraction,
   }
 
   /** @derived Waterline length of the gondola hulls, m. */
@@ -1644,12 +1646,11 @@ export const flightConfiguration = (() => {
   const L = BASELINE.hull.length
   const exposedAspectRatio = fins.span ** 2 / (fins.area / 4)
   /** @source The hull is an end plate, so the exposed fin behaves as half a wing. */
-  const effectiveAspectRatio = exposedAspectRatio * 2
-  /** @source Local dynamic pressure at the tail, as a fraction of free stream. */
-  const TAIL_DYNAMIC_PRESSURE_RATIO = 0.85
-  const liftSlope =
-    ((2 * Math.PI * effectiveAspectRatio) / (2 + Math.sqrt(effectiveAspectRatio ** 2 + 4))) *
-    TAIL_DYNAMIC_PRESSURE_RATIO
+  // From core, not re-derived. The same physical fin had three lift-curve
+  // slopes in this repository: Helmbold on the exposed aspect ratio in the
+  // navigation polar, and the reflection-plane-and-tail-efficiency version
+  // here and in the arrangement.
+  const liftSlope = finLiftCurveSlope(exposedAspectRatio)
 
   return {
     tail: {

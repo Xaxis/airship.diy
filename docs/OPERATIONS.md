@@ -71,11 +71,11 @@ Boat mode is a cone, not a compass, and the cone is set by the centreboard.
 
 | True wind, m/s | Upwind speed, m/s | Leeway at the beam, ° | Usable cone from dead upwind, ° |
 |---|---|---|---|
-| 5 | 7.6 | 9 | 180 |
-| 8 | 5.9 | 14 | 180 |
-| 10 | 4.9 | 17 | 180 |
-| 12 | 3.6 | 20 | 180 |
-| 15 | 1.2 | 24 | 5 |
+| 5 | 9.3 | 7 | 180 |
+| 8 | 6.9 | 11 | 180 |
+| 10 | 5.3 | 14 | 180 |
+| 12 | 4.0 | 17 | 180 |
+| 15 | 1.3 | 21 | 5 |
 
 **Lower the centreboard before you try to hold any heading off the wind.** With
 it up the vehicle points where the fins say and goes where the wind says: the
