@@ -1,4 +1,4 @@
-import { CATCHMENT, CREW, FOOD_SHELF_LIFE, barrierFilm, v } from '@airship/data'
+import { CATCHMENT, CREW, ENGINE_CONSUMABLES, FOOD_SHELF_LIFE, barrierFilm, v } from '@airship/data'
 import type { DesignPoint } from '@airship/model'
 import {
   atmosphere,
@@ -71,6 +71,7 @@ export interface MissionState {
 
 export type LimitingResource =
   | 'food'
+  | 'engine consumables'
   | 'water'
   | 'gas purity'
   | 'lifting gas'
@@ -111,6 +112,17 @@ export interface MissionResult {
 export interface MissionStores {
   /** Dry food loaded, kg. */
   readonly food: number
+  /**
+   * Engine and system consumables loaded, kg: oil, filters, plugs, coolant,
+   * hoses, belts and a share of an overhaul kit.
+   *
+   * THE INTEGRATOR IGNORED THIS AND `consumables()` HAS ALWAYS RETURNED IT.
+   * @airship/data has a fully sourced maintenance schedule, and nothing read
+   * any of it, so the only thing that ever ran out on this vehicle was food.
+   * The arrangement carries 356 kg against 220 kg a year, which is 591 days:
+   * tighter than the food the spare lift could buy by a factor of four.
+   */
+  readonly spares?: number
   /** Water loaded, kg. */
   readonly water: number
   /** Water tank capacity, kg. Catchment above this is lost. */
@@ -184,6 +196,18 @@ export const integrateMission = (
 
   const dailyFood = crew * v(CREW.dryFoodMass)
 
+  /**
+   * @derived Engine and system consumables burned per day, kg.
+   *
+   * A CALENDAR RATE, not an hourly one, which is what the schedule says: the
+   * oil is "100 hours OR 12 months, whichever comes first" and at this duty
+   * cycle only the calendar leg ever fires, the coolant is "five years
+   * regardless of hours", and the hoses are four. None of that is a function of
+   * how much the engine ran.
+   */
+  const dailySpares = v(ENGINE_CONSUMABLES.annualConsumablesMass) / SI.DAYS_PER_YEAR
+  let spares = stores.spares ?? 0
+
   // --- initial gas state ----------------------------------------------------
   /** @source Ideal gas law at cruise altitude; hydrogen is ideal at cell pressure. */
   const R = 8.314462618
@@ -256,6 +280,7 @@ export const integrateMission = (
     // --- water and food ----------------------------------------------------
     water = Math.min(water - dailyConsumption + recovered + dailyCatchment, stores.waterCapacity)
     food -= dailyFood
+    spares -= dailySpares
 
     const gasMass = liftingMoles * molarMassH2
     const grossLift = hull.volume * (air.density - (totalMoles * molarMassH2) / hull.volume)
@@ -264,6 +289,10 @@ export const integrateMission = (
 
     if (water <= 0) record('water', day)
     if (food <= 0) record('food', day)
+    // Only if any were loaded. A design point that carries none is not thereby
+    // immortal, it is unprovisioned, and reporting it as unlimited would be the
+    // same error as reporting an endurance for a ship that cannot fly.
+    if ((stores.spares ?? 0) > 0 && spares <= 0) record('engine consumables', day)
     if (purity <= design.gas.purityFloor) record('gas purity', day)
     // @derived Twenty percent of the lifting gas lost is taken as the point at
     // which the ship can no longer carry its design load, pending the phase 3

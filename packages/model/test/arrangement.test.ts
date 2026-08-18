@@ -376,11 +376,18 @@ describe('what each design can actually carry', () => {
     expect(p.extraFood).toBe(0)
   })
 
-  it('gives a closing design its spare lift as food', () => {
+  it('splits the spare lift so nothing binds early', () => {
+    // Loading it all as food was the obvious thing and the wrong thing: the
+    // engine consumables run out at 592 days and the rest of the food is
+    // ballast. Split so both run out together and the same lift buys 1,843.
     const p = provisionsFor(BASELINE, BASELINE_ARRANGEMENT)
+    const base = consumables(BASELINE_ARRANGEMENT)
     expect(p.closes).toBe(true)
     expect(p.extraFood).toBeGreaterThan(0)
-    expect(p.food).toBeCloseTo(consumables(BASELINE_ARRANGEMENT).food + p.extraFood, 6)
+    expect(p.food).toBeGreaterThan(base.food)
+    expect(p.spares).toBeGreaterThan(base.spares)
+    // Everything aboard plus the spare lift, and nothing more.
+    expect(p.food + p.spares).toBeCloseTo(base.food + base.spares + p.extraFood, 6)
   })
 
   it('keeps the growth reserve back rather than loading it', () => {
@@ -393,10 +400,12 @@ describe('what each design can actually carry', () => {
   })
 
   it('separates two designs that used to score identically', () => {
+    // Both returned 471 days, because the reporting tool handed each of them
+    // the baseline's stores and ignored the design it was given.
     const stretch = DESIGN_POINTS.find((d) => d.id === 'stretch')
     expect(stretch).toBeDefined()
     const a = provisionsFor(BASELINE, BASELINE_ARRANGEMENT)
     const b = provisionsFor(stretch as DesignPoint, BASELINE_ARRANGEMENT)
-    expect(a.food).not.toBeCloseTo(b.food, 0)
+    expect(a.balancedDays).toBeGreaterThan(b.balancedDays + 100)
   })
 })

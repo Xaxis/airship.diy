@@ -26,8 +26,15 @@ import {
   COMPLETE_SHIP_DRAG_COEFFICIENT,
   PROPULSIVE_EFFICIENCY,
 } from '@airship/core'
-import { AKRON_STRUCTURE, barrierFilm, EMPTY_WEIGHT_PER_GAS_VOLUME, v } from '@airship/data'
-import { kg, m, m3, K, rad, kgPerM3, W } from '@airship/units'
+import {
+  AKRON_STRUCTURE,
+  barrierFilm,
+  CREW,
+  EMPTY_WEIGHT_PER_GAS_VOLUME,
+  ENGINE_CONSUMABLES,
+  v,
+} from '@airship/data'
+import { kg, m, m3, K, rad, kgPerM3, W, SI } from '@airship/units'
 
 import { dumpableInventory } from './configuration.js'
 import type { Category, Compartment, Configuration, Deck } from './configuration.js'
@@ -1456,14 +1463,18 @@ export const hullBendingMoment = (design: DesignPoint, config: Configuration): H
 export interface Provisions {
   /** Dry food loaded, kg. */
   readonly food: number
+  /** Engine and system consumables loaded, kg. */
+  readonly spares: number
   /** Water loaded, kg. */
   readonly water: number
   /** Tank capacity, kg. Catchment above this is lost. */
   readonly waterCapacity: number
   /** True when the design can lift the arrangement at all. */
   readonly closes: boolean
-  /** Spare lift beyond the growth reserve, converted to food, kg. */
+  /** Spare lift beyond the growth reserve, kg. */
   readonly extraFood: number
+  /** Days at which food and consumables run out together, which is the most the lift can buy. */
+  readonly balancedDays: number
   readonly note: string
 }
 
@@ -1494,8 +1505,10 @@ export const provisionsFor = (design: DesignPoint, config: Configuration): Provi
   if (statement.liftMargin <= 0) {
     return {
       ...base,
+      spares: base.spares,
       closes: false,
       extraFood: 0,
+      balancedDays: 0,
       note:
         `This design cannot lift the arrangement: the margin is ` +
         `${statement.liftMargin.toFixed(0)} kg. There is no endurance to report, because there ` +
@@ -1504,16 +1517,40 @@ export const provisionsFor = (design: DesignPoint, config: Configuration): Provi
   }
 
   const spare = Math.max(statement.liftMargin - reserve, 0)
+
+  /**
+   * ALLOCATE THE SPARE LIFT SO THAT NOTHING BINDS EARLY.
+   *
+   * Loading it all as food was the obvious thing and the wrong thing. Food
+   * burns at the crew's dry ration and engine consumables burn on the calendar,
+   * and the arrangement carries 584 kg of one against 356 kg of the other. Fill
+   * the margin with food and the endurance stops at 592 days on consumables
+   * with two and a half tonnes of uneaten food aboard: the spare lift bought
+   * nothing at all.
+   *
+   * Split it so both run out on the same day, which is the most days the lift
+   * can buy. Everything already aboard counts toward its own side of the split.
+   */
+  const foodPerDay = design.loads.crew * v(CREW.dryFoodMass)
+  const sparesPerDay = v(ENGINE_CONSUMABLES.annualConsumablesMass) / SI.DAYS_PER_YEAR
+  const total = base.food + base.spares + spare
+  const balancedDays = total / (foodPerDay + sparesPerDay)
+
   return {
-    food: base.food + spare,
+    food: balancedDays * foodPerDay,
+    spares: balancedDays * sparesPerDay,
     water: base.water,
     waterCapacity: base.waterCapacity,
     closes: true,
     extraFood: spare,
+    balancedDays,
     note:
-      `${base.food.toFixed(0)} kg of food in the stores bay, plus ${spare.toFixed(0)} kg of spare ` +
-      `lift once the ${(MASS_GROWTH_ALLOWANCE * 100).toFixed(0)} percent growth reserve is kept ` +
-      `back. Loading the reserve as well would buy more days and is the trade a crew makes on the ` +
-      `day, not one the model should make for them.`,
+      `${spare.toFixed(0)} kg of spare lift beyond the ` +
+      `${(MASS_GROWTH_ALLOWANCE * 100).toFixed(0)} percent growth reserve, split between food and ` +
+      `engine consumables so that both run out on the same day. Loading it all as food, which is ` +
+      `the obvious thing, buys nothing past ${(base.spares / sparesPerDay).toFixed(0)} days: the ` +
+      `consumables run out there and the rest of the food is ballast.`,
   }
 }
+
+

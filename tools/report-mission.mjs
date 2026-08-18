@@ -51,8 +51,8 @@ for (const design of DESIGN_POINTS) {
 
   console.log('  stores as drawn: %s kg food, %s kg water (%s kg capacity)',
     asDrawn.food.toFixed(0), asDrawn.water.toFixed(0), asDrawn.waterCapacity.toFixed(0))
-  console.log('  at capacity:     %s kg food, using %s kg of spare lift',
-    capacity.food.toFixed(0), capacity.extraFood.toFixed(0))
+  console.log('  at capacity:     %s kg food and %s kg spares, from %s kg of spare lift',
+    capacity.food.toFixed(0), capacity.spares.toFixed(0), capacity.extraFood.toFixed(0))
   console.log()
   console.log('  %s %s days   %s', pad('AS DRAWN', 26),
     String(drawn.physicalEnduranceDays).padStart(6), drawn.physicalLimit.toUpperCase())

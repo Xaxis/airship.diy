@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { BASELINE, DESIGN_POINTS } from '@airship/model'
+import { BASELINE, DESIGN_POINTS,
+  consumables,
+  provisionsFor,
+  BASELINE_ARRANGEMENT,
+} from '@airship/model'
 import { integrateMission } from '../src/mission.js'
 import type { MissionStores } from '../src/mission.js'
 
@@ -176,5 +180,41 @@ describe('integrator hygiene', () => {
     const first = result.states[0]?.food ?? 0
     const hundredth = result.states[99]?.food ?? 0
     expect(first - hundredth).toBeCloseTo(2 * 0.62 * 99, 1)
+  })
+})
+
+describe('component life, which used to bound nothing', () => {
+  /**
+   * @airship/data carries a fully sourced maintenance schedule: oil at 100
+   * hours or 12 months, coolant at five years, hoses at four, and an annual
+   * consumables mass. Every one of those was read by nothing, so the only
+   * thing that ever ran out on this vehicle was food.
+   */
+  it('runs the engine out of consumables before the food, as drawn', () => {
+    const drawn = consumables(BASELINE_ARRANGEMENT)
+    const result = integrateMission(BASELINE, drawn, 8000)
+    const spares = result.resourceExhaustion['engine consumables']
+    expect(spares).toBeDefined()
+    // 356 kg aboard against 220 kg a year is under two years.
+    expect(spares).toBeLessThan(700)
+  })
+
+  it('makes both run out on the same day once the spare lift is split properly', () => {
+    // Loading the spare lift entirely as food stops at 592 days on consumables
+    // with tonnes of uneaten food aboard. Splitting it buys three times as long
+    // from exactly the same lift.
+    const balanced = provisionsFor(BASELINE, BASELINE_ARRANGEMENT)
+    const result = integrateMission(BASELINE, balanced, 8000)
+    const food = result.resourceExhaustion['food'] ?? 0
+    const spares = result.resourceExhaustion['engine consumables'] ?? 0
+    expect(Math.abs(food - spares)).toBeLessThanOrEqual(2)
+    expect(result.physicalEnduranceDays).toBeGreaterThan(1500)
+  })
+
+  it('does not call an unprovisioned ship immortal', () => {
+    // A design carrying no consumables is unprovisioned, not unlimited.
+    const none = { ...consumables(BASELINE_ARRANGEMENT), spares: 0 }
+    const result = integrateMission(BASELINE, none, 8000)
+    expect(result.resourceExhaustion['engine consumables']).toBeUndefined()
   })
 })
