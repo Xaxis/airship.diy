@@ -1,4 +1,11 @@
 import type { Meters, Newtons, Radians, SquareMeters } from '@airship/units'
+import { m } from '@airship/units'
+import { CONSTANTS, ISA, v } from '@airship/data'
+import {
+  CONVENTIONAL_PRISMATIC_COEFFICIENT,
+  hullGeometry,
+  hullShapeForPrismatic,
+} from '../geometry/hull.js'
 
 /**
  * Aerodynamic lift from the hull itself, for hybridLift architectures.
@@ -21,12 +28,19 @@ import type { Meters, Newtons, Radians, SquareMeters } from '@airship/units'
  * and the power to do that for a year is not available from an array, because
  * propulsive power goes as the cube of speed.
  *
- * ONE MORE THING THE ENTHUSIASM LEAVES OUT. A flattened multi-lobe hull has far
- * more skin per unit volume than a body of revolution: 8.8 against 5.4 on the
- * wetted-area coefficient, calibrated on the Airlander. More skin is more cover
- * mass, more permeating area and more friction drag, and all three are paid
- * every hour of every day whether or not the vehicle is moving fast enough to
- * collect any hull lift at all.
+ * ONE MORE THING THE ENTHUSIASM LEAVES OUT, THOUGH LESS OF IT THAN THIS MODULE
+ * ONCE CLAIMED. A flattened multi-lobe hull carries more skin per unit volume
+ * than a body of revolution, and how much more depends entirely on which body
+ * of revolution. The Airlander's hull comes out at 7.24 on the wetted-area
+ * coefficient. An equal-volume body of revolution is 6.14 at fineness 4, 6.55
+ * at 5, 6.92 at 6 and 7.26 at 7, so the penalty runs from 18 percent down
+ * through zero. Against the fineness this project's own hull uses it is
+ * 11 to 18 percent. More skin is more cover mass, more permeating area and more
+ * friction drag, and all three are paid every hour of every day whether or not
+ * the vehicle is moving fast enough to collect any hull lift at all.
+ *
+ * That is a real cost and not a decisive one, which is why the argument against
+ * hybridLift here rests on the zero-airspeed case above and not on skin.
  */
 
 
@@ -63,40 +77,6 @@ export const liftCurveSlope = (aspectRatio: number): number =>
  * runs out of pitch authority first.
  */
 const VORTEX_LIFT_FRACTION = 0.6
-
-/**
- * How much of the thin-wing lift curve slope a thick lobed HULL actually
- * achieves.
- *
- * RECALIBRATED AT THE HULL'S REAL DIMENSIONS. This was 0.31, computed at an
- * aspect ratio of 0.65 that came from a 50 m "wingspan" row rather than the
- * hull's 42 m beam. At the real planform the aspect ratio is 0.581, the
- * Helmbold slope is 0.894 rather than 0.995, and the efficiency that reproduces
- * the same measured lift is 0.433.
- *
- * Note also that the AAIB says the vehicle carried UP TO 40 percent of its
- * weight aerodynamically, not 40 percent at cruise. The distinction matters
- * because it makes the anchor an upper bound rather than a design point.
- *
- * @source Anchored on the Airlander 10, twice, and the two anchors agree.
- * The AAIB records up to 40 percent of weight carried aerodynamically, and
- * the manufacturer's loiter speed is 20 knots. A single lift coefficient of
- * 0.07 at 12 degrees reproduces BOTH: 39.6 percent of MTOW at 28 m/s and 5.4
- * percent at 10.29 m/s, because lift goes as the square of speed and the two
- * conditions differ only in dynamic pressure.
- *
- * That coefficient implies an effective lift curve slope of 0.387 per radian,
- * against the 0.894 Helmbold gives for an aspect ratio of 0.581. So a lobed
- * hull achieves 43 percent of what a thin wing of the same aspect ratio would.
- *
- * IT IS NOT A FUDGE, IT IS THE DIFFERENCE BETWEEN A WING AND A BODY. Helmbold
- * describes a thin lifting surface; a hull is a thick body whose planform area
- * includes a great deal of volume that is not making lift, and whose flow
- * separates well before a wing's would. Using the thin-wing figure flattered
- * hybridLift by a factor of three on the term that decides whether it can be
- * afforded, and this module did exactly that in its first version.
- */
-const HULL_LIFT_EFFICIENCY = 0.433
 
 /** @source Airship hulls run out of usable incidence around 20 degrees. */
 const MAXIMUM_USABLE_INCIDENCE = (20 * Math.PI) / 180
@@ -137,12 +117,17 @@ export interface LiftingBodyGeometry {
  * WHAT THIS COST. Everything downstream inherited it: lift per unit volume,
  * skin mass, permeating area, and above all the wetted-area penalty of a lobed
  * hull, which this project computed as 63 percent and used as its central
- * argument against hybridLift. At the corrected coefficient the penalty is 4
- * to 7 percent against a body of revolution at the same volume, and against one
- * at the drag-optimum fineness the lobed hull is actually BETTER by about 5
- * percent. The architecture chapter rejected hybridLift for a reason that was
- * an artifact of this constant. It is rejected here for other reasons, which
- * survive.
+ * argument against hybridLift. The corrected number is 11 percent against an
+ * equal-volume body of revolution at fineness 5, rising to 18 at fineness 4 and
+ * falling to nothing by fineness 7. That is a penalty worth carrying in the
+ * mass statement and nowhere near a disqualification, so the architecture
+ * chapter rejected hybridLift on a figure five times too large. It is rejected
+ * here for other reasons, which survive.
+ *
+ * Two errors were compounding: this coefficient, and a wetted area that treated
+ * each lobe as spanning beam/lobes rather than standing as tall as the hull.
+ * They pushed in opposite directions, so an intermediate correction of this one
+ * alone briefly reported a few percent, which was no better founded than the 63.
  *
  * @source Airlander 10's hull, 92 m by 42 m, at the published 38,000 m3.
  */
@@ -170,17 +155,41 @@ const SINGLE_LOBE_VOLUME_COEFFICIENT = Math.PI / 6
  * internal seam from the geometry of two intersecting cylinders at the depth of
  * intersection a lobed hull uses.
  */
-const LOBE_HIDDEN_FRACTION = 0.15
+/**
+ * @derived Ceiling on the hidden fraction. The intersection formula is exact
+ * for two lobes at a time and does not know that a third lobe can bury surface
+ * the first two already counted, so at extreme overlap it would over-hide.
+ */
+const LOBE_HIDDEN_CEILING = 0.6
 
 /**
  * Wetted area form factor for a body of revolution.
  *
- * @source A cylinder of the same length and diameter has pi*d*L. A well-formed
- * airship hull with a rounded nose and a fine tail comes to about 0.72 of that,
- * which is the figure the conventional hull module reproduces from its own
- * shape function.
+ * COMPUTED FROM THE HULL MODULE RATHER THAN ASSERTED ABOUT IT. This was the
+ * literal 0.72, cited as "the figure the conventional hull module reproduces
+ * from its own shape function". It does not: `hullGeometry` integrates its own
+ * profile and returns 0.78 to 0.83 across the prismatic range, never 0.72. The
+ * citation was checkable in one command and it failed, and the error understated
+ * the lobed hull's skin by 11 to 16 percent, which feeds envelope mass and
+ * permeation area for every multi-lobe architecture.
+ *
+ * @derived wettedArea / (pi * L * D) for the conventional hull at the prismatic
+ * coefficient this project uses. Scale-free, so the reference length is
+ * arbitrary.
  */
-const REVOLUTION_AREA_FACTOR = 0.72
+const REVOLUTION_AREA_FACTOR = (() => {
+  /** @derived An arbitrary reference hull; the ratio does not depend on its size. */
+  const REFERENCE_LENGTH = 100
+  /** @derived The drag-optimum fineness, which is where this ratio is wanted. */
+  const REFERENCE_FINENESS = 5
+  const reference = hullGeometry(
+    m(REFERENCE_LENGTH),
+    REFERENCE_FINENESS,
+    hullShapeForPrismatic(CONVENTIONAL_PRISMATIC_COEFFICIENT),
+  )
+  const diameter = REFERENCE_LENGTH / REFERENCE_FINENESS
+  return (reference.wettedArea as number) / (Math.PI * REFERENCE_LENGTH * diameter)
+})()
 
 /**
  * Geometry of a multi-lobe lifting-body hull.
@@ -214,9 +223,46 @@ export const liftingBodyGeometry = (
     lobes === 1 ? SINGLE_LOBE_VOLUME_COEFFICIENT : MULTI_LOBE_VOLUME_COEFFICIENT
   const volume = volumeCoefficient * length * beam * height
 
-  const lobeDiameter = beam / lobes
+  /**
+   * A LOBE'S DIAMETER IS THE HULL HEIGHT, not the beam over the lobe count.
+   *
+   * A multi-lobe section is a row of circles of diameter equal to the section
+   * height, overlapping each other to span the beam. Beam over lobes is only
+   * the TANGENT case, and tangency forces H = B/n, which is a constraint this
+   * function does not impose and the Airlander does not satisfy: 92 by 42 by 20
+   * gives B/n = 14 m against a 20 m height.
+   *
+   * So the wetted area was describing a different body from the one the volume
+   * model describes, and it ignored `height` altogether: a hull could be made
+   * arbitrarily deep at no cost in skin.
+   */
+  const lobeDiameter = height
   const bareLobeArea = REVOLUTION_AREA_FACTOR * Math.PI * lobeDiameter * length
-  const wettedArea = lobes * bareLobeArea * (1 - LOBE_HIDDEN_FRACTION * (lobes - 1) / lobes)
+
+  /**
+   * THE HIDDEN FRACTION IS DERIVED FROM THE OVERLAP, not asserted as a constant.
+   *
+   * It was a flat 0.15 per seam, applied as (n-1)/n so that a trilobe hid 10
+   * percent. Two things were wrong with that. Each seam hides surface on BOTH
+   * lobes it joins, so the count is 2(n-1) lobe-fractions and not (n-1). And
+   * 0.15 describes one particular depth of intersection, while the depth is set
+   * by the beam, the height and the lobe count together: on the Airlander's
+   * 92 by 42 by 20 the lobes overlap by nine metres, which is 45 percent of
+   * their diameter, and at that depth far more than 15 percent is buried.
+   *
+   * @derived Two circles of radius r whose centres are s apart intersect at
+   * angle acos(s / 2r) from the line of centres, so the arc of each that lies
+   * inside the other is 2*acos(s/2r) out of 2*pi. With n lobes of diameter d
+   * spanning beam B, adjacent centres are (B - d)/(n - 1) apart.
+   */
+  const lobeRadius = lobeDiameter / 2
+  const centreSpacing = lobes > 1 ? (beam - lobeDiameter) / (lobes - 1) : Infinity
+  const hiddenPerSeam =
+    lobes > 1 && centreSpacing < lobeDiameter && centreSpacing > 0
+      ? Math.acos(Math.min(centreSpacing / (2 * lobeRadius), 1)) / Math.PI
+      : 0
+  const hiddenFraction = Math.min((2 * (lobes - 1) * hiddenPerSeam) / lobes, LOBE_HIDDEN_CEILING)
+  const wettedArea = lobes * bareLobeArea * (1 - hiddenFraction)
 
   return {
     length,
@@ -254,6 +300,92 @@ export interface HullLift {
   /** Lift over induced drag. Not the whole L/D: friction is elsewhere. */
   readonly liftToInducedDrag: number
 }
+
+/**
+ * How much of the thin-wing lift curve slope a thick lobed HULL actually
+ * achieves.
+ *
+ * RECALIBRATED AT THE HULL'S REAL DIMENSIONS. This was 0.31, computed at an
+ * aspect ratio of 0.65 that came from a 50 m "wingspan" row rather than the
+ * hull's 42 m beam. At the real planform the aspect ratio is 0.581, the
+ * Helmbold slope is 0.894 rather than 0.995, and the efficiency that reproduces
+ * the same measured lift is 0.433.
+ *
+ * Note also that the AAIB says the vehicle carried UP TO 40 percent of its
+ * weight aerodynamically, not 40 percent at cruise. The distinction matters
+ * because it makes the anchor an upper bound rather than a design point.
+ *
+ * @source Anchored on the Airlander 10, twice, and the two anchors agree.
+ * The AAIB records up to 40 percent of weight carried aerodynamically, and
+ * the manufacturer's loiter speed is 20 knots. A single lift coefficient at 12
+ * degrees reproduces BOTH: 39.6 percent of MTOW at 28 m/s and 5.3 percent at
+ * 10.29 m/s, because lift goes as the square of speed and the two conditions
+ * differ only in dynamic pressure. That coefficient is 0.07 referenced to the
+ * overall 98 by 50, or 0.0887 referenced to the hull planform this model uses.
+ *
+ * THE CONSTANT IS SOLVED FROM THE WEIGHT FRACTION, NOT FROM THE 0.07, and the
+ * difference is a trap worth describing because it nearly cost this module a
+ * 27 percent error in the flattering direction.
+ *
+ * 0.07 is a lift coefficient, and a lift coefficient is meaningless without the
+ * area it is referenced to. It is quoted against the Airlander's OVERALL
+ * dimensions, 98 m by 50 m, which is the same wingspan-for-beam confusion that
+ * `MULTI_LOBE_VOLUME_COEFFICIENT` documents below. This model references lift
+ * to the HULL planform, 92 m by 42 m, which is 27 percent smaller, so the same
+ * measured lift is a coefficient of 0.0886 here.
+ *
+ * Feeding 0.07 into this model's own areas therefore does not reproduce the
+ * AAIB observation, it reproduces 31 percent of weight instead of 40, and it
+ * would have looked like a correction because it moved the number the safe way.
+ *
+ * So the calibration is anchored on the AAIB weight fraction, which is an
+ * observation, and the coefficient is left to come out wherever this model's
+ * geometry puts it. The efficiency that results is 0.433: a lobed hull achieves
+ * 43 percent of what a thin wing of the same aspect ratio would. Changing
+ * VORTEX_LIFT_FRACTION, the Helmbold slope, or the planform now moves it with
+ * them, which is the only way a calibration constant stays a calibration.
+ *
+ * IT IS NOT A FUDGE, IT IS THE DIFFERENCE BETWEEN A WING AND A BODY. Helmbold
+ * describes a thin lifting surface; a hull is a thick body whose planform area
+ * includes a great deal of volume that is not making lift, and whose flow
+ * separates well before a wing's would. Using the thin-wing figure flattered
+ * hybridLift by a factor of three on the term that decides whether it can be
+ * afforded, and this module did exactly that in its first version.
+ */
+const HULL_LIFT_EFFICIENCY = (() => {
+  /** @source AAIB: up to 39.6 percent of MTOW carried aerodynamically. */
+  const ANCHOR_WEIGHT_FRACTION = 0.396
+  /** @source Airlander 10 maximum take-off mass, kg. */
+  const ANCHOR_MASS = 33285
+  /** @source The AAIB cruise condition: 28 m/s at 12 degrees, sea level. */
+  const ANCHOR_SPEED = 28
+  /** @derived Twelve degrees, in radians. */
+  const ANCHOR_INCIDENCE = (12 * Math.PI) / 180
+  const ANCHOR_DENSITY = v(ISA.seaLevelDensity)
+
+  /**
+   * The Airlander's own hull planform, which is the area THIS model references
+   * lift to. Aspect ratio and planform do not depend on the height, so an
+   * arbitrary one is safe to pass here.
+   *
+   * @source Hull length and beam as recorded in AIRLANDER_DIMENSIONS, 92 m by
+   * 42 m. The height is back-solved from the published 38,000 m3 envelope at
+   * this module's own volume coefficient and cancels out of both quantities
+   * used below.
+   */
+  const anchorGeometry = liftingBodyGeometry(m(92), m(42), m(16.75), 3)
+  const dynamicPressure = 0.5 * ANCHOR_DENSITY * ANCHOR_SPEED * ANCHOR_SPEED
+  const requiredCoefficient =
+    (ANCHOR_WEIGHT_FRACTION * ANCHOR_MASS * v(CONSTANTS.g0)) /
+    (dynamicPressure * anchorGeometry.planformArea)
+
+  const s = Math.sin(ANCHOR_INCIDENCE)
+  const c = Math.cos(ANCHOR_INCIDENCE)
+  // Invert CL = k*a*s*c*(1 + VORTEX_LIFT_FRACTION*s) for k, the same expression
+  // `hullLift` evaluates forwards.
+  const shape = s * c * (1 + VORTEX_LIFT_FRACTION * s)
+  return requiredCoefficient / (liftCurveSlope(anchorGeometry.aspectRatio) * shape)
+})()
 
 /**
  * Lift and induced drag of the hull at incidence.

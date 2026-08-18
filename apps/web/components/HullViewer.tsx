@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 
+import { buildShip } from './three/ship'
+
 /**
  * The hull, drawn from the same shape function the model sizes with.
  *
@@ -195,18 +197,16 @@ export function HullViewer({
       ),
     )
 
-    // --- gondola ------------------------------------------------------------
-    // Below the hull, which is where the habitable volume has to be: no
-    // enclosed space above or adjacent to a gas cell.
-    const gondolaLength = length * 0.14
-    const gondola = new THREE.Mesh(
-      new THREE.CapsuleGeometry(radiusAtStation(0.3) * 0.16, gondolaLength, 4, 16),
-      new THREE.MeshStandardMaterial({ color: 0x3a4754, metalness: 0.3, roughness: 0.6 }),
-    )
-    gondola.rotation.z = Math.PI / 2
-    gondola.rotation.y = Math.PI / 2
-    gondola.position.set(0, -length * 0.06, -radiusAtStation(0.32) * 1.02)
-    root.add(gondola)
+    // --- car, tail and propulsors -------------------------------------------
+    // From the shared geometry, so this view cannot disagree with the flight
+    // and marine views or with the mass statement. What was here before was a
+    // capsule at an invented size, and it was drawn BESIDE the hull rather than
+    // below it: the group rotation maps the lathe's X to world up, and the
+    // capsule was placed on Z.
+    const appendages = buildShip({ hull: false })
+    // Body frame to this view's lathe frame, which `root` then rights.
+    appendages.group.rotation.z = -Math.PI / 2
+    root.add(appendages.group)
 
     // --- lighting -----------------------------------------------------------
     scene.add(new THREE.AmbientLight(0x9aa7b4, 1.1))
@@ -256,6 +256,7 @@ export function HullViewer({
       cancelAnimationFrame(frame)
       observer.disconnect()
       renderer.dispose()
+      appendages.dispose()
       hullGeometry.dispose()
       bandGeometry.dispose()
       container.removeChild(renderer.domElement)

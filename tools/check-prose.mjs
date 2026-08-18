@@ -56,8 +56,21 @@ for (const file of files) {
     continue
   }
 
+  // Skip blocks written by other people's tools. `next dev` writes an agent
+  // rules block into apps/web/AGENTS.md on every run and re-adds it when it is
+  // removed, so holding it to this project's style is a fight with a generator
+  // rather than a check on anything anybody wrote.
+  let generated = false
+
   text.split('\n').forEach((line, index) => {
     const where = `${file}:${index + 1}`
+
+    if (/<!--\s*BEGIN:[a-z0-9-]+\s*-->/i.test(line)) generated = true
+    if (/<!--\s*END:[a-z0-9-]+\s*-->/i.test(line)) {
+      generated = false
+      return
+    }
+    if (generated) return
 
     if (line.includes('—')) {
       console.error('%s  em dash. Use a comma, a colon, parentheses, or two sentences.', where)

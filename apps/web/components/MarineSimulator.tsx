@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 
+import { buildShip } from './three/ship'
+
 import { WebGLUnavailable } from './HullViewer'
 
 /**
@@ -219,24 +221,13 @@ export function MarineSimulator({ data, radii, length }: MarineSimulatorProps) {
     const ship = new THREE.Group()
     scene.add(ship)
 
-    const profile = radii.map((r, i) => {
-      const x = (i / (radii.length - 1)) * length
-      return new THREE.Vector2(Math.max(r, 1e-4), x - length / 2)
-    })
-    const hullGeometry = track(new THREE.LatheGeometry(profile, 64))
-    const hull = new THREE.Mesh(
-      hullGeometry,
-      track(
-        new THREE.MeshStandardMaterial({
-          color: 0x55616e,
-          roughness: 0.66,
-          metalness: 0.1,
-        }),
-      ),
-    )
-    const hullGroup = new THREE.Group()
-    hullGroup.add(hull)
-    hullGroup.rotation.set(-Math.PI / 2, 0, -Math.PI / 2)
+    // The envelope above the water, from the shared model-driven geometry. It
+    // carries its tail and its propulsors here because a bare lathe made the
+    // vehicle unreadable at the moment it matters, which is the one this view
+    // exists to show. The car is drawn separately below, since the whole
+    // subject here is the car meeting the water while the hull stays above it.
+    const built = buildShip({ hullSegments: 64, rings: false, car: false })
+    const hullGroup = built.group
     ship.add(hullGroup)
 
     const maxRadius = Math.max(...radii)
@@ -536,6 +527,7 @@ export function MarineSimulator({ data, radii, length }: MarineSimulatorProps) {
       cancelAnimationFrame(frame)
       observer.disconnect()
       for (const d of disposables) d.dispose()
+      built.dispose()
       renderer.dispose()
       if (renderer.domElement.parentNode === container) {
         container.removeChild(renderer.domElement)

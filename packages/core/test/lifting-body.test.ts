@@ -9,6 +9,9 @@ import {
   liftingBodyGeometry,
   minimumFlyingSpeed,
   MINIMUM_LOBED_SECTION_FULLNESS,
+  CONVENTIONAL_PRISMATIC_COEFFICIENT,
+  hullGeometry,
+  hullShapeForPrismatic,
 } from '../src/index.js'
 import { AIRLANDER_DIMENSIONS } from '@airship/data'
 import { m, rad } from '@airship/units'
@@ -60,15 +63,42 @@ describe('the Airlander as the calibration case', () => {
     expect(AIRLANDER_DIMENSIONS.beamQuoted.length).toBeGreaterThan(2)
   })
 
-  it('does NOT carry the enormous skin penalty this module used to report', () => {
-    // THE CORRECTION THAT MATTERS MOST. At the bad dimensions a lobed hull came
-    // out with a 63 percent wetted-area penalty against a body of revolution,
-    // and that penalty was the architecture chapter's central argument against
-    // hybridLift. At the real ones it is a few percent either way depending on
-    // which fineness ratio the comparison is against. HybridLift still loses,
-    // and it loses on the lift split and on power at low speed instead.
-    expect(AIRLANDER.wettedAreaCoefficient).toBeLessThan(7)
-    expect(AIRLANDER.wettedAreaCoefficient).toBeGreaterThan(5)
+  it('carries a real skin penalty, an order smaller than the 63 percent claimed', () => {
+    // THE CORRECTION THAT MATTERS MOST, and it has now been made twice. At the
+    // bad dimensions a lobed hull came out 63 percent worse than a body of
+    // revolution, and that penalty was the architecture chapter's central
+    // argument against hybridLift. Correcting the volume coefficient alone
+    // swung it to "a few percent", which was equally unfounded, because the
+    // wetted area had its own error pushing the other way.
+    //
+    // This asserts the penalty against a COMPUTED equal-volume body of
+    // revolution rather than a bare band, so it cannot be tuned into agreement
+    // with whatever the module currently says.
+    const penaltyAt = (fineness: number) => {
+      const diameter = Math.cbrt(
+        AIRLANDER.volume / (CONVENTIONAL_PRISMATIC_COEFFICIENT * (Math.PI / 4) * fineness),
+      )
+      const revolution = hullGeometry(
+        m(fineness * diameter),
+        fineness,
+        hullShapeForPrismatic(CONVENTIONAL_PRISMATIC_COEFFICIENT),
+      )
+      const coefficient = revolution.wettedArea / revolution.volume ** (2 / 3)
+      return AIRLANDER.wettedAreaCoefficient / coefficient - 1
+    }
+
+    // Against the fineness ratio this project's own hull uses, 11 percent.
+    expect(penaltyAt(5)).toBeGreaterThan(0.09)
+    expect(penaltyAt(5)).toBeLessThan(0.13)
+
+    // The comparison is genuinely fineness-dependent, which is why quoting one
+    // number without saying what it is against is how 63 percent survived. A
+    // stubby body of revolution is worse and a slender one is no better.
+    expect(penaltyAt(4)).toBeGreaterThan(penaltyAt(5))
+    expect(penaltyAt(7)).toBeLessThan(0.02)
+
+    // And nowhere near the figure the architecture chapter turned on.
+    expect(penaltyAt(4)).toBeLessThan(0.63 / 3)
   })
 
   it('degenerates to an ellipsoid at one lobe', () => {

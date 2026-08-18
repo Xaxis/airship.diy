@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 
+import { FIN_SECTION_POINTS, finHalfThickness, finLeadingEdgeSweep } from './three/ship'
+
 import { WebGLUnavailable } from './HullViewer'
 
 /**
@@ -665,14 +667,17 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
     {
       const { rootChord, tipChord, span, station, area, mass } = data.fins
       const rootR = radiusAt(station) * 0.78
-      const sweep = rootChord * 0.32
+      // Aligned trailing edges, so the sweep is what the taper leaves. This
+      // used to be 0.32 root chords, invented here, while the flight and marine
+      // views built the same fin at 0.5. One tail, one set of numbers in the
+      // mass statement, two shapes on the screen.
+      const sweep = finLeadingEdgeSweep(rootChord, tipChord)
       const y = xOf(station)
       const finMaterial = track(
         new THREE.MeshStandardMaterial({
           color: 0x46545f,
           roughness: 0.6,
           metalness: 0.14,
-          side: THREE.DoubleSide,
         }),
       )
 
@@ -681,35 +686,52 @@ export function ArrangementViewer({ data }: { data: ArrangementData }) {
       // of the propulsor outriggers.
       for (let i = 0; i < 4; i += 1) {
         const phi = (i / 4) * Math.PI * 2
-        // Radially outward in the section plane: +Z is up, +X is starboard.
+        // Radially outward in the section plane, and the section normal, which
+        // is perpendicular to it and to the chord.
         const ux = Math.sin(phi)
         const uz = Math.cos(phi)
-        const at = (r: number, chordOffset: number): [number, number, number] => [
-          ux * r,
-          y + chordOffset,
-          uz * r,
-        ]
-        const A = at(rootR, -rootChord / 2)
-        const B = at(rootR, rootChord / 2)
-        const C = at(rootR + span, sweep + tipChord / 2)
-        const D = at(rootR + span, sweep - tipChord / 2)
-        const g = track(new THREE.BufferGeometry())
-        g.setAttribute(
-          'position',
-          new THREE.Float32BufferAttribute([...A, ...B, ...C, ...A, ...C, ...D], 3),
+        const nx = uz
+        const nz = -ux
+
+        // Lofted between a root and a tip section rather than drawn as a flat
+        // plate: a control surface with no thickness has nowhere to put a
+        // hinge, and it read as a placeholder next to the other views.
+        const positions: number[] = []
+        const indices: number[] = []
+        const ring = (chord: number, radius: number, leadingEdgeOffset: number) => {
+          const start = positions.length / 3
+          for (let k = 0; k < FIN_SECTION_POINTS; k += 1) {
+            const angle = (k / FIN_SECTION_POINTS) * Math.PI * 2
+            const u = (1 - Math.cos(angle)) / 2
+            const side = angle <= Math.PI ? 1 : -1
+            const half = side * finHalfThickness(u, chord)
+            const along = leadingEdgeOffset - u * chord
+            positions.push(ux * radius + nx * half, y + along, uz * radius + nz * half)
+          }
+          return start
+        }
+        const root = ring(rootChord, rootR, rootChord / 2)
+        const tip = ring(tipChord, rootR + span, sweep + tipChord / 2)
+        for (let k = 0; k < FIN_SECTION_POINTS; k += 1) {
+          const next = (k + 1) % FIN_SECTION_POINTS
+          indices.push(root + k, tip + k, root + next)
+          indices.push(root + next, tip + k, tip + next)
+        }
+        const capCentre = positions.length / 3
+        positions.push(
+          ux * (rootR + span),
+          y + sweep,
+          uz * (rootR + span),
         )
+        for (let k = 0; k < FIN_SECTION_POINTS; k += 1) {
+          indices.push(capCentre, tip + k, tip + ((k + 1) % FIN_SECTION_POINTS))
+        }
+
+        const g = track(new THREE.BufferGeometry())
+        g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+        g.setIndex(indices)
         g.computeVertexNormals()
         const mesh = new THREE.Mesh(g, finMaterial)
-        mesh.add(
-          new THREE.Line(
-            track(
-              new THREE.BufferGeometry().setFromPoints(
-                [A, B, C, D, A].map((p) => new THREE.Vector3(...p)),
-              ),
-            ),
-            track(new THREE.LineBasicMaterial({ color: 0xe6edf3, transparent: true, opacity: 0.3 })),
-          ),
-        )
         register(
           mesh,
           i % 2 === 0 ? 'Vertical fin' : 'Horizontal fin',

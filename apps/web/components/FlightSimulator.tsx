@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { atmosphere, hullGeometry, hullRadiusAt, hullShapeForPrismatic } from '@airship/core'
+import { atmosphere, hullGeometry, hullShapeForPrismatic } from '@airship/core'
+
+import { buildShip } from './three/ship'
 import { WebGLUnavailable } from './HullViewer'
 import { REST, step, yawStaticMargin } from '@airship/solvers'
 import type { Controls, VehicleConfig, VehicleState } from '@airship/solvers'
@@ -155,71 +157,12 @@ export function FlightSimulator({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     container.appendChild(renderer.domElement)
 
-    // The airship, built from the same shape function the model sizes with.
-    const stations = 64
-    const profile: THREE.Vector2[] = []
-    for (let i = 0; i <= stations; i += 1) {
-      const s = i / stations
-      const r = hullRadiusAt(length as never, finenessRatio, s, shape)
-      profile.push(new THREE.Vector2(Math.max(r, 1e-3), s * length - length / 2))
-    }
-
-    const ship = new THREE.Group()
-    const hullGeom = new THREE.LatheGeometry(profile, 48)
-    ship.add(
-      new THREE.Mesh(
-        hullGeom,
-        new THREE.MeshStandardMaterial({ color: 0x39434f, metalness: 0.1, roughness: 0.8 }),
-      ),
-    )
-    ship.add(
-      new THREE.Mesh(
-        hullGeom,
-        new THREE.MeshBasicMaterial({ color: 0x5b6b7d, wireframe: true, transparent: true, opacity: 0.15 }),
-      ),
-    )
-
-    // Rings at the gas cell bulkheads, so the structure reads while moving.
-    const ringMaterial = new THREE.LineBasicMaterial({ color: 0x6ba8e5, transparent: true, opacity: 0.5 })
-    for (let c = 1; c < cellCount; c += 1) {
-      const s = c / cellCount
-      const r = hullRadiusAt(length as never, finenessRatio, s, shape)
-      const pts: THREE.Vector3[] = []
-      for (let a = 0; a <= 48; a += 1) {
-        const t = (a / 48) * Math.PI * 2
-        pts.push(new THREE.Vector3(Math.cos(t) * r, s * length - length / 2, Math.sin(t) * r))
-      }
-      ship.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), ringMaterial))
-    }
-
-    // Cruciform fins at the tail, drawn at the area the stability rule requires
-    // so the picture and the physics agree.
-    const finSpan = Math.sqrt(finArea / 4) * 1.4
-    const finGeom = new THREE.BoxGeometry(finSpan, finSpan * 0.9, 0.3)
-    const finMat = new THREE.MeshStandardMaterial({ color: 0x2b3947, metalness: 0.2, roughness: 0.7 })
-    const tailY = length * 0.36
-    for (let i = 0; i < 4; i += 1) {
-      const fin = new THREE.Mesh(finGeom, finMat)
-      const angle = (i * Math.PI) / 2
-      fin.position.set(Math.sin(angle) * finSpan * 0.55, tailY, Math.cos(angle) * finSpan * 0.55)
-      fin.rotation.y = -angle
-      ship.add(fin)
-    }
-
-    // Gondola, below the hull where the habitable volume has to be.
-    const gondola = new THREE.Mesh(
-      new THREE.CapsuleGeometry(length * 0.012, length * 0.1, 4, 12),
-      new THREE.MeshStandardMaterial({ color: 0x46525f, metalness: 0.3, roughness: 0.6 }),
-    )
-    gondola.rotation.z = Math.PI / 2
-    gondola.rotation.y = Math.PI / 2
-    gondola.position.set(0, -length * 0.08, -hullRadiusAt(length as never, finenessRatio, 0.34, shape) * 1.05)
-    ship.add(gondola)
-
-    // Lathe revolves about Y; rotate so the hull axis is the body x axis.
-    ship.rotation.z = Math.PI / 2
+    // The airship, from the shared model-driven geometry rather than from
+    // primitives invented here. This view used to draw its cruciform as a slab
+    // at station 0.36 and no propulsors at all.
+    const built = buildShip({ hullSegments: 48, wireframe: true })
     const shipPivot = new THREE.Group()
-    shipPivot.add(ship)
+    shipPivot.add(built.group)
     scene.add(shipPivot)
 
     // A ground grid, so motion and attitude are legible.
@@ -230,6 +173,12 @@ export function FlightSimulator({
     const sun = new THREE.DirectionalLight(0xffffff, 1.6)
     sun.position.set(0.6, 1, 0.4)
     scene.add(sun)
+    // A side fill, because the key light is nearly overhead and the cruciform's
+    // vertical surfaces face sideways. Without this the tail renders as a black
+    // slab: the one part of the vehicle whose shape is worth reading.
+    const fill = new THREE.DirectionalLight(0x8fb4dd, 0.55)
+    fill.position.set(-0.7, 0.15, -1)
+    scene.add(fill)
 
     // ---------------------------------------------------------------- controls
     const keys = held.current
@@ -361,8 +310,7 @@ export function FlightSimulator({
       container.removeEventListener('keydown', down)
       container.removeEventListener('keyup', up)
       renderer.dispose()
-      hullGeom.dispose()
-      finGeom.dispose()
+      built.dispose()
       container.removeChild(renderer.domElement)
       setRunning(false)
     }
