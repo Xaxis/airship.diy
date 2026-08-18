@@ -51,6 +51,20 @@ export interface HullGeometry {
   readonly wettedArea: SquareMeters
   /** Maximum cross-sectional area, at the station of maximum diameter. */
   readonly maxCrossSection: SquareMeters
+  /**
+   * Projected planform area looking down on the hull, m2.
+   *
+   * WHAT THE RAIN LANDS ON, and what a plan-view drawing measures. It is NOT
+   * the volume divided by anything: the mission integrator used to compute the
+   * catchment as `0.72 * length * maxDiameter`, and 0.72 is the top of the
+   * range quoted for the VOLUMETRIC prismatic coefficient a few lines above.
+   * An area coefficient and a volume coefficient are different quantities and
+   * the plan one is always the larger for a given profile, so the catchment was
+   * understated by a coefficient borrowed from the wrong integral.
+   */
+  readonly planArea: SquareMeters
+  /** planArea / (length * maxDiameter). Runs about 0.70 to 0.81 over the shape family. */
+  readonly planCoefficient: number
   /** V / (A_max * L). About 0.65 to 0.72 for a well-formed airship hull. */
   readonly prismaticCoefficient: number
   /**
@@ -287,6 +301,13 @@ export const hullGeometry = (
   // Volume of revolution: V = integral of pi * r^2 dx, with dx in metres.
   const volume = Math.PI * length * integrate((x) => radiusAt(x) ** 2, PANELS)
 
+  /**
+   * @derived The projected planform, by the same quadrature as the volume:
+   * twice the integral of the radius along the length, because the plan view is
+   * bounded by +r and -r.
+   */
+  const planArea = 2 * length * integrate((x) => radiusAt(x), PANELS)
+
   // Wetted area of revolution: A = integral of 2*pi*r*sqrt(1 + (dr/dz)^2) dz.
   // The derivative is taken with respect to the physical axial coordinate, so
   // the chain rule brings in a factor of 1/length.
@@ -312,6 +333,8 @@ export const hullGeometry = (
     maxDiameter: m(maxDiameter),
     finenessRatio,
     volume: m3(volume),
+    planArea: m2(planArea),
+    planCoefficient: planArea / (length * maxDiameter),
     wettedArea: m2(wettedArea),
     maxCrossSection: m2(maxCrossSection),
     prismaticCoefficient: volume / (maxCrossSection * length),

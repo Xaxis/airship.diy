@@ -37,11 +37,18 @@
  * Two structural corrections to the comparison, both of which flatter this
  * project and should be applied honestly rather than quietly:
  *
- *   - Gas choice accounts for about a third of the Macon-to-Hindenburg gap.
- *     Hydrogen gives 8.36 percent more gross lift than helium at the same
- *     volume and purity, so correcting Macon to a hydrogen-equivalent gross
- *     lift moves 60.1 percent to 55.5 percent. Of the 11 point gap, roughly
- *     4.6 points is gas and only about 6 points is structural design.
+ *   - Gas choice accounts for MORE THAN HALF of the Macon-to-Hindenburg gap.
+ *     Correcting Macon to a hydrogen-equivalent gross lift moves it from 60.1
+ *     percent to 55.7, against Hindenburg's 51.8. So of the 8.3 point gap,
+ *     4.4 points is gas and 3.9 is structural design.
+ *
+ *     The figures here are `benchmark()`'s, not this comment's. It used to say
+ *     "about a third" and "11 points, roughly 4.6 gas and about 6 structural",
+ *     which is three errors in one sentence: the 11 points was the gap against
+ *     a Hindenburg figure this same file had already retracted, 4.6 plus 6 is
+ *     10.6 and does not close on 11, and gas is 53 percent of the gap rather
+ *     than a third. The hydrogen advantage it quoted, 8.36 percent, was itself
+ *     a literal that the buoyancy module contradicts at 7.96.
  *   - Material matters more than size. R101 at 76.9 percent is the only ship in
  *     the set with a stainless steel primary structure. R100, built to the same
  *     Air Ministry specification in the same year in duralumin, came in at 67.4
@@ -224,17 +231,61 @@ export const EMPTY_WEIGHT_PER_GAS_VOLUME = {
  * mission is about 30 percentage points of mass fraction, which swamps any size
  * trend over that range.
  */
+/**
+ * Ordinary least squares on log(emptyWeight) against log(gasVolume).
+ *
+ * COMPUTED FROM THE TABLE RATHER THAN STORED BESIDE IT. `allShipsExponent` was
+ * the literal 1.13 with an R^2 of 0.94, described as the fit over all eight
+ * ships. It is not: the fit is 1.0603 with an R^2 of 0.9580, and no variant of
+ * the regression reproduces the stored pair. Dropping any single ship gives
+ * 1.000 to 1.101, and R^2 = 0.9338 is what a LINEAR kilograms-against-cubic-
+ * metres fit gives, whose slope is 0.640 kg/m3 and is not an exponent at all,
+ * so the two stored numbers appear to have come from different regressions.
+ *
+ * It is not a decorative value: it is the top rung of the exponent ladder in
+ * `mass-fraction.ts` and it is rendered on the structure page.
+ */
+const fitExponent = (): { exponent: number; rSquared: number; standardError: number } => {
+  const points = STRUCTURAL_FLEET.map((ship) => [
+    Math.log(ship.gasVolume),
+    Math.log(ship.emptyWeight),
+  ])
+  const n = points.length
+  const meanX = points.reduce((sum, p) => sum + (p[0] as number), 0) / n
+  const meanY = points.reduce((sum, p) => sum + (p[1] as number), 0) / n
+  const sxy = points.reduce((sum, p) => sum + ((p[0] as number) - meanX) * ((p[1] as number) - meanY), 0)
+  const sxx = points.reduce((sum, p) => sum + ((p[0] as number) - meanX) ** 2, 0)
+  const slope = sxy / sxx
+  const intercept = meanY - slope * meanX
+  const residual = points.reduce(
+    (sum, p) => sum + ((p[1] as number) - (intercept + slope * (p[0] as number))) ** 2,
+    0,
+  )
+  const total = points.reduce((sum, p) => sum + ((p[1] as number) - meanY) ** 2, 0)
+  return {
+    exponent: slope,
+    rSquared: 1 - residual / total,
+    standardError: Math.sqrt(residual / (n - 2) / sxx),
+  }
+}
+
+const FIT = fitExponent()
+
 export const STRUCTURAL_SCALING = {
   /**
-   * Fitted over all eight ships. High R^2, wide volume span, mixed everything,
-   * AND NOT ROBUST. The fit is dominated by two derived clusters over a 3.3 to 1
-   * volume range, and the mass-fraction scatter from gas, alloy and national
-   * practice is larger than the size trend it is trying to measure. Treat the
-   * usable range as 0.67 to 1.15 with a nominal near 1.0, which is what the
-   * sweep does.
+   * Fitted over all eight ships, from the table above rather than asserted.
+   *
+   * High R^2, wide volume span, mixed everything, AND NOT ROBUST. The fit is
+   * dominated by two derived clusters over a 3.3 to 1 volume range, and the
+   * mass-fraction scatter from gas, alloy and national practice is larger than
+   * the size trend it is trying to measure. Its standard error is 0.091, so the
+   * 95 percent interval runs 0.88 to 1.24 and the record genuinely cannot
+   * distinguish a linear law from a slightly superlinear one.
    */
-  allShipsExponent: 1.13,
-  allShipsRSquared: 0.94,
+  allShipsExponent: FIT.exponent,
+  allShipsRSquared: FIT.rSquared,
+  /** Standard error of the fitted exponent. The reason the ladder is a ladder. */
+  allShipsStandardError: FIT.standardError,
   /** The honest nominal, and the value the sizing prior should use. */
   robustNominalExponent: 1.0,
   robustExponentLow: 0.67,

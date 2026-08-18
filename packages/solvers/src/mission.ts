@@ -172,7 +172,12 @@ export const integrateMission = (
    * @derived plan area times annual rainfall times collection efficiency,
    * spread over the year.
    */
-  const planArea = 0.72 * hull.length * hull.maxDiameter
+  // FROM THE HULL, not a coefficient borrowed from a different integral. This
+  // was `0.72 * length * maxDiameter`, and 0.72 is the top of the range quoted
+  // for the VOLUMETRIC prismatic coefficient in hull.ts. The plan coefficient
+  // is a different quantity and is always the larger of the two: 0.793 here, so
+  // the catchment was understated by ten percent.
+  const planArea = hull.planArea as number
   const dailyCatchment =
     (planArea * v(CATCHMENT.tradeWindBeltAnnualRainfall) * v(CATCHMENT.collectionEfficiency) * 1000) /
     SI.DAYS_PER_YEAR

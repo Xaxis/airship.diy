@@ -101,7 +101,14 @@ export const massFractionAt = (volume: CubicMeters, exponent: number): MassFract
  * @source STRUCTURAL_SCALING in packages/data, plus two interpolated points.
  */
 const DEFAULT_EXPONENTS: readonly number[] = [
-  STRUCTURAL_SCALING.allShipsExponent,
+  // The TOP OF THE CONFIDENCE INTERVAL, not the fit. The fit is 1.06, which
+  // sits so close to the linear rung below it that the ladder would stop
+  // spanning the bigger-is-worse end at all. 1.15 is inside the fitted 95
+  // percent interval of 0.88 to 1.24, so it is a value the record admits.
+  //
+  // This rung used to be `allShipsExponent`, which was the literal 1.13 and is
+  // now the computed 1.06.
+  STRUCTURAL_SCALING.robustExponentHigh,
   1.0,
   0.9,
   0.8,
