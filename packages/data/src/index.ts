@@ -87,3 +87,4 @@ export {
   EMPTY_WEIGHT_PER_GAS_VOLUME,
   STRUCTURAL_SCALING,
 } from './validation/structural-fleet.js'
+export { SOLAR, ENVELOPE_OPTICS, ENVELOPE_CONVECTION, SKY } from './thermal.js'

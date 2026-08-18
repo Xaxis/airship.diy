@@ -216,11 +216,29 @@ export default function Page() {
             title={`A ${ballast.tankVolume.toFixed(1)} m³ seawater bladder and a ${ballast.pumpPower.toFixed(0)} W pump`}
           >
             <p>
-              {ballast.superheat} kelvin of solar superheat moves the lift by{' '}
+              {ballast.swing.toFixed(1)} kelvin of diurnal swing moves the lift by{' '}
               {fmt(ballast.excursion)} kg against a {fmt(ballast.landingTrim)} kg landing trim, so
               the vehicle takes itself off by mid-afternoon and presses that onto its gear before
               dawn. No passive device can be sized for a load that swings by{' '}
               {(ballast.excursion / ballast.landingTrim).toFixed(1)} times the trim, twice a day.
+            </p>
+            <p>
+              That swing is computed rather than assumed, and it is not the number this project
+              used to carry. It was graded against a flat 20 K of superheat, described as the
+              standard figure for a dark envelope. This envelope is not dark: the cover is
+              reflective by design and only the array is optically black, so the clear-sky peak is
+              nearer {ballast.superheat.toFixed(1)} K. The half that was missing entirely is
+              supercooling. On a clear night the sky radiates as though it were 25 K colder than
+              the air, the hull follows it down, and the gas goes {ballast.supercooling.toFixed(1)} K
+              BELOW ambient. That is the excursion that puts the ship on its float, and it adds to
+              the superheat rather than cancelling it.
+            </p>
+            <p>
+              The worst superheat case is also not the obvious one. It arrives at{' '}
+              {(ballast.superheatCloudCover * 100).toFixed(0)} percent cloud, not a clear sky,
+              because cloud turns beam into diffuse and diffuse lands on half a convex hull where a
+              beam lands on a quarter of it, while the total irradiance barely moves until the sky
+              is mostly covered.
             </p>
             <p>
               A vehicle afloat is sitting on unlimited ballast, and moving water costs about a

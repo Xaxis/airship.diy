@@ -107,8 +107,10 @@ export default function Home() {
           </Callout>
           <Callout title="The ocean is the ballast" tone="pass">
             <p>
-              {ballast.superheat} kelvin of superheat moves lift by {fmt(ballast.excursion)} kg
-              against a {fmt(ballast.landingTrim)} kg landing trim. The vehicle takes itself off by
+              {ballast.swing.toFixed(1)} kelvin of diurnal swing, {ballast.superheat.toFixed(1)} K of
+              superheat under broken cloud and {ballast.supercooling.toFixed(1)} K of supercooling
+              under a clear night sky, moves lift by {fmt(ballast.excursion)} kg against a{' '}
+              {fmt(ballast.landingTrim)} kg landing trim. The vehicle takes itself off by
               mid-afternoon and presses that onto its gear before dawn, and no passive device can be
               sized for a load that swings by {(ballast.excursion / ballast.landingTrim).toFixed(1)}{' '}
               times the trim, twice a day.

@@ -67,6 +67,7 @@ import {
   LANDING_TRIM,
   wingSizing,
   massStatement,
+  thermalDesignCase,
   validateArrangement,
   finPlanform,
   smallestClosingLength,
@@ -437,19 +438,24 @@ export const diagnostics = (() => {
  */
 export const ballast = (() => {
   const statement = massStatement(BASELINE, BASELINE_ARRANGEMENT)
-  /** @source The superheat excursion the gate is written against, K. */
-  const SUPERHEAT = 20
+  // The THIRD copy of a 20 K literal in this repository, now gone. It is the
+  // computed diurnal swing, which is the peak-to-peak the loop has to move the
+  // ship across and not the superheat alone.
+  const thermal = thermalDesignCase(BASELINE)
   const superheatAir = atmosphere(m(0))
   const excursion = superheatHeavinessExcursion(
     statement.seaLevelGrossLift,
-    SUPERHEAT,
+    thermal.swing,
     pure(BASELINE.gas.species),
     superheatAir,
     BASELINE.gas.seaLevelFillFraction,
   )
   const loop = ballastLoop(excursion, LANDING_TRIM, BASELINE.loads.habitatPower)
   return {
-    superheat: SUPERHEAT,
+    superheat: thermal.superheat,
+    supercooling: thermal.supercooling,
+    swing: thermal.swing,
+    superheatCloudCover: thermal.superheatCloudCover,
     excursion,
     landingTrim: LANDING_TRIM,
     tankVolume: loop.tankVolume,

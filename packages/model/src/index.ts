@@ -30,6 +30,7 @@ export {
   LANDING_TRIM,
   finPlanform,
   massStatement,
+  thermalDesignCase,
   validateArrangement,
   smallestClosingLength,
   hullBendingMoment,

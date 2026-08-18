@@ -7,6 +7,8 @@ import {
   ballastLoop,
   crossSectionDistribution,
   coveredArea,
+  designThermalCase,
+  type ThermalDesignCase,
   criticalDuctDiameter,
   grossLift,
   hullGeometry,
@@ -29,9 +31,12 @@ import {
 import {
   AKRON_STRUCTURE,
   barrierFilm,
+  CONSTANTS,
   CREW,
   EMPTY_WEIGHT_PER_GAS_VOLUME,
   ENGINE_CONSUMABLES,
+  GAS,
+  SOLAR,
   v,
 } from '@airship/data'
 import { kg, m, m3, K, rad, kgPerM3, W, SI } from '@airship/units'
@@ -143,14 +148,117 @@ const CELL_NETTING_AREAL_MASS = 0.06
 export const LANDING_TRIM = 600
 
 /**
- * @source Solar superheat the design is graded against, K. Twenty kelvin is the
- * standard figure for a dark envelope in still air at midday.
+ * The thermal excursion the design is graded against, COMPUTED.
  *
- * ONE OF THESE. The gear sizing and the superheat gate each carried their own
- * copy of the excursion, computed against different lift bases, so the same
- * 20 K produced 2,307 kg in one place and 2,230 kg in the other.
+ * IT WAS 20 K, WRITTEN DOWN. The comment called it "the standard figure for a
+ * dark envelope in still air at midday", and it sized the seawater ballast
+ * loop, the alighting gear and the landing trim. Three things were wrong with
+ * that beyond it being uncited.
+ *
+ * This envelope is not dark. A large airship's cover is white or aluminised
+ * precisely to keep superheat down, and only the array is optically black. At
+ * the coverage this design carries, the hull absorbs a good deal less than the
+ * figure assumed, and the computed clear-sky peak is around 7.5 K.
+ *
+ * There was no supercooling number at all. On a clear night the sky radiates
+ * as though it were 25 K colder than the air, the hull follows it down, and the
+ * gas goes BELOW ambient. That excursion makes the ship heavy, and heavy is the
+ * direction that puts it on its float. It is worth about 7 K here, so the swing
+ * the ballast loop actually has to track is larger than the superheat alone.
+ *
+ * And the worst case is not the obvious one. Superheat peaks under BROKEN
+ * CLOUD, not clear sky, because cloud converts beam into diffuse and diffuse
+ * couples to a convex hull through half its area rather than a quarter, while
+ * the total irradiance barely moves until the sky is mostly covered. See
+ * `designThermalCase`.
  */
-export const DESIGN_SUPERHEAT = 20
+const thermalCache = new Map<string, ThermalDesignCase>()
+
+/**
+ * Memoised on the inputs that actually reach the balance, not on the design
+ * object.
+ *
+ * It has to be the values. `smallestClosingLength` bisects on hull length by
+ * building a fresh design point per candidate, so identity caching missed on
+ * every call and the sizing search timed out. Keying on the fields the thermal
+ * model reads means a length sweep still pays per length, which is correct
+ * because length genuinely moves the answer: gas mass goes as the cube and
+ * exchange area as the square, so the time constant grows with the ship.
+ */
+export const thermalDesignCase = (design: DesignPoint): ThermalDesignCase => {
+  const key = [
+    design.hull.length,
+    design.hull.finenessRatio,
+    design.hull.prismaticCoefficient,
+    design.gas.seaLevelFillFraction,
+    design.mission.latitude,
+    design.mission.altitude,
+    design.power.arrayCoverageHalfAngle,
+    design.power.arrayForwardStation,
+    design.power.arrayAftStation,
+    design.power.moduleEfficiency,
+  ].join(':')
+  const cached = thermalCache.get(key)
+  if (cached) return cached
+  const computed = computeThermalDesignCase(design)
+  thermalCache.set(key, computed)
+  return computed
+}
+
+const computeThermalDesignCase = (design: DesignPoint): ThermalDesignCase => {
+  const { length, finenessRatio, prismaticCoefficient } = design.hull
+  const geometry = hullGeometry(m(length), finenessRatio, hullShapeForPrismatic(prismaticCoefficient))
+  const air = atmosphere(m(design.mission.altitude))
+  const arrayArea = coveredArea({
+    length: m(length),
+    finenessRatio,
+    coverageHalfAngle: rad(design.power.arrayCoverageHalfAngle),
+    forwardStation: design.power.arrayForwardStation,
+    aftStation: design.power.arrayAftStation,
+    shape: hullShapeForPrismatic(prismaticCoefficient),
+  })
+
+  /**
+   * @derived Lifting gas mass at the station altitude, from its own density and
+   * the hull volume it fills.
+   *
+   * Taken from the GEOMETRY rather than from `massStatement`, deliberately: the
+   * mass statement sizes the alighting gear against the superheat excursion, so
+   * asking it for a gas mass in order to compute that excursion is a cycle. The
+   * gas mass sets the thermal time constant and barely touches the peak, so the
+   * keel corridor this ignores is well inside the uncertainty on the internal
+   * convection coefficient.
+   */
+  const gasDensity =
+    (GAS.hydrogen.molarMass * (air.pressure as number)) /
+    (v(CONSTANTS.R) * (air.temperature as number))
+  const gasVolume = (geometry.volume as number) * design.gas.seaLevelFillFraction
+
+  return designThermalCase({
+    latitude: (design.mission.latitude as number) * (180 / Math.PI),
+    /** @source Northern summer solstice, the worst solar case for this station. */
+    dayOfYear: 172,
+    gasMass: gasVolume * gasDensity,
+    gasSpecificHeat: GAS.hydrogen.specificHeat,
+    envelopeArea: geometry.wettedArea,
+    /** @source Diurnal air temperature range over open ocean, K. Land is far larger. */
+    airTemperatureSwing: 6,
+    conditions: {
+      airTemperature: air.temperature,
+      surfaceTemperature: air.temperature,
+      // STATION-KEEPING, WHICH IS THE HOT CASE. Forced convection at cruise
+      // sheds solar gain about four times better than still air, and this
+      // vehicle's whole purpose is to hold position rather than to cruise.
+      airspeed: 0,
+      hullLength: length,
+      kinematicViscosity: (air.dynamicViscosity as number) / (air.density as number),
+      arrayCoverage: arrayArea / (geometry.wettedArea as number),
+      arrayEfficiency: design.power.moduleEfficiency,
+      surfaceAlbedo: v(SOLAR.oceanAlbedo),
+      cloudCover: 0,
+    },
+  })
+}
 
 /**
  * The consumables the mission integrator has to be given, read off the
@@ -570,7 +678,7 @@ export const massStatement = (design: DesignPoint, config: Configuration): MassS
     LANDING_TRIM,
     superheatHeavinessExcursion(
       liftForGear,
-      DESIGN_SUPERHEAT,
+      thermalDesignCase(design).swing,
       pure(design.gas.species),
       seaLevelForGear,
       design.gas.seaLevelFillFraction,
@@ -1155,9 +1263,10 @@ export const validateArrangement = (
   // From the SEA LEVEL lift, which is where every ground and water case
   // happens, and the same basis the gear is sized on.
   const seaLevelForSuperheat = atmosphere(m(0))
+  const thermal = thermalDesignCase(design)
   const excursion = superheatHeavinessExcursion(
     statement.seaLevelGrossLift,
-    DESIGN_SUPERHEAT,
+    thermal.swing,
     pure(design.gas.species),
     seaLevelForSuperheat,
     design.gas.seaLevelFillFraction,
@@ -1182,10 +1291,10 @@ export const validateArrangement = (
     rule: `The daily superheat lift excursion is answered, by a trim that swallows it or by a ballast loop that tracks it.`,
     detail:
       excursion <= LANDING_TRIM
-        ? `${DESIGN_SUPERHEAT} K of superheat moves lift by ${excursion.toFixed(0)} kg against a ${LANDING_TRIM} kg landing trim, so a passive float can be sized for it.`
+        ? `${thermal.swing.toFixed(1)} K of diurnal swing, ${thermal.superheat.toFixed(1)} K of superheat at ${(thermal.superheatCloudCover * 100).toFixed(0)} percent cloud and ${thermal.supercooling.toFixed(1)} K of supercooling under a clear night sky, moves lift by ${excursion.toFixed(0)} kg against a ${LANDING_TRIM} kg landing trim, so a passive float can be sized for it.`
         : covered
-          ? `${DESIGN_SUPERHEAT} K of superheat moves lift by ${excursion.toFixed(0)} kg, which is ${(excursion / LANDING_TRIM).toFixed(1)} times the ${LANDING_TRIM} kg the vehicle rests on water at, so NO PASSIVE WATER-CONTACT DEVICE CAN BE SIZED FOR IT: a relief valve set for the trim is bypassed at the night load and useless at the day load. The arrangement answers it with ${ballastCapacity.toFixed(1)} m3 of seawater bladder against the ${loop.tankVolume.toFixed(1)} m3 the swing needs, pumped at ${loop.transferRate.toFixed(0)} kg a minute on ${loop.pumpPower.toFixed(0)} W. THE OCEAN IS THE BALLAST and moving water costs about a three-thousandth of what compressing lifting gas does. It works only afloat, which is where the problem is.`
-          : `${DESIGN_SUPERHEAT} K of superheat moves lift by ${excursion.toFixed(0)} kg, which is ${(excursion / LANDING_TRIM).toFixed(1)} times the ${LANDING_TRIM} kg the vehicle rests on water at. The ship floats off its float in the afternoon and presses ${(excursion / 1000).toFixed(1)} tonnes onto it before dawn, every day. NO PASSIVE WATER-CONTACT DEVICE CAN BE SIZED FOR A LOAD THAT SWINGS BY THAT FACTOR TWICE A DAY. The arrangement carries ${ballastCapacity.toFixed(1)} m3 of ballast capacity against the ${loop.tankVolume.toFixed(1)} m3 the swing needs, so either the bladder grows or the vehicle does not rest on the surface at all.`,
+          ? `${thermal.swing.toFixed(1)} K of diurnal swing, ${thermal.superheat.toFixed(1)} K of superheat at ${(thermal.superheatCloudCover * 100).toFixed(0)} percent cloud and ${thermal.supercooling.toFixed(1)} K of supercooling under a clear night sky, moves lift by ${excursion.toFixed(0)} kg, which is ${(excursion / LANDING_TRIM).toFixed(1)} times the ${LANDING_TRIM} kg the vehicle rests on water at, so NO PASSIVE WATER-CONTACT DEVICE CAN BE SIZED FOR IT: a relief valve set for the trim is bypassed at the night load and useless at the day load. The arrangement answers it with ${ballastCapacity.toFixed(1)} m3 of seawater bladder against the ${loop.tankVolume.toFixed(1)} m3 the swing needs, pumped at ${loop.transferRate.toFixed(0)} kg a minute on ${loop.pumpPower.toFixed(0)} W. THE OCEAN IS THE BALLAST and moving water costs about a three-thousandth of what compressing lifting gas does. It works only afloat, which is where the problem is.`
+          : `${thermal.swing.toFixed(1)} K of diurnal swing, ${thermal.superheat.toFixed(1)} K of superheat at ${(thermal.superheatCloudCover * 100).toFixed(0)} percent cloud and ${thermal.supercooling.toFixed(1)} K of supercooling under a clear night sky, moves lift by ${excursion.toFixed(0)} kg, which is ${(excursion / LANDING_TRIM).toFixed(1)} times the ${LANDING_TRIM} kg the vehicle rests on water at. The ship floats off its float in the afternoon and presses ${(excursion / 1000).toFixed(1)} tonnes onto it before dawn, every day. NO PASSIVE WATER-CONTACT DEVICE CAN BE SIZED FOR A LOAD THAT SWINGS BY THAT FACTOR TWICE A DAY. The arrangement carries ${ballastCapacity.toFixed(1)} m3 of ballast capacity against the ${loop.tankVolume.toFixed(1)} m3 the swing needs, so either the bladder grows or the vehicle does not rest on the surface at all.`,
   })
 
   // ---- propulsion --------------------------------------------------------

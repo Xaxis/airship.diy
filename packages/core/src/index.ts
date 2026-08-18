@@ -269,3 +269,5 @@ export {
   pure,
   STANDARD_GAS_TEMPERATURE,
 } from './buoyancy.js'
+
+export * from './thermal.js'
