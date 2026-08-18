@@ -193,6 +193,7 @@ export {
   annualLossFraction,
   dailyMakeupMass,
   cellFilmArea,
+  cellSeamLength,
 } from './permeation.js'
 
 export {

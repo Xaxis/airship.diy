@@ -193,3 +193,45 @@ export const cellFilmArea = (
 
   return (hullWettedArea + 2 * bulkheads * averageCrossSection) as SquareMeters
 }
+
+/**
+ * Seam length in a set of gas cells, in metres.
+ *
+ * Two sources, and they scale differently, which is why this is computed rather
+ * than carried as a length per unit area:
+ *
+ *   1. Panel seams. Film arrives on a roll of fixed converting width, so
+ *      joining strips edge to edge costs one over that width for every square
+ *      metre of cell, wherever the square metre is.
+ *   2. Bulkhead attachment. Each internal bulkhead is a disc joined to the cell
+ *      wall around its perimeter, on both faces, and the perimeter goes as the
+ *      square root of the cross-section while the area goes as the whole thing.
+ *
+ * So the ratio between them moves with cell count and with fineness, and a
+ * single per-area figure is only right for the ship it was fitted on. The build
+ * module carried 0.84 m per square metre, described as "one over the roll width
+ * plus the bulkhead face perimeters"; one over 1.37 is 0.73, so 0.11 of it was
+ * a bulkhead term that had been fitted once and then frozen. At the baseline
+ * this returns 0.83 per square metre, so the number was very nearly right and
+ * would not have stayed right through a change of cell count, which is exactly
+ * the change the build chapter proposes as a mitigation.
+ *
+ * @derived Circular cross-section assumed for the bulkhead perimeter, from the
+ * average cross-sectional area: P = 2*sqrt(pi*A).
+ */
+export const cellSeamLength = (
+  filmArea: SquareMeters,
+  hullVolume: number,
+  length: number,
+  cellCount: number,
+  convertingWidth: number,
+): number => {
+  if (cellCount < 1) throw new RangeError('A hull needs at least one gas cell.')
+  if (convertingWidth <= 0) throw new RangeError('Film arrives on a roll of positive width.')
+
+  const averageCrossSection = hullVolume / length
+  const bulkheads = cellCount - 1
+  const bulkheadPerimeter = 2 * Math.sqrt(Math.PI * averageCrossSection)
+
+  return (filmArea as number) / convertingWidth + 2 * bulkheads * bulkheadPerimeter
+}

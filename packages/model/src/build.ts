@@ -1,6 +1,7 @@
 import {
   atmosphere,
   cellFilmArea,
+  cellSeamLength,
   frameSchedule,
   laminate,
   coveredArea,
@@ -522,11 +523,18 @@ const PRACTISED_RATE = 0.6
 const UNPRACTISED_RATE = 2
 
 /**
- * @source Seam length per square metre of gas cell film: one over the roll
- * width, plus the bulkhead face perimeters. At a 1.37 m converting width that
- * is 0.84 m of seam for every square metre of cell.
+ * @source Converting width of barrier film, m. 54 inches is the standard roll
+ * for laminated barrier stock; wider is a special order.
+ *
+ * The seam length it implies is now computed by `cellSeamLength` rather than
+ * carried here as 0.84 m per square metre. That figure was described as one
+ * over this width plus the bulkhead perimeters, but one over 1.37 is 0.73, so
+ * 0.11 of it was a bulkhead term fitted once at one cell count. The bulkhead
+ * term goes as the square root of the cross-section while the film area goes as
+ * the whole thing, so the ratio moves with cell count, and cell count is one of
+ * the things the build chapter proposes changing.
  */
-const SEAM_PER_FILM_AREA = 0.84
+const FILM_CONVERTING_WIDTH = 1.37
 
 /** @derived Metres in a kilometre. */
 const METRES_PER_KM = 1000
@@ -618,7 +626,7 @@ export const labourEstimate = (design: DesignPoint, config: Configuration): Labo
       filmArea * fabricRate,
       filmArea * bounds(BUILD_LABOUR.fabricRate)[0],
       filmArea * bounds(BUILD_LABOUR.fabricRate)[1],
-      `${filmArea.toFixed(0)} m2 of film across ${cellCount} cells, plus about ${((filmArea * SEAM_PER_FILM_AREA) / METRES_PER_KM).toFixed(1)} km of seam. EVERY METRE OF IT HAS TO HOLD, and how tightly is an open question rather than a number this model can state: the purity budget is set by nitrogen coming IN through the film, while a cell held a few hundred pascals above ambient loses hydrogen OUT through a defect and purges inward leakage as it does so. The two do not share an arithmetic, and the seam requirement is the leak rate one, which needs the sniff test to answer.`,
+      `${filmArea.toFixed(0)} m2 of film across ${cellCount} cells, plus about ${(cellSeamLength(filmArea, mass.gasVolume, length, cellCount, FILM_CONVERTING_WIDTH) / METRES_PER_KM).toFixed(1)} km of seam. EVERY METRE OF IT HAS TO HOLD, and how tightly is an open question rather than a number this model can state: the purity budget is set by nitrogen coming IN through the film, while a cell held a few hundred pascals above ambient loses hydrogen OUT through a defect and purges inward leakage as it does so. The two do not share an arithmetic, and the seam requirement is the leak rate one, which needs the sniff test to answer.`,
     ),
     task(
       'cover',
