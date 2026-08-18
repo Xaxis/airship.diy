@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="airship.diy">
+  <!-- airship.diy: a buoyant hull resting ON a waterline, which is the whole
+       thesis of the vehicle. It is not half-immersed, because it is not: the
+       gondola floats on about twenty-four millimetres of draught and the hull
+       never touches the water at all.
+
+       Drawn rather than fetched. The Content-Security-Policy on this site
+       forbids loading anything off-origin, and a site should not make an
+       exception for its own icon. -->
+  <rect width="32" height="32" rx="6" fill="#0a0c0f"/>
+  <!-- the hull, in side elevation at the fineness ratio the model actually uses -->
+  <ellipse cx="15.5" cy="12.6" rx="11" ry="4.4" fill="#6ba8e5"/>
+  <!-- the cruciform tail, which is enormous on this vehicle and had to be -->
+  <path d="M26 12.6 L30 8.6 L30 16.6 Z" fill="#6ba8e5" opacity="0.7"/>
+  <!-- the gondola: the only part that is ever in the water -->
+  <rect x="12" y="16.4" width="7" height="2.3" rx="1.15" fill="#6ba8e5"/>
+  <!-- the waterline it rests on -->
+  <line x1="3.5" y1="20.4" x2="28.5" y2="20.4" stroke="#61707f" stroke-width="1.7" stroke-linecap="round"/>
+  <line x1="6.5" y1="24" x2="25.5" y2="24" stroke="#61707f" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+</svg>

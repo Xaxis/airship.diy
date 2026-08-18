@@ -14,7 +14,7 @@ SHELL := /bin/bash
 .PHONY: help install build type-check lint test validate report uncertainty \
         prose check check-fast clean web web-build web-lint web-type-check \
         web-responsive-check operations \
-        web-check deploy deploy-check citations
+        web-check deploy deploy-check citations og
 
 help: ## List available targets
 	@grep -hE '^[a-z][a-z-]*:.*?## ' $(MAKEFILE_LIST) \
@@ -59,6 +59,12 @@ report: build ## Headless run of the physics. No browser, no bundler, no test ru
 	@node tools/report-lift.mjs
 	@node tools/report-loop.mjs
 	@node tools/report-mission.mjs
+
+og: build ## Regenerate the Open Graph card from the model's own figures
+	# The card carries the hull length, the endurance and the gross weight. A
+	# social card is the first thing anybody sees and the last thing anybody
+	# thinks to regenerate, so it is generated rather than drawn.
+	@node tools/generate-og.mjs
 
 operations: build ## Regenerate docs/OPERATIONS.md from the model
 	# An operating limit is a number the model computes, and a manual that

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 
 import { ROUTES } from '../../lib/routes'
+import { Mark } from './Mark'
 
 /**
  * The navigation, on every page.
@@ -26,8 +27,9 @@ export function Nav() {
       <div className="mx-auto flex max-w-6xl items-center gap-4 px-5 py-3 sm:px-8">
         <Link
           href="/"
-          className="tap num shrink-0 text-xs tracking-[0.2em] text-[var(--color-accent)] transition-opacity hover:opacity-80"
+          className="tap num flex shrink-0 items-center gap-2 text-xs tracking-[0.2em] text-[var(--color-accent)] transition-opacity hover:opacity-80"
         >
+          <Mark />
           AIRSHIP.DIY
         </Link>
 
