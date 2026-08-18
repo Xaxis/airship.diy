@@ -11,6 +11,7 @@ import {
   hydrogenRoundTripEfficiency,
   powerRequired,
   makeupPower,
+  annualLossFraction,
   specificLift,
 } from '@airship/core'
 import type { ArrayLayout } from '@airship/core'
@@ -239,9 +240,21 @@ export const energyBalance = (design: DesignPoint): EnergyBalanceResult => {
   }
 
   const worst = days.reduce((a, b) => (a.surplus / a.solarRequired < b.surplus / b.solarRequired ? a : b))
-  const annualGenerated = days.reduce((sum, d) => sum + d.generated, 0)
-  const annualRequired = days.reduce((sum, d) => sum + d.solarRequired, 0)
-  const annualDemand = days.reduce((sum, d) => sum + d.demand, 0)
+  /**
+   * @derived The sample is DAYS_IN_SAMPLE days long and a year is DAYS_PER_YEAR.
+   *
+   * THE SCALING THIS FILE'S OWN DOCSTRING PROMISES, and did not apply. The three
+   * annual sums were raw totals over 365 sampled days while `habitatEnergy`,
+   * `propulsionEnergy` and `liftMakeupEnergy` thirty lines below multiply by
+   * 365.2425, so this file carried two annual energy figures for one vehicle
+   * that disagreed by exactly that ratio, having opened by warning that
+   * "writing 365 inline in a solver is how an annualised figure ends up
+   * disagreeing with itself".
+   */
+  const YEAR_SCALE = DAYS_PER_YEAR / DAYS_IN_SAMPLE
+  const annualGenerated = days.reduce((sum, d) => sum + d.generated, 0) * YEAR_SCALE
+  const annualRequired = days.reduce((sum, d) => sum + d.solarRequired, 0) * YEAR_SCALE
+  const annualDemand = days.reduce((sum, d) => sum + d.demand, 0) * YEAR_SCALE
 
   const closes = worst.surplus > 0
 
@@ -265,10 +278,18 @@ export const energyBalance = (design: DesignPoint): EnergyBalanceResult => {
     stationKeepingPower * design.mission.stationKeepingDutyCycle * SECONDS_PER_DAY * DAYS_PER_YEAR
   const liftMakeupEnergy = liftMakeupPower * SECONDS_PER_DAY * DAYS_PER_YEAR
 
-  const annualLeakFraction =
-    // @source 0.0852 kg/m3 is the density of pure hydrogen at ISA sea level,
-    // computed by packages/core and asserted in the buoyancy tests.
-    ((dailyLeak * DAYS_PER_YEAR) / (hull.volume * 0.0852 * design.gas.initialPurity)) as number
+  // FROM packages/core, not hand-rolled here. This divided the annual leak by
+  // `hull.volume * 0.0852 * purity`, under a citation reading "computed by
+  // packages/core", which named the function it then declined to call. It is
+  // the same pattern the comment thirty lines above condemns for
+  // `hull.volume * 1.14`. It also evaluated the inventory at SEA LEVEL while
+  // `dailyLeak` is evaluated at CRUISE, giving an inventory 22 percent larger
+  // than the one the mission integrator uses for the same ship.
+  //
+  // `annualLossFraction` is pressure-invariant by construction, because the
+  // leak and the inventory both scale with pressure, so the mismatch cannot
+  // recur.
+  const annualLeakFraction = annualLossFraction(film, filmArea, hull.volume, air.pressure, contents)
 
   return {
     designPoint: design.id,

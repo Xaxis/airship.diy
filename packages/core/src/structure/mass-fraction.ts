@@ -1,6 +1,8 @@
 import { EMPTY_WEIGHT_PER_GAS_VOLUME, STRUCTURAL_SCALING, STRUCTURAL_FLEET } from '@airship/data'
 import type { CubicMeters, Kilograms } from '@airship/units'
-import { kg } from '@airship/units'
+import { K, kg, m } from '@airship/units'
+import { atmosphere } from '../atmosphere.js'
+import { pure, specificLift } from '../buoyancy.js'
 
 /**
  * Empty weight fraction versus size, and whether a small ship can be built at
@@ -183,8 +185,19 @@ export const benchmark = () => {
   const macon = STRUCTURAL_FLEET.find((s) => s.id === 'zrs5-macon')
   if (!hindenburg || !macon) throw new Error('Fleet fixture missing')
 
-  /** @source Hydrogen gives 8.36 percent more gross lift than helium at equal volume and purity. */
-  const hydrogenAdvantage = 0.0836
+  /**
+   * @derived COMPUTED, not asserted. This was the literal 0.0836 under a
+   * @source tag reading "hydrogen gives 8.36 percent more gross lift than
+   * helium", which is a number packages/core derives and which packages/core
+   * derives differently: the specific lifts at ISA sea level give 7.959
+   * percent. A literal in this package restating a quantity this package
+   * computes is the one-model rule broken in the smallest possible space.
+   */
+  const seaLevel = atmosphere(m(0))
+  const hydrogenAdvantage =
+    specificLift(pure('hydrogen'), seaLevel, K(seaLevel.temperature)) /
+      specificLift(pure('helium'), seaLevel, K(seaLevel.temperature)) -
+    1
 
   return {
     /** The figure to beat: best large rigid ever built. */

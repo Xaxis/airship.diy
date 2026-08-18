@@ -4,6 +4,10 @@ import {
   MUNK_REAL_FLUID_FACTOR,
   addedMassMatrix,
   inertiaCoefficients,
+  liftCurveSlope,
+  WING_SPAN_EFFICIENCY,
+  WING_PROFILE_DRAG_COEFFICIENT,
+  WING_STALL_COEFFICIENT,
 } from '@airship/core'
 import type { AtmosphereState, HullGeometry } from '@airship/core'
 
@@ -230,20 +234,31 @@ export const forces = (
     const wingArm = config.wingArm ?? 0
     if (wingArea > 0 && wingSpan > 0) {
       const wingAspect = (wingSpan * wingSpan) / wingArea
-      /** @source Helmbold's finite-span lift-curve slope. */
-      const wingSlope = (2 * Math.PI * wingAspect) / (2 + Math.sqrt(wingAspect * wingAspect + 4))
-      /** @source Span efficiency of a tapered planform without twist optimisation. */
-      const WING_SPAN_EFFICIENCY = 0.85
-      /** @source Profile drag coefficient of a clean section, on wing area. */
-      const WING_PROFILE_DRAG = 0.01
+      // FROM CORE, not re-derived. Helmbold's slope, the span efficiency and the
+      // profile drag were all written out again here, three constants and one
+      // formula duplicating packages/core/src/aerodynamics/wing.ts, so the
+      // simulator and the payload envelope could drift apart silently.
+      const wingSlope = liftCurveSlope(wingAspect)
 
-      const wingCl = wingSlope * alpha
+      // CLAMPED AT THE SECTION STALL. The lift curve was linear and unbounded,
+      // so at large incidence the wing produced several times the force any
+      // surface can make and the model returned it. Large incidence is not
+      // hypothetical here: it is the gust case and the water landing, and the
+      // test suite integrates a divergence out to sixty degrees of sideslip.
+      //
+      // Clamped rather than thrown, because this runs inside an integrator at
+      // 100 Hz in a browser and a throw would take the page down. The induced
+      // drag is computed from the CLAMPED coefficient, so a stalled wing stops
+      // gaining lift and keeps paying for it.
+      const wingClRaw = wingSlope * alpha
+      const wingCl =
+        Math.sign(wingClRaw) * Math.min(Math.abs(wingClRaw), WING_STALL_COEFFICIENT)
       const wingLift = wingCl * q_dyn * wingArea
       const wingInduced =
         ((wingCl * wingCl) / (Math.PI * wingAspect * WING_SPAN_EFFICIENCY)) *
         q_dyn *
         wingArea
-      const wingProfile = WING_PROFILE_DRAG * q_dyn * wingArea
+      const wingProfile = WING_PROFILE_DRAG_COEFFICIENT * q_dyn * wingArea
 
       Z -= wingLift
       X -= wingInduced + wingProfile
@@ -255,13 +270,24 @@ export const forces = (
     }
 
     if (config.finArea > 0) {
-      const finQ = q_dyn * config.finArea * config.finLiftSlope
-
       const alphaFin = alpha + (q * config.finArm) / speed + controls.elevator
       const betaFin = beta - (r * config.finArm) / speed + controls.rudder
 
-      const finLiftZ = finQ * alphaFin
-      const finLiftY = finQ * betaFin
+      // CLAMPED, for the same reason the wing is. A lift-curve slope is valid
+      // to roughly the stall angle and this one was unbounded, so at the
+      // incidences the water landing and the gust case actually reach, the fins
+      // produced several times the force a surface can make. The tail is the
+      // largest aerodynamic surface on the vehicle, so an unbounded tail is the
+      // one that most flatters the stability answer.
+      const finForce = (angle: number): number => {
+        const coefficient = config.finLiftSlope * angle
+        const capped =
+          Math.sign(coefficient) * Math.min(Math.abs(coefficient), WING_STALL_COEFFICIENT)
+        return q_dyn * config.finArea * capped
+      }
+
+      const finLiftZ = finForce(alphaFin)
+      const finLiftY = finForce(betaFin)
 
       // Pitch: positive incidence gives an upward fin force and a nose-down
       // moment, which is restoring.

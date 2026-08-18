@@ -217,6 +217,19 @@ export const integrateMission = (
     if (water > makeupWater && produced.hydrogenProduced >= makeupMass) {
       liftingMoles += lostMoles
       totalMoles += lostMoles
+      // RE-DERIVE THE STATE VARIABLE FROM THE INVENTORY IT IS DEFINED ON.
+      //
+      // Purity is a mole fraction, so adding PURE hydrogen to a fixed
+      // contaminant load raises it: n_H2 / (n_H2 + n_air) increases with n_H2,
+      // whether or not the contaminant leaves. This branch updated the mole
+      // inventory and left `purity` stale, so the model carried two disagreeing
+      // values for one quantity, which is the failure CLAUDE.md names, on the
+      // variable it singles out as a state variable rather than a refinement.
+      //
+      // It cannot return to its previous value: the air that leaked in does not
+      // leave, so totalMoles is permanently larger and purity is permanently
+      // lower than it started. Makeup slows the decay, it does not reverse it.
+      purity = asPurity(liftingMoles / totalMoles)
       water -= makeupWater
       // @derived Floating point guard against dividing by a zero production
       // rate on a day with no surplus. Not a physical tolerance.
@@ -249,10 +262,21 @@ export const integrateMission = (
    * one. See docs/REGULATORY.md: it is 12 calendar months, and whether it
    * forces a landing is unresolved.
    */
-  record('condition inspection', Math.round(SI.DAYS_PER_YEAR))
+  // GUARDED AGAINST THE HORIZON, like every entry the loop records.
+  //
+  // These two were written unconditionally after the loop, so the integrator
+  // reported exhaustion days it never integrated to, and the endurance it
+  // returned could exceed its own horizon by more than an order of magnitude.
+  // The horizon is documented as "how far to look", past which "the model has
+  // nothing useful to say", and the function was answering from beyond it.
+  //
+  // Omitted rather than clamped. Clamping to the horizon would invent a number.
+  const inspectionDay = Math.round(SI.DAYS_PER_YEAR)
+  if (inspectionDay <= horizonDays) record('condition inspection', inspectionDay)
 
   /** Food nutritional shelf life, which binds the stretch mission rather than food MASS. */
-  record('food shelf life', Math.round(v(FOOD_SHELF_LIFE.freezeDried) * SI.DAYS_PER_YEAR))
+  const shelfLifeDay = Math.round(v(FOOD_SHELF_LIFE.freezeDried) * SI.DAYS_PER_YEAR)
+  if (shelfLifeDay <= horizonDays) record('food shelf life', shelfLifeDay)
 
   const ranked = Object.entries(exhaustion).sort((a, b) => a[1] - b[1])
   const first = ranked[0]

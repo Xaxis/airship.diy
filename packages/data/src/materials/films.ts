@@ -55,7 +55,7 @@ export const BARRIER_FILMS: readonly BarrierFilm[] = under('films', () => [
       high: 0.16,
       unit: 'L/(m^2.day.atm)',
       reason:
-        'Derived from a published helium figure of 0.04 L/(m2 day) for a K5 para-aramid laminate, scaled by an H2/He selectivity that is itself uncertain in the range 1.5 to 2.5. No hydrogen measurement on this class of laminate has been published.',
+        'Derived from a published helium figure of 0.04 L/(m2 day) for a K5 para-aramid laminate, scaled by an H2/He selectivity. The bounds here imply selectivities of 1.5, 2.25 and 4.0, and the reason the top is beyond the 1.5 to 2.5 that bulk solubility gives is the same reason the nitrogen figure carries a wide band: transport through a metallised barrier is DEFECT DOMINATED rather than solubility dominated, and a pinhole does not discriminate between gases the way a polymer does. So the high end is a pinholed coupon and not a physically selective one. This reason used to state a 1.5 to 2.5 range that its own numbers did not reproduce: 0.04 x 2.5 is 0.10, not the 0.16 declared. No hydrogen measurement on this class of laminate has been published.',
       resolvedBy:
         'Measure H2 transmission on a sample coupon with a mass-spectrometer leak detector at 1 atm partial pressure difference and 20 C. This is a bench test costing days, and it is the single highest-value measurement in the project.',
       source: 'aiaa-envelope-permeation',

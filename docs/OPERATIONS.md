@@ -13,9 +13,9 @@ building it. The reasoning is on the site; the limits are here.
 |---|---|
 | Length | 118 m at fineness 5 |
 | Envelope | 34,271 m³, 12 cells |
-| Gross weight | 25,762 kg |
+| Gross weight | 25,772 kg |
 | Gross lift | 32,093 kg |
-| Lift margin | 6,331 kg (19.7 %) |
+| Lift margin | 6,321 kg (19.7 %) |
 | Dumpable water ballast | 2,500 kg |
 | Propulsion | 4 × 6.0 m ducted, 72 kW |
 | Food aboard | 584 kg |
@@ -129,16 +129,16 @@ several, so it does not slam. It is not nothing either.
 ## The ballast loop
 
 **Run it whenever you are on the surface in daylight.** Twenty kelvin of solar
-superheat moves the lift by 2,227 kg against a 600 kg
+superheat moves the lift by 2,477 kg against a 600 kg
 trim: without the loop the vehicle takes itself off by mid-afternoon and presses
-2.2 tonnes onto its gear before dawn.
+2.5 tonnes onto its gear before dawn.
 
 | | |
 |---|---|
-| Bladder | 2.2 m³ |
-| Transfer rate | 74 kg/min |
-| Pump power | 121 W |
-| Daily energy | 0.06 kWh (0.28 % of the habitat) |
+| Bladder | 2.4 m³ |
+| Transfer rate | 83 kg/min |
+| Pump power | 135 W |
+| Daily energy | 0.07 kWh (0.31 % of the habitat) |
 
 The pump is sized for a clearing overcast rather than for the day, because the
 envelope's thermal time constant is tens of minutes and the superheat arrives

@@ -97,7 +97,15 @@ describe('water does not bind, and that reframes the design', () => {
 
 describe('gas purity over a long mission', () => {
   it('decays monotonically and never recovers', () => {
-    // Adding hydrogen does not restore purity: the contaminant does not leave.
+    // NOT because adding hydrogen leaves purity alone. Purity is a mole
+    // fraction, so putting pure hydrogen back into a fixed contaminant load
+    // DOES raise it: n_H2 / (n_H2 + n_air) increases with n_H2. This test used
+    // to say otherwise, and it passed because the makeup branch updated the
+    // mole inventory and forgot the state variable derived from it.
+    //
+    // The real reason is that air leaks IN at the same time as hydrogen leaks
+    // out, and the air does not leave. totalMoles grows every day whatever the
+    // makeup does, so the makeup slows the decay and cannot reverse it.
     const result = integrateMission(BASELINE, YEAR_OF_STORES, 800)
     for (let i = 1; i < result.states.length; i += 1) {
       expect(result.states[i]?.purity).toBeLessThanOrEqual(result.states[i - 1]?.purity ?? 1)
@@ -126,10 +134,21 @@ describe('gas purity over a long mission', () => {
  * Food shelf life, which binds the stretch mission rather than food MASS.
  */
 describe('the five-year mission is a shelf-life problem, not a storage one', () => {
-  it('shelf life sits far beyond a one-year mission and inside a fifteen-year one', () => {
-    const result = integrateMission(BASELINE, YEAR_OF_STORES, 2200)
-    const shelfLife = result.resourceExhaustion['food shelf life'] ?? 0
+  it('is not reported from beyond the horizon the model integrated to', () => {
+    // The shelf life is fifteen years, which is 5,479 days. Ask for 2,200 and
+    // the integrator must NOT answer with a number it never reached: it used to
+    // write this record unconditionally after the loop, so `enduranceDays`
+    // could exceed its own horizon by more than an order of magnitude.
+    const short = integrateMission(BASELINE, YEAR_OF_STORES, 2200)
+    expect(short.resourceExhaustion['food shelf life']).toBeUndefined()
+    expect(short.enduranceDays).toBeLessThanOrEqual(2200)
+  })
+
+  it('appears once the horizon is long enough to contain it', () => {
+    const long = integrateMission(BASELINE, YEAR_OF_STORES, 6000)
+    const shelfLife = long.resourceExhaustion['food shelf life'] ?? 0
     expect(shelfLife).toBeGreaterThan(365 * 4)
+    expect(shelfLife).toBeLessThanOrEqual(6000)
   })
 
   it('and no amount of tank volume fixes it', () => {
@@ -138,7 +157,7 @@ describe('the five-year mission is a shelf-life problem, not a storage one', () 
     const huge = integrateMission(
       BASELINE,
       { ...YEAR_OF_STORES, food: YEAR_OF_STORES.food * 10 },
-      2200,
+      6000,
     )
     expect(huge.resourceExhaustion['food shelf life']).toBeDefined()
   })
