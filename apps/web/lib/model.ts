@@ -1774,6 +1774,8 @@ export const shipGeometries = DESIGN_POINTS.map((design) => {
       area: fins.area,
       /** Fraction of the chord that is a movable rudder or elevator. */
       controlChordFraction: config.rudderChordFraction,
+      /** Roll angle of the whole tail: 0 is a cruciform, pi/4 an X. */
+      rollOffset: config.tailRollOffset,
     },
 
     wing: {

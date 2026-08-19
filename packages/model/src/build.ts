@@ -882,8 +882,27 @@ export const handlingLimits = (design: DesignPoint, config: Configuration): Hand
     const r = hullRadiusAt(m(length), finenessRatio, s, shape)
     profileArea += 2 * r * (length / STEPS)
   }
-  /** @derived Half the fin planform is the vertical pair on a cruciform tail. */
-  const sideArea = profileArea + fins.area / 2
+  /**
+   * Projected lateral area of the tail, which is NOT the same sum as its yaw
+   * effectiveness and does not share the invariant.
+   *
+   * @derived A surface at roll angle phi projects |cos(phi)| of its own area
+   * onto the vertical plane. Summed over four surfaces that gives
+   * |cos| + |sin| + |cos| + |sin|, which is 2 for a cruciform and 2.83 for an X.
+   *
+   * SO THE X TAIL IS NOT FREE AFTER ALL. Its yaw AUTHORITY is identical to a
+   * cruciform's, because that sums cos-squared and is invariant, but its
+   * WINDAGE is 41 percent higher, because this sums the absolute cosine and is
+   * not. On this vehicle that is 180 m2 of extra sail on a hull whose windage
+   * is already the thing that makes mooring hard. The tail was rotated to get
+   * the lower fin out of the water and it buys that at a real price, which is
+   * worth saying plainly rather than presenting the rotation as costless.
+   */
+  const tailLateralFraction =
+    [0, 1, 2, 3]
+      .map((i) => Math.abs(Math.cos(config.tailRollOffset + (i * Math.PI) / 2)))
+      .reduce((a, b) => a + b, 0) / 4
+  const sideArea = profileArea + fins.area * tailLateralFraction
 
   const pull = v(GROUND_HANDLING.personLinePull)
   const cd = v(GROUND_HANDLING.broadsideDragCoefficient)

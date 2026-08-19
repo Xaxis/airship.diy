@@ -156,6 +156,24 @@ export interface Configuration {
   readonly cellBlockForward: number
   readonly cellBlockAft: number
   /** Fin root station and the fin span as a fraction of max radius. */
+  /**
+   * Roll angle of the whole tail about the hull axis, radians.
+   *
+   * Zero is a conventional cruciform, with one fin straight up and one straight
+   * down. Pi/4 is an X tail, with all four surfaces at 45 degrees.
+   *
+   * IT IS NOT A STYLING CHOICE AND IT IS VERY NEARLY FREE. Sum the yaw
+   * effectiveness over four surfaces at phi, phi+90, phi+180, phi+270 and the
+   * total is cos^2 summed, which is exactly 2 for EVERY phi. The same holds for
+   * pitch. So rotating the tail costs nothing in authority, nothing in area and
+   * nothing in mass: a rotational invariant of a four-surface set.
+   *
+   * What it buys is draft. A cruciform's lower fin reaches the full tip radius
+   * below the hull axis; an X tail's lowest surfaces reach cos(45) of it. On
+   * this vehicle that is the difference between a fin hanging 5.6 m below the
+   * keel and immersed on every landing, and one that clears by 0.4 m.
+   */
+  readonly tailRollOffset: number
   readonly finStation: number
   readonly finSpanFraction: number
   /**
@@ -681,6 +699,16 @@ export const BASELINE_ARRANGEMENT: Configuration = {
    * the area, and it is the expensive one because it sets the height of the
    * building. Moving the fins aft is free until they run out of hull.
    */
+  /**
+   * An X tail, not a cruciform.
+   *
+   * @derived pi/4. Chosen because the symmetric cruciform put the lower fin
+   * 5.6 m below the gondola keel, so it was immersed on every water landing:
+   * an air-load surface used as a slamming panel, and an uncontrolled lateral
+   * plane aft of the centre of lateral resistance fighting the bow drogue.
+   * Rotating the tail costs no authority, area or mass and clears the keel.
+   */
+  tailRollOffset: Math.PI / 4,
   finStation: 0.9,
   finSpanFraction: 1.3,
   // The usual aircraft control-surface proportion. Larger buys authority the

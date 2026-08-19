@@ -214,8 +214,12 @@ describe('the rules the arrangement has to obey', () => {
     const finding = validateArrangement(BASELINE, BASELINE_ARRANGEMENT).find(
       (x) => x.id === 'yaw-static-margin',
     )
-    expect(finding?.detail).toContain('VERTICAL fin')
-    expect(finding?.detail).toContain('half of the')
+    // The wording moved when the tail gained a roll offset: "the vertical pair"
+    // is only the right answer for a cruciform, and the model now sums cos^2
+    // over the four surfaces at their actual angles. The DEFECT this test
+    // guards against is unchanged: crediting the whole tail with yaw authority.
+    expect(finding?.detail).toContain('YAW-EFFECTIVE fin')
+    expect(finding?.detail).toContain('cos-squared')
 
     // And the margin the design now achieves is inside airship practice rather
     // than below the divergence boundary.
@@ -360,36 +364,54 @@ describe('the last gate, which is a check rather than an assertion', () => {
     expect(withoutLoop?.severity).toBe('fail')
   })
 
-  it('has exactly ONE open failure, and it is a configuration problem', () => {
-    // This asserted an empty list, and it was true until the three-dimensional
-    // views were rebuilt at the model's real dimensions and the tail turned out
-    // to hang below the keel.
+  it('leaves nothing failing in the whole arrangement', () => {
+    // This was briefly pinned to ['lower-fin-clears-the-water'], which is worth
+    // recording. The three-dimensional views, rebuilt at the model's real
+    // dimensions, showed the lower fin hanging 5.6 m below the gondola keel and
+    // therefore immersed on every water landing. Nothing in the mass statement
+    // or the stability gates could have caught it: the fin area, its mass, its
+    // arm and the flotation were each individually correct. The defect was a
+    // RELATIONSHIP between two parts that no single calculation owned.
     //
-    // It is left FAILING on purpose. The rule in this repository is to say so
-    // when the answer is no rather than tune the gate until it goes green, and
-    // this particular no cannot be answered with a number: a symmetric
-    // cruciform puts as much fin below the hull as above it at every size, so
-    // no choice of span or chord fixes it. It needs an inverted-Y or X tail,
-    // which is a change to what the vehicle IS.
-    //
-    // The test pins the list so that a second failure cannot hide behind the
-    // first one.
+    // It is fixed rather than tolerated, by rotating the tail 45 degrees.
     const failing = validateArrangement(BASELINE, BASELINE_ARRANGEMENT).filter(
       (f) => f.severity === 'fail',
     )
-    expect(failing.map((f) => f.id)).toEqual(['lower-fin-clears-the-water'])
+    expect(failing.map((f) => f.id)).toEqual([])
   })
 
-  it('found that failure the only way it could have been found', () => {
-    // Worth recording how. Nothing in the mass statement or the stability gates
-    // could have caught it: the fin area is right, its mass is right, its arm is
-    // right, and the flotation is right. The defect is a RELATIONSHIP between
-    // two parts that no single calculation owned, and it became obvious the
-    // moment both were drawn at their real sizes in the same picture.
-    const finding = validateArrangement(BASELINE, BASELINE_ARRANGEMENT).find(
-      (f) => f.id === 'lower-fin-clears-the-water',
-    )
-    expect(finding?.detail).toContain('inverted-Y or X tail')
+  it('rotates the tail for free, which is why the fix was cheap', () => {
+    // THE RESULT THAT MADE IT A NON-DECISION. Yaw effectiveness sums cos^2 over
+    // the four surfaces, and for any set at phi, phi+90, phi+180, phi+270 that
+    // total is exactly 2, whatever phi is. So an X tail has identical yaw
+    // authority to a cruciform at identical area and identical mass. The only
+    // thing that changes is how deep the lowest surface reaches: cos(45) of the
+    // tip radius instead of all of it.
+    const cruciform: Configuration = { ...BASELINE_ARRANGEMENT, tailRollOffset: 0 }
+    const margin = (config: Configuration) => {
+      const detail =
+        validateArrangement(BASELINE, config).find((f) => f.id === 'yaw-static-margin')?.detail ?? ''
+      // Not [0-9.]+, which swallows the sentence's full stop and yields NaN.
+      return Number(/margin of (\d+(?:\.\d+)?)/.exec(detail)?.[1])
+    }
+    expect(margin(cruciform)).toBeCloseTo(margin(BASELINE_ARRANGEMENT), 6)
+
+    // And it is the invariant, not a coincidence of 45 degrees.
+    for (const offset of [0, 0.31, Math.PI / 6, Math.PI / 4, 1.02]) {
+      const at = margin({ ...BASELINE_ARRANGEMENT, tailRollOffset: offset })
+      expect(`${offset}: ${Math.abs(at - margin(cruciform)) < 1e-6}`).toBe(`${offset}: true`)
+    }
+  })
+
+  it('only the X tail actually clears the keel', () => {
+    const clears = (offset: number) =>
+      validateArrangement(BASELINE, { ...BASELINE_ARRANGEMENT, tailRollOffset: offset }).find(
+        (f) => f.id === 'lower-fin-clears-the-water',
+      )?.severity
+    // A cruciform cannot, at any span or chord, because the lower fin grows
+    // with the upper one.
+    expect(clears(0)).toBe('fail')
+    expect(clears(Math.PI / 4)).toBe('pass')
   })
 })
 

@@ -382,9 +382,11 @@ export const buildShip = (options: ShipOptions = {}): BuiltShip => {
     disposables.push(control)
 
     for (let i = 0; i < 4; i += 1) {
-      // Cruciform: up, starboard, down, port. Rotating about X keeps every
-      // section in the plane of the flow.
-      const roll = (i * Math.PI) / 2
+      // Four surfaces evenly around the hull, offset by the tail's roll angle.
+      // At zero that is a cruciform, up/starboard/down/port; at pi/4 it is an X
+      // and nothing points straight down, which is why the tail clears the
+      // water. Rotating about X keeps every section in the plane of the flow.
+      const roll = fins.rollOffset + (i * Math.PI) / 2
       const panel = new THREE.Group()
       panel.rotation.x = roll
       panel.position.x = trailingEdgeX
@@ -397,9 +399,13 @@ export const buildShip = (options: ShipOptions = {}): BuiltShip => {
       hinge.add(surface)
       panel.add(hinge)
 
-      // Vertical surfaces are rudders, horizontal are elevators.
-      if (i % 2 === 0) rudderPivots.push(hinge)
-      else elevatorPivots.push(hinge)
+      // On a cruciform the vertical pair are rudders and the horizontal pair
+      // elevators. On an X tail EVERY surface does some of both, which is the
+      // other thing rotating the tail buys, so a surface is grouped by whichever
+      // it contributes to more and both lists get all four on a true X.
+      const yawShare = Math.cos(roll) ** 2
+      if (yawShare >= 0.5) rudderPivots.push(hinge)
+      if (yawShare <= 0.5) elevatorPivots.push(hinge)
 
       group.add(panel)
     }

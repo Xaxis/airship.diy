@@ -1327,7 +1327,30 @@ export const validateArrangement = (
    * doubled lift slope the reported margin was four times the real one, and the
    * vehicle it described was directionally divergent at every speed.
    */
-  const yawFinArea = fins.area / 2
+  /**
+   * Yaw-effective fin area, summed over the four surfaces at their actual roll
+   * angles rather than assumed to be "the vertical pair".
+   *
+   * @derived A panel whose span lies at roll angle phi from vertical has normal
+   * n = (0, -sin phi, cos phi). In sideslip it sees an effective incidence of
+   * beta*cos(phi), and only the z component of its force makes a yaw moment,
+   * which is another cos(phi). So each surface contributes cos^2(phi) of what a
+   * vertical one would, and the yaw-effective area is the sum over the set.
+   *
+   * For any four-surface tail this sums to exactly 2 out of 4, whatever the roll
+   * offset, which is why an X tail is free: identical authority, identical area,
+   * identical mass, and a lowest tip at cos(45) of the radius instead of all
+   * of it.
+   *
+   * IT WAS `fins.area / 2`, which is that same answer for a cruciform and only
+   * for a cruciform. Hard-coding it would have silently reported the correct
+   * number for the wrong reason and then stayed correct through a tail change
+   * that it could not actually see.
+   */
+  const surfaceArea = fins.area / 4
+  const yawFinArea = [0, 1, 2, 3]
+    .map((i) => config.tailRollOffset + (i * Math.PI) / 2)
+    .reduce((sum, phi) => sum + surfaceArea * Math.cos(phi) ** 2, 0)
   const staticMargin = yawFinArea / minimumFinArea
   /**
    * A DESIGN CHOICE THAT DEPARTS FROM HISTORICAL PRACTICE, and it is expensive,
@@ -1361,7 +1384,7 @@ export const validateArrangement = (
     severity:
       staticMargin >= MINIMUM_YAW_STATIC_MARGIN ? 'pass' : staticMargin >= 1 ? 'warn' : 'fail',
     rule: `Fin area at least ${MINIMUM_YAW_STATIC_MARGIN} times the minimum that balances the Munk moment.`,
-    detail: `${yawFinArea.toFixed(0)} m2 of VERTICAL fin, half of the ${fins.area.toFixed(0)} m2 cruciform, against a ${minimumFinArea.toFixed(0)} m2 minimum on a ${finArm.toFixed(1)} m arm: a static margin of ${staticMargin.toFixed(2)}. The lift slope is ${finLiftSlope.toFixed(2)} per radian, from an exposed aspect ratio of ${exposedAspectRatio.toFixed(2)} doubled by the hull acting as an end plate, knocked down 15 percent for the boundary layer the tail sits in, and multiplied by ${finBodyLiftFactor(bodyRadiusRatio).toFixed(2)} for the load the fin induces on the hull itself, which restores at the same arm. The Munk moment is certain and the fin effectiveness is not, so the margin is the honest part of this number.`,
+    detail: `${yawFinArea.toFixed(0)} m2 of YAW-EFFECTIVE fin, summed as cos-squared over the four surfaces of the ${fins.area.toFixed(0)} m2 tail at its ${((config.tailRollOffset * 180) / Math.PI).toFixed(0)} degree roll offset, against a ${minimumFinArea.toFixed(0)} m2 minimum on a ${finArm.toFixed(1)} m arm: a static margin of ${staticMargin.toFixed(2)}. The lift slope is ${finLiftSlope.toFixed(2)} per radian, from an exposed aspect ratio of ${exposedAspectRatio.toFixed(2)} doubled by the hull acting as an end plate, knocked down 15 percent for the boundary layer the tail sits in, and multiplied by ${finBodyLiftFactor(bodyRadiusRatio).toFixed(2)} for the load the fin induces on the hull itself, which restores at the same arm. The Munk moment is certain and the fin effectiveness is not, so the margin is the honest part of this number.`,
   })
 
   // ---- can it put itself down and pick itself up again? -------------------
@@ -1481,7 +1504,17 @@ export const validateArrangement = (
     )
     /** @derived The fin root sits just inside the cover, as the drawing has it. */
     const FIN_ROOT_INSET = 0.94
-    const lowerFinTipDepth = finRootRadiusForClearance * FIN_ROOT_INSET + fins.span
+    const tipRadius = finRootRadiusForClearance * FIN_ROOT_INSET + fins.span
+    /**
+     * @derived The deepest surface of the set, not "the bottom fin". A tail with
+     * a roll offset may have no surface pointing straight down at all, which is
+     * the entire point of rotating it.
+     */
+    const lowerFinTipDepth = Math.max(
+      ...[0, 1, 2, 3].map((i) =>
+        Math.max(-Math.cos(config.tailRollOffset + (i * Math.PI) / 2) * tipRadius, 0),
+      ),
+    )
     /**
      * @derived How far the gondola hangs below the hull surface, as a fraction
      * of its own height. The same figure the drawing uses, so the gate and the
