@@ -6,7 +6,7 @@ import {
   liftingBodyGeometry,
   minimumFlyingSpeed,
 } from '@airship/core'
-import { AKRON_STRUCTURE, EMPTY_WEIGHT_PER_GAS_VOLUME, SEMI_RIGID_ADVANTAGE } from '@airship/data'
+import { v, AKRON_STRUCTURE, CONSTANTS, EMPTY_WEIGHT_PER_GAS_VOLUME, ISA, MOLAR_MASS, SEMI_RIGID_ADVANTAGE } from '@airship/data'
 import { m, m2 } from '@airship/units'
 
 /**
@@ -204,10 +204,21 @@ const CELL_NETTING_AREAL_MASS = 0.06
  *
  * The consequence is not cosmetic. At the old numbers a lobed hull came out with
  * a 63 percent wetted-area penalty against a body of revolution, and that
- * penalty was this chapter's central argument against hybridLift. At the
- * corrected ones the penalty is a few percent either way depending on which
- * fineness ratio you compare against. HybridLift still loses here, and it loses
- * on the lift split and on the power at low speed rather than on skin friction.
+ * penalty was this chapter's central argument against hybridLift.
+ *
+ * IT HAS NOW BEEN CORRECTED TWICE, and this file was left carrying the
+ * intermediate answer. Fixing the volume coefficient alone swung it to "a few
+ * percent", which was no better founded than the 63, because the wetted-area
+ * calculation had its own error pushing the other way: it treated each lobe as
+ * spanning beam/lobes rather than standing as tall as the hull. With both
+ * corrected the Airlander comes out at 7.24 on the wetted-area coefficient
+ * against 6.55 for an equal-volume body of revolution at fineness 5, so the
+ * penalty is 11 percent, rising to 18 at fineness 4 and falling to nothing by
+ * fineness 7. See `liftingBodyGeometry`.
+ *
+ * A real cost, an order below the one this chapter turned on, and not a
+ * disqualification. HybridLift still loses here, and it loses on the lift split
+ * and on the power at low speed rather than on skin friction.
  *
  * @source Airlander 10 hull: 42 m of beam on a 92 m hull is 0.457, and 17 m of
  * height is 0.185.
@@ -308,7 +319,7 @@ export const pressureStabilisedLimit = (
    */
   const SUCTION_PEAK_FACTOR = 1.5
   /** @source ISA sea level density, the worst case for envelope pressure. */
-  const AIR_DENSITY = 1.225
+  const AIR_DENSITY = v(ISA.seaLevelDensity)
   const aerodynamicPressure =
     SUCTION_PEAK_FACTOR * 0.5 * AIR_DENSITY * designSpeed * designSpeed
 
@@ -491,8 +502,11 @@ const COPV_MASS_PER_KILOGRAM_AT_17_BAR = 0.856
  *
  *   THE DISTURBANCE IS DIURNAL, NOT SECULAR. The permeation drift compression
  *   is imagined to correct is 1.1 kg of heaviness per day, which needs FOUR
- *   AND A HALF WATTS. The real disturbance is the 20 K superheat swing, which
- *   is 2,383 kg, and the cheapest answer to that is not a compressor at all: it
+ *   AND A HALF WATTS. The real disturbance is the diurnal thermal swing, which
+ *   the thermal model computes at 18.4 K and about 2,280 kg (it was written
+ *   here as a flat 20 K and 2,383 kg, back when the superheat was asserted
+ *   rather than solved), and the cheapest answer to that is not a compressor:
+ *   it
  *   is a lower fill fraction, which costs gross lift and no energy, no mass and
  *   no failure mode.
  *
@@ -561,12 +575,16 @@ export const buoyancyControlCost = (
     }
 
     case 'gas-compression': {
-      /** @source Molar masses: hydrogen 2.016 g/mol, helium 4.003 g/mol. */
-      const molarMass = species === 'hydrogen' ? 0.002016 : 0.004003
-      /** @source Densities at ISA sea level: hydrogen 0.0852, helium 0.1691 kg/m3. */
-      const gasDensity = species === 'hydrogen' ? 0.0852 : 0.1691
-      /** @source The SI molar gas constant. */
-      const R = 8.314462618
+      // FROM THE DATA PACKAGE, NOT FROM LITERALS HERE. These were four numbers
+      // written into the model tier: two molar masses, two densities and the
+      // gas constant. The densities in particular were the same 0.0852 and
+      // 0.1691 that appeared in the fuel module, so the same physical quantity
+      // was stated in two files and could drift between them.
+      const molarMass = MOLAR_MASS[species].value
+      /** @derived Ideal gas at ISA sea level: rho = rho_air * M_gas / M_air. */
+      const gasDensity =
+        v(ISA.seaLevelDensity) * (molarMass / MOLAR_MASS.dryAir.value)
+      const R = v(CONSTANTS.R)
       /** @source 20 C, the temperature an intercooler returns the gas to. */
       const T = 293.15
       /**
@@ -579,7 +597,7 @@ export const buoyancyControlCost = (
       /** @source Multi-stage intercooled compressors reach about 68 percent of isentropic. */
       const compressorEfficiency = 0.68
       /** @source ISA sea level air density, against which the gas lifts. */
-      const AIR_DENSITY = 1.225
+      const AIR_DENSITY = v(ISA.seaLevelDensity)
       const liftPerKilogramOfGas = (1 / gasDensity) * (AIR_DENSITY - gasDensity)
       const energyPerKilogram =
         workPerKilogramOfGas / compressorEfficiency / liftPerKilogramOfGas
@@ -589,8 +607,12 @@ export const buoyancyControlCost = (
        * more mass per unit of pressure-volume energy because it is denser, so
        * the tank is heavier per kilogram of lift released by the same factor.
        */
-      const HYDROGEN_DENSITY = 0.0852
-      const scale = species === 'hydrogen' ? 1 : gasDensity / HYDROGEN_DENSITY
+      // The SECOND copy of this literal in the same file, which is how these
+      // survive: one gets found and fixed and its twin forty lines down does
+      // not. Derived from the same expression as `gasDensity` above.
+      const hydrogenDensity =
+        v(ISA.seaLevelDensity) * (MOLAR_MASS.hydrogen.value / MOLAR_MASS.dryAir.value)
+      const scale = species === 'hydrogen' ? 1 : gasDensity / hydrogenDensity
       const tankMass = authority * COPV_MASS_PER_KILOGRAM_AT_17_BAR * scale
       /**
        * @source Aeros publishes no COSH machinery mass at all: not in the
@@ -627,7 +649,7 @@ export const buoyancyControlCost = (
  * smaller all the time to be safe some of the time.
  *
  * For the baseline that is 0.85 down to about 0.77, which costs a few percent of
- * gross lift and answers a 2,383 kg swing that a compressor would need two
+ * gross lift and answers the roughly 2,280 kg swing that a compressor would need two
  * tonnes of tankage and 28 kW to fight.
  *
  * @param designSuperheat K.
@@ -637,7 +659,7 @@ export const fillFractionForSuperheat = (
   designSuperheat: number,
   currentFillFraction: number,
   /** @source ISA sea level temperature. */
-  ambientTemperature = 288.15,
+  ambientTemperature = v(ISA.seaLevelTemperature),
 ): { fillFraction: number; liftGivenUp: number } => {
   const expansion = designSuperheat / ambientTemperature
   const fillFraction = currentFillFraction / (1 + expansion)

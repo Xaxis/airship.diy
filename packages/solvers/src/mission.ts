@@ -1,4 +1,4 @@
-import { CATCHMENT, CREW, ENGINE_CONSUMABLES, FOOD_SHELF_LIFE, barrierFilm, v } from '@airship/data'
+import { v, CATCHMENT, CONSTANTS, CREW, ENGINE_CONSUMABLES, FOOD_SHELF_LIFE, barrierFilm } from '@airship/data'
 import type { DesignPoint } from '@airship/model'
 import {
   atmosphere,
@@ -210,7 +210,7 @@ export const integrateMission = (
 
   // --- initial gas state ----------------------------------------------------
   /** @source Ideal gas law at cruise altitude; hydrogen is ideal at cell pressure. */
-  const R = 8.314462618
+  const R = v(CONSTANTS.R)
   /** @source Molar mass of hydrogen, kg/mol. */
   const molarMassH2 = 2.01588e-3
   const initialMoles =

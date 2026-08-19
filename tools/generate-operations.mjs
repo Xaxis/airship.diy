@@ -39,6 +39,7 @@ import {
   SIDE_FORCE_COEFFICIENT_BEAM_ON,
 } from '../packages/core/dist/index.js'
 import { finPlanform } from '../packages/model/dist/index.js'
+import { CONSTANTS, v } from '../packages/data/dist/index.js'
 
 const design = BASELINE
 const config = BASELINE_ARRANGEMENT
@@ -113,7 +114,7 @@ const ballast = ballastLoop(excursion, LANDING_TRIM, design.loads.habitatPower)
 const seaLevelDraught = heaveResponse(4, GONDOLA_HEAVE_MASS, SUSPENSION, WATERPLANE, ENVELOPE_INERTIA, LANDING_TRIM).draught
 const naturalPeriodAtFour = heaveResponse(4, GONDOLA_HEAVE_MASS, SUSPENSION, WATERPLANE, ENVELOPE_INERTIA, LANDING_TRIM).naturalPeriod
 /** @derived Suspension design load, N: the gondola's weight at the water-impact factor. */
-const suspensionDesign = GONDOLA_HEAVE_MASS * 9.80665 * 2.5
+const suspensionDesign = GONDOLA_HEAVE_MASS * v(CONSTANTS.g0) * 2.5
 
 const modes = failureModes(design, config)
 const findings = validateArrangement(design, config)

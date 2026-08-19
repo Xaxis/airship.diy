@@ -4,12 +4,14 @@ import tseslint from 'typescript-eslint'
 import noUnqualifiedHybrid from './eslint-rules/no-unqualified-hybrid.js'
 import noUncitedConstant from './eslint-rules/no-uncited-constant.js'
 import noCrossTierImport from './eslint-rules/no-cross-tier-import.js'
+import noDuplicatedConstant from './eslint-rules/no-duplicated-constant.js'
 
 const airship = {
   rules: {
     'no-unqualified-hybrid': noUnqualifiedHybrid,
     'no-uncited-constant': noUncitedConstant,
     'no-cross-tier-import': noCrossTierImport,
+    'no-duplicated-constant': noDuplicatedConstant,
   },
 }
 
@@ -40,6 +42,13 @@ export default tseslint.config(
       // The terminology rule applies everywhere, including the website copy and
       // the documentation tooling. It is a defect wherever it appears.
       'airship/no-unqualified-hybrid': 'error',
+
+      // A constant @airship/data owns must be READ from it, not retyped with a
+      // citation comment attached. See eslint-rules/no-duplicated-constant.js:
+      // the citation rule accepts an annotated literal, which makes copying
+      // cheaper than importing, and sixteen copies of five constants had
+      // accumulated before anyone looked.
+      'airship/no-duplicated-constant': 'error',
 
       // No default exports. A default export is renamed at every call site,
       // which makes a physics function impossible to grep for across the docs,

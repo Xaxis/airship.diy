@@ -1,4 +1,4 @@
-import { HYDROGEN_SAFETY, VENTILATION, GAS, v } from '@airship/data'
+import { v, CONSTANTS, GAS, HYDROGEN_SAFETY, ISA, VENTILATION } from '@airship/data'
 import type { CubicMeters, Meters } from '@airship/units'
 
 /**
@@ -36,9 +36,9 @@ import type { CubicMeters, Meters } from '@airship/units'
  */
 
 /** @source ISA sea level temperature and pressure, the default interstitial condition. */
-const DEFAULT_TEMPERATURE = 288.15
+const DEFAULT_TEMPERATURE = v(ISA.seaLevelTemperature)
 /** @source Standard atmosphere, exact by definition. */
-const DEFAULT_PRESSURE = 101325
+const DEFAULT_PRESSURE = v(ISA.seaLevelPressure)
 
 /**
  * Ventilation flow needed to hold the background concentration at the dilution
@@ -60,7 +60,7 @@ export const requiredVentilationFlow = (
   ambientPressure = DEFAULT_PRESSURE,
 ): number => {
   /** @source Ideal gas law at the interstitial condition; hydrogen is ideal here. */
-  const R = 8.314462618
+  const R = v(CONSTANTS.R)
   const hydrogenDensity = (ambientPressure * GAS.hydrogen.molarMass) / (R * gasTemperature)
 
   const volumetricRelease = leakRate / hydrogenDensity

@@ -1,4 +1,4 @@
-import { CONSTANTS, SEA_STATE, WATER, WINDAGE, v } from '@airship/data'
+import { v, CONSTANTS, ISA, SEA_STATE, WATER, WINDAGE } from '@airship/data'
 import type { Kilograms, Meters, Newtons, Watts } from '@airship/units'
 
 import { DRAG_COEFFICIENT_BOW_ON } from './windage.js'
@@ -39,7 +39,7 @@ import { DRAG_COEFFICIENT_BOW_ON } from './windage.js'
 const G0 = CONSTANTS.g0.value
 
 /** @source ISA sea level air density, 1.225 kg/m3. */
-const SEA_LEVEL_AIR_DENSITY = 1.225
+const SEA_LEVEL_AIR_DENSITY = v(ISA.seaLevelDensity)
 
 // --------------------------------------------------------------------------
 // Displacement and speed
@@ -199,7 +199,7 @@ export const boatResistance = (
    * density at the surface, and the airspeed is the boat speed plus the
    * headwind because the vehicle is moving through both.
    */
-  const airDensity = 1.225
+  const airDensity = v(ISA.seaLevelDensity)
   const airspeed = speed + headwind
   const aerodynamic =
     0.5 *
@@ -512,7 +512,7 @@ export const seakeeping = (
        * pressure, not the gauge, because compressing the bag works against
        * every molecule in it.
        */
-      const ATMOSPHERIC = 101325
+      const ATMOSPHERIC = v(ISA.seaLevelPressure)
       stiffness = ((ATMOSPHERIC + float.gaugePressure) * float.contactArea) / float.thickness
       suspensionLoad = stiffness * immersion
       mechanism =
@@ -646,7 +646,7 @@ export const cushionFeasibility = (
    */
   const EFFECTIVE_GAP = 0.018
   /** @source ISA sea level air density. */
-  const AIR_DENSITY = 1.225
+  const AIR_DENSITY = v(ISA.seaLevelDensity)
   /** @source A well-matched centrifugal fan at its design point. */
   const FAN_EFFICIENCY = 0.7
   /** @source NASA CR-159002: the XC-8A ran 16,375 Pa trunk on 8,140 Pa cushion. */
@@ -682,7 +682,7 @@ export const reliefVentArea = (
   dischargeCoefficient = 0.6,
 ): number => {
   /** @source Air density at sea level. */
-  const AIR_DENSITY = 1.225
+  const AIR_DENSITY = v(ISA.seaLevelDensity)
   const jetVelocity = Math.sqrt((2 * reliefPressure) / AIR_DENSITY)
   return sweptVolume / sweepTime / (dischargeCoefficient * jetVelocity)
 }

@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { buildShip } from './three/ship'
 
 import { WebGLUnavailable } from './HullViewer'
+import { v, CONSTANTS, ISA } from '@airship/data'
 
 /**
  * Landing on water, and working as a boat afterwards.
@@ -99,7 +100,7 @@ type Phase = 'aloft' | 'descending' | 'afloat'
 
 /** @source Seawater at 35 practical salinity units and 15 C. */
 const SEAWATER_DENSITY = 1025
-const G = 9.80665
+const G = v(CONSTANTS.g0)
 
 interface Readout {
   phase: Phase
@@ -328,7 +329,7 @@ export function MarineSimulator({ data, radii, length }: MarineSimulatorProps) {
         let buoyancy: number
         if (c.floatKind === 'sealed') {
           /** @derived Isothermal gas spring: k = P_absolute * A / t. */
-          const ATMOSPHERIC = 101325
+          const ATMOSPHERIC = v(ISA.seaLevelPressure)
           const THICKNESS = 0.5
           buoyancy =
             ((ATMOSPHERIC + data.reliefPressure) * data.waterplaneArea * immersedBy) / THICKNESS
@@ -381,7 +382,7 @@ export function MarineSimulator({ data, radii, length }: MarineSimulatorProps) {
       const CD = 0.045
       const airspeed = speed + c.wind
       const aerodynamic =
-        0.5 * 1.225 * airspeed * Math.abs(airspeed) * Math.pow(data.envelopeVolume, 2 / 3) * CD
+        0.5 * v(ISA.seaLevelDensity) * airspeed * Math.abs(airspeed) * Math.pow(data.envelopeVolume, 2 / 3) * CD
       /** @derived Hydrodynamic resistance, small because the displacement is tiny. */
       const hydro = 40 * speed * Math.abs(speed)
       const resistance = aerodynamic + hydro

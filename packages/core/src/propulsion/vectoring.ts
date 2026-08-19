@@ -1,5 +1,5 @@
 import type { Kilograms, Newtons, Watts } from '@airship/units'
-import { uncertain, v } from '@airship/data'
+import { v, CONSTANTS, ISA, uncertain } from '@airship/data'
 
 /**
  * Tilting propulsors: what they can lift, what they can hold, and what happens
@@ -122,10 +122,10 @@ export const DUCT_STATIC_THRUST_GAIN = v(
 )
 
 /** @source Standard gravity, m/s2. */
-const G0 = 9.80665
+const G0 = v(CONSTANTS.g0)
 
 /** @source ISA sea level air density, kg/m3. */
-const SEA_LEVEL_DENSITY = 1.225
+const SEA_LEVEL_DENSITY = v(ISA.seaLevelDensity)
 
 export const hoverCapability = (
   propulsorCount: number,

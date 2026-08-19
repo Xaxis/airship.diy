@@ -30,19 +30,7 @@ import {
   COMPLETE_SHIP_DRAG_COEFFICIENT,
   PROPULSIVE_EFFICIENCY,
 } from '@airship/core'
-import {
-  AKRON_STRUCTURE,
-  barrierFilm,
-  CENTREBOARD,
-  CONSTANTS,
-  CREW,
-  EMPTY_WEIGHT_PER_GAS_VOLUME,
-  ENGINE_CONSUMABLES,
-  GAS,
-  SOLAR,
-  WATER,
-  v,
-} from '@airship/data'
+import { v, AKRON_STRUCTURE, CENTREBOARD, CONSTANTS, CREW, EMPTY_WEIGHT_PER_GAS_VOLUME, ENGINE_CONSUMABLES, GAS, SOLAR, WATER, barrierFilm } from '@airship/data'
 import { kg, m, m3, K, rad, kgPerM3, W, SI } from '@airship/units'
 
 import { dumpableInventory } from './configuration.js'
@@ -1728,7 +1716,7 @@ export const hullBendingMoment = (design: DesignPoint, config: Configuration): H
   const areaIntegral = sections.reduce((sum, s) => sum + (s.area as number), 0)
 
   /** @source Standard gravity, turning the masses into forces. */
-  const g = 9.80665
+  const g = v(CONSTANTS.g0)
 
   const loads = sections.map((section, i) => ({
     x: section.x,

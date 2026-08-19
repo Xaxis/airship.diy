@@ -1,4 +1,4 @@
-import { MOLAR_VOLUME_STP, v, GAS } from '@airship/data'
+import { v, CONSTANTS, GAS, ISA, MOLAR_VOLUME_STP } from '@airship/data'
 import type { BarrierFilm } from '@airship/data'
 import type { Kilograms, Pascals, SquareMeters } from '@airship/units'
 import { kg } from '@airship/units'
@@ -49,7 +49,7 @@ const NITROGEN_FRACTION_OF_AIR = 0.7808
  * @source Standard atmosphere, exact by definition. Barrier film datasheets
  *   quote transmission per atmosphere of partial pressure difference.
  */
-const REFERENCE_PRESSURE = 101325
+const REFERENCE_PRESSURE = v(ISA.seaLevelPressure)
 
 /**
  * Seconds per day, for converting the film's per-day transmission rate.
@@ -136,9 +136,9 @@ export const annualLossFraction = (
 
   // Moles of lifting gas present, from the ideal gas law at cell conditions.
   /** @source ISA sea level temperature, the reference condition for this comparison. */
-  const referenceTemperature = 288.15
+  const referenceTemperature = v(ISA.seaLevelTemperature)
   /** @source CODATA gas constant; exact since the 2019 SI redefinition. */
-  const R = 8.314462618
+  const R = v(CONSTANTS.R)
   const molesPresent = (contents.purity * ambientPressure * volume) / (R * referenceTemperature)
 
   /** @derived Seconds in a mean Gregorian year, 365.2425 * 86400. */

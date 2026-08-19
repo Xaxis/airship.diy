@@ -1,5 +1,6 @@
 import type { Meters, Newtons, NewtonMeters } from '@airship/units'
 import { N, Nm } from '@airship/units'
+import { v, CONSTANTS } from '@airship/data'
 
 /**
  * The hull as a beam.
@@ -86,7 +87,7 @@ export interface BeamResult {
 }
 
 /** @source Standard gravity, exact by definition. */
-const G0 = 9.80665
+const G0 = v(CONSTANTS.g0)
 
 /**
  * Solve the hull beam.

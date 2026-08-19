@@ -45,6 +45,17 @@ import {
 
 
 /**
+ * Standard gravity, hoisted to module scope.
+ *
+ * It cannot be read inside `powerAt`, whose speed parameter is named `v` and
+ * shadows the data accessor of the same name. A mechanical sweep that replaced
+ * the literal in place compiled everywhere else and failed exactly here, which
+ * is the useful kind of failure: the type checker caught a shadowing bug that a
+ * find-and-replace introduced.
+ */
+const STANDARD_GRAVITY = v(CONSTANTS.g0)
+
+/**
  * Lift curve slope of a low aspect ratio surface, per radian.
  *
  * @source Helmbold's equation, the standard low-aspect-ratio correction to thin
@@ -481,7 +492,7 @@ export const minimumFlyingSpeed = (
   if (heaviness <= 0) return 0
 
   /** @source Standard gravity, for turning a mass into a weight. */
-  const g = 9.80665
+  const g = STANDARD_GRAVITY
   const weight = heaviness * g
 
   const clMax = hullLift(geometry, maximumIncidence, 1).liftCoefficient
@@ -537,8 +548,7 @@ export const stationKeepingPower = (
     const q = 0.5 * airDensity * v * v
     const parasite = HULL_ZERO_LIFT_DRAG * q * Math.pow(geometry.volume, 2 / 3)
     if (!carryLift) return (parasite * v) / PROPULSIVE_EFFICIENCY
-    /** @source Standard gravity, turning the heaviness into a lift requirement. */
-    const g = 9.80665
+    const g = STANDARD_GRAVITY
     const cl = (heaviness * g) / (q * geometry.planformArea)
     /** @source The measured induced drag law, NACA TR-432 / NASA CR-137691. */
     const MEASURED_INDUCED_DRAG_FACTOR = 1.976

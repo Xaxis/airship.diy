@@ -41,6 +41,7 @@ type-check: ## TypeScript across the whole monorepo, forced
 
 lint: ## ESLint, including the three rules that enforce the project's premises
 	# no-uncited-constant  a number without a source is a defect
+	# no-duplicated-constant  and a sourced number still has to be read, not retyped
 	# no-unqualified-hybrid  "hybrid" alone means hybrid LIFT and this ship is not that
 	# no-cross-tier-import  the physics may not depend on a design point
 	@npx eslint .

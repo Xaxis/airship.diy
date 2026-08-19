@@ -1,7 +1,7 @@
 import type { HullGeometry } from '../geometry/hull.js'
 import { liftCurveSlope } from './lifting-body.js'
 import type { Newtons, Radians } from '@airship/units'
-import { AERODYNAMIC_SURFACE_AREAL_MASS, v } from '@airship/data'
+import { v, AERODYNAMIC_SURFACE_AREAL_MASS, CONSTANTS } from '@airship/data'
 import { N } from '@airship/units'
 
 /**
@@ -619,7 +619,7 @@ export const wingPayloadEnvelope = (
         panelLiftFactor(lambda)
 
   /** @derived Standard gravity, m/s2, for turning a force into a mass. */
-  const G0 = 9.80665
+  const G0 = v(CONSTANTS.g0)
   /** @derived Lowest speed swept, m/s. Below this the wing makes no useful lift. */
   const LOW = 5
   /** @derived Highest speed swept, m/s. Above this nothing is affordable on this powerplant. */
