@@ -33,12 +33,14 @@ import {
 import {
   AKRON_STRUCTURE,
   barrierFilm,
+  CENTREBOARD,
   CONSTANTS,
   CREW,
   EMPTY_WEIGHT_PER_GAS_VOLUME,
   ENGINE_CONSUMABLES,
   GAS,
   SOLAR,
+  WATER,
   v,
 } from '@airship/data'
 import { kg, m, m3, K, rad, kgPerM3, W, SI } from '@airship/units'
@@ -449,6 +451,123 @@ export const compartmentHeight = (c: Compartment, localRadius: number): number =
       return c.rise
     case 'external':
       return c.rise
+  }
+}
+
+export interface CentreboardPlanform {
+  readonly area: number
+  /** Depth below the gondola keel, m. */
+  readonly span: number
+  readonly rootChord: number
+  readonly tipChord: number
+  /** Maximum section thickness at the root, m. */
+  readonly rootThickness: number
+  /** Station of the board's own centre. */
+  readonly station: number
+}
+
+/**
+ * The centreboard's shape, from the area the arrangement sizes and the foil
+ * proportions the data package records as uncertain.
+ *
+ * THE ARRANGEMENT ONLY EVER GAVE IT AN AREA. It is called "the part that
+ * decides whether boat mode exists", it is weighed, and its lateral resistance
+ * is integrated, but nothing said how deep it goes or how long its chord is. A
+ * drawing needs both, and inventing them in the renderer is exactly the failure
+ * this repository exists to prevent, so the proportions are `uncertain` and
+ * appear in the research queue rather than being quietly chosen.
+ *
+ * @derived Straight-tapered planform: AR = span^2/area gives the span, and the
+ * mean chord is area/span, from which the root and tip follow at the taper
+ * ratio. The board is a single surface, unlike the four-surface cruciform, so
+ * there is no division by a surface count here.
+ */
+export const centreboardPlanform = (
+  design: DesignPoint,
+  config: Configuration,
+): CentreboardPlanform => {
+  const area = config.centreboardArea
+  const aspectRatio = v(CENTREBOARD.aspectRatio)
+  const taperRatio = v(CENTREBOARD.taperRatio)
+
+  const span = Math.sqrt(aspectRatio * area)
+  const meanChord = area / span
+  /** @derived Mean of a straight taper is (root + tip)/2 = root*(1 + taper)/2. */
+  const rootChord = (2 * meanChord) / (1 + taperRatio)
+  const tipChord = rootChord * taperRatio
+
+  // Under the gondola, at the gondola's own station, because that is the
+  // structure that can carry the side load and the trunk it retracts into.
+  const gondola = config.compartments.find((c) => c.id === 'gondola-structure')
+
+  return {
+    area,
+    span,
+    rootChord,
+    tipChord,
+    rootThickness: rootChord * v(CENTREBOARD.thicknessRatio),
+    station: gondola?.station ?? config.keelForward,
+  }
+}
+
+export interface FlotationState {
+  /** Mass the water carries, kg. */
+  readonly waterborneLoad: number
+  /** Volume displaced, m3. */
+  readonly displacedVolume: number
+  /** Waterplane area of the gondola, m2. */
+  readonly waterplaneArea: number
+  /** Depth of the gondola bottom below the surface, m. */
+  readonly draft: number
+  /** Height of the gondola deck above the surface, m. */
+  readonly freeboard: number
+  /**
+   * True when the draft exceeds the gondola's own depth, meaning the hull
+   * itself is in the water rather than the gondola floating it.
+   */
+  readonly submerged: boolean
+}
+
+/**
+ * Where the waterline sits when the vehicle is afloat.
+ *
+ * THE NUMBER A BOAT-MODE DRAWING TURNS ON, and nothing computed it. The marine
+ * module has a waterplane area and a landing heaviness and integrates seakeeping
+ * against both, but never asked how deep the thing actually floats, so any
+ * picture of the vehicle on water was placing the waterline by eye.
+ *
+ * It is a small number and that is the point. A buoyant vehicle rests on the
+ * water at its residual heaviness, not its weight: a couple of hundred
+ * kilograms against a gondola waterplane of order eighty square metres, so the
+ * draft is centimetres. The vehicle does not float like a boat of its size, it
+ * floats like a boat of its TRIM, and that is what makes the windage problem
+ * severe rather than the flotation problem.
+ *
+ * @derived Archimedes on the gondola's waterplane, taken as wall-sided over the
+ * few centimetres involved, which is exact for a box and close enough for
+ * anything with vertical topsides at the waterline.
+ */
+export const flotationState = (
+  design: DesignPoint,
+  config: Configuration,
+  waterborneLoad = LANDING_TRIM,
+): FlotationState => {
+  const gondola = config.compartments.find((c) => c.id === 'gondola-structure')
+  if (!gondola) throw new Error('The arrangement has no gondola to float on.')
+
+  /** @derived Waterline is shorter than the gondola: the ends are fined off. */
+  const WATERLINE_FRACTION = 0.85
+  const waterplaneArea = gondola.extent * WATERLINE_FRACTION * gondola.width
+  const displacedVolume = waterborneLoad / v(WATER.seawaterDensity)
+  const draft = displacedVolume / waterplaneArea
+
+  return {
+    waterborneLoad,
+    displacedVolume,
+    waterplaneArea,
+    draft,
+    freeboard: gondola.height - draft,
+    submerged: draft > gondola.height,
   }
 }
 
@@ -1325,6 +1444,71 @@ export const validateArrangement = (
           ? `${thermal.swing.toFixed(1)} K of diurnal swing, ${thermal.superheat.toFixed(1)} K of superheat at ${(thermal.superheatCloudCover * 100).toFixed(0)} percent cloud and ${thermal.supercooling.toFixed(1)} K of supercooling under a clear night sky, moves lift by ${excursion.toFixed(0)} kg, which is ${(excursion / LANDING_TRIM).toFixed(1)} times the ${LANDING_TRIM} kg the vehicle rests on water at, so NO PASSIVE WATER-CONTACT DEVICE CAN BE SIZED FOR IT: a relief valve set for the trim is bypassed at the night load and useless at the day load. The arrangement answers it with ${ballastCapacity.toFixed(1)} m3 of seawater bladder against the ${loop.tankVolume.toFixed(1)} m3 the swing needs, pumped at ${loop.transferRate.toFixed(0)} kg a minute on ${loop.pumpPower.toFixed(0)} W. THE OCEAN IS THE BALLAST and moving water costs about a three-thousandth of what compressing lifting gas does. It works only afloat, which is where the problem is.`
           : `${thermal.swing.toFixed(1)} K of diurnal swing, ${thermal.superheat.toFixed(1)} K of superheat at ${(thermal.superheatCloudCover * 100).toFixed(0)} percent cloud and ${thermal.supercooling.toFixed(1)} K of supercooling under a clear night sky, moves lift by ${excursion.toFixed(0)} kg, which is ${(excursion / LANDING_TRIM).toFixed(1)} times the ${LANDING_TRIM} kg the vehicle rests on water at. The ship floats off its float in the afternoon and presses ${(excursion / 1000).toFixed(1)} tonnes onto it before dawn, every day. NO PASSIVE WATER-CONTACT DEVICE CAN BE SIZED FOR A LOAD THAT SWINGS BY THAT FACTOR TWICE A DAY. The arrangement carries ${ballastCapacity.toFixed(1)} m3 of ballast capacity against the ${loop.tankVolume.toFixed(1)} m3 the swing needs, so either the bladder grows or the vehicle does not rest on the surface at all.`,
   })
+
+  // ---- does the tail clear the water? -------------------------------------
+  /**
+   * THE DEFECT THE 3D VIEWS FOUND, and nothing in the model had asked.
+   *
+   * The cruciform is symmetric, so whatever the top fin does above the hull the
+   * bottom fin does below it. On this vehicle the lower fin reaches 20.3 m
+   * below the hull axis while the gondola keel is at 14.7 m, so the fin hangs
+   * 5.6 m BELOW the part of the ship that is supposed to touch the water.
+   *
+   * That matters three ways, and none of them was being checked:
+   *
+   *   1. The vehicle cannot come alongside anything, or into shallow water,
+   *      without immersing a large air surface.
+   *   2. A fin sized for air loads is a slamming panel in water, which is eight
+   *      hundred times denser. The seakeeping module computes slam loads on the
+   *      gondola and has never been told there is a fin below it.
+   *   3. It is an uncontrolled lateral plane AFT of the centre of lateral
+   *      resistance, which fights the bow drogue: the vehicle wants to lie with
+   *      its tail to the weather, and single-point bow weathervaning is what the
+   *      whole mooring case depends on.
+   *
+   * The fix is a tail that is not symmetric about the horizontal: an inverted-Y
+   * or an X, which is what modern airship studies adopt and for related reasons.
+   * That is a configuration change rather than a number, so this gate states the
+   * problem rather than papering over it.
+   */
+  const gondolaForClearance = config.compartments.find((c) => c.id === 'gondola-structure')
+  if (gondolaForClearance) {
+    const finRootRadiusForClearance = hullRadiusAt(
+      m(length),
+      finenessRatio,
+      config.finStation,
+      hullShapeForPrismatic(design.hull.prismaticCoefficient),
+    )
+    /** @derived The fin root sits just inside the cover, as the drawing has it. */
+    const FIN_ROOT_INSET = 0.94
+    const lowerFinTipDepth = finRootRadiusForClearance * FIN_ROOT_INSET + fins.span
+    /**
+     * @derived How far the gondola hangs below the hull surface, as a fraction
+     * of its own height. The same figure the drawing uses, so the gate and the
+     * picture cannot disagree about where the keel is.
+     */
+    const GONDOLA_HANG_FRACTION = 0.42
+    const keelDepth =
+      hullRadiusAt(
+        m(length),
+        finenessRatio,
+        gondolaForClearance.station,
+        hullShapeForPrismatic(design.hull.prismaticCoefficient),
+      ) +
+      gondolaForClearance.height * GONDOLA_HANG_FRACTION +
+      gondolaForClearance.height / 2
+    const clearance = keelDepth - lowerFinTipDepth
+
+    findings.push({
+      id: 'lower-fin-clears-the-water',
+      severity: clearance >= 0 ? 'pass' : 'fail',
+      rule: 'The lowest point of the tail is above the keel, so the vehicle can float without immersing a fin.',
+      detail:
+        clearance >= 0
+          ? `The lower fin tip is ${lowerFinTipDepth.toFixed(1)} m below the hull axis against a ${keelDepth.toFixed(1)} m keel, clearing by ${clearance.toFixed(1)} m.`
+          : `THE TAIL IS IN THE WATER. The lower fin tip reaches ${lowerFinTipDepth.toFixed(1)} m below the hull axis while the gondola keel is at ${keelDepth.toFixed(1)} m, so the fin hangs ${Math.abs(clearance).toFixed(1)} m below the part of the ship meant to float and is immersed to that depth every time the vehicle lands. A surface sized for air loads is a slamming panel in water, and it is an uncontrolled lateral plane aft of the centre of lateral resistance, which fights the bow drogue the mooring case depends on. A symmetric cruciform cannot fix this at any size, because the lower fin grows with the upper one. The answer is an inverted-Y or X tail, which is a configuration change and not a number.`,
+    })
+  }
 
   // ---- propulsion --------------------------------------------------------
   const vectoringPairs = config.propulsors.filter(

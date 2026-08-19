@@ -43,6 +43,54 @@ export const WATER = under('water', () => ({
  * cylinder, referenced to the projected lateral AREA, and it is more than an
  * order of magnitude larger.
  */
+/**
+ * Geometry of the retractable centreboard, which the arrangement sizes by AREA
+ * alone.
+ *
+ * WHY THIS IS HERE RATHER THAN PICKED IN A DRAWING. The arrangement gives the
+ * board 40 m2 and calls it the part that decides whether boat mode exists,
+ * because without lateral resistance the vehicle points where the fins say and
+ * goes where the wind says. But an area is not a shape, and the 3D views were
+ * about to invent one. A foil's induced drag goes as one over its aspect ratio,
+ * so the shape is what decides whether the board actually gets the vehicle to
+ * windward, and it is a genuine unknown rather than a free choice.
+ */
+export const CENTREBOARD = under('centreboard', () => ({
+  aspectRatio: uncertain({
+    low: 2.5,
+    nominal: 4,
+    high: 6,
+    unit: '1',
+    reason:
+      'Sailing centreboards run from about 2.5 on a dinghy to 6 or more on a performance keelboat, and higher is better hydrodynamically until the root bending moment and the trunk depth stop you. This vehicle has a constraint no sailing boat has: the board must retract into a hull that also has to survive being set down on water, so the trunk cannot be arbitrarily deep. Nothing in this model has yet sized that structure, so the aspect ratio is not yet a decision that can be made.',
+    resolvedBy:
+      'Size the centreboard trunk and its root attachment against the side load from the windward case, then take the deepest board the structure and the landing draft allow.',
+    source: 'larsson-eliasson-yacht-design',
+  }),
+
+  taperRatio: uncertain({
+    low: 0.4,
+    nominal: 0.55,
+    high: 0.8,
+    unit: '1',
+    reason:
+      'Tip chord over root chord. An elliptical loading wants about 0.45 on a straight-tapered planform, and boards are often built fatter than that for the root structure.',
+    resolvedBy: 'Falls out of the same structural sizing as the aspect ratio.',
+    source: 'larsson-eliasson-yacht-design',
+  }),
+
+  thicknessRatio: uncertain({
+    low: 0.08,
+    nominal: 0.12,
+    high: 0.15,
+    unit: '1',
+    reason:
+      'Section thickness over chord. Thin is faster and thick carries the root bending. Sailing practice sits around 0.09 to 0.12; a board that has to survive touching bottom is thicker.',
+    resolvedBy: 'Structural sizing of the board against the windward side load.',
+    source: 'larsson-eliasson-yacht-design',
+  }),
+}))
+
 export const WINDAGE = under('windage', () => ({
   crossFlowDragCoefficient: uncertain({
     low: 0.4,

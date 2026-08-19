@@ -29,6 +29,8 @@ export {
   keelEnvelopeVolume,
   LANDING_TRIM,
   finPlanform,
+  centreboardPlanform,
+  flotationState,
   massStatement,
   thermalDesignCase,
   validateArrangement,

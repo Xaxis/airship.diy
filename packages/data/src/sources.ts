@@ -199,6 +199,13 @@ export const SOURCES: readonly Source[] = [
     note: "PRIMARY PARAMETRIC SOURCE for tail sizing. Appendix G gives 4*A_fin = 1.10*V^(2/3)*(0.5+0.067*F)/F^(2/3) and a worked example this repository reproduces to 0.01 percent. Dimensionally sound, unlike the linear fin-area-to-volume ratios elsewhere in the literature.",
   },
   {
+    id: 'larsson-eliasson-yacht-design',
+    title: 'Principles of Yacht Design, 4th edition',
+    author: 'L. Larsson, R. E. Eliasson and M. Orych',
+    year: 2014,
+    note: 'The standard reference for appendage geometry, lateral plane sizing and the aspect-ratio ranges real centreboards and keels are built to. Used here for the shape of the board, not its area, which the arrangement sets.',
+  },
+  {
     id: 'khoury-airship-technology',
     title: 'Airship Technology, 2nd edition',
     author: 'G. A. Khoury (ed.)',

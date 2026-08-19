@@ -1,3 +1,4 @@
+import { ConfigurationViewer } from '../../components/ConfigurationViewer'
 import { MarineSimulator } from '../../components/MarineSimulator'
 import { NavigationPolar } from '../../components/NavigationPolar'
 import {
@@ -26,6 +27,18 @@ export default function Page() {
       >
         <div className="border border-[var(--color-rule)] bg-[var(--color-panel)]">
           <MarineSimulator data={marine} radii={hullProfile.radii} length={hullProfile.length} />
+        </div>
+
+        <div className="mt-8">
+          <h3 className="text-sm font-medium">What actually changes when it lands</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
+            Three configurations, at each design point's own dimensions. The propulsors tilt to
+            their own authority, the centreboard comes out of its trunk, and the waterline sits
+            where the flotation state puts it rather than where it looks right. Drag to turn it.
+          </p>
+          <div className="mt-4">
+            <ConfigurationViewer />
+          </div>
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-2">

@@ -66,6 +66,8 @@ import {
   BASELINE_ARRANGEMENT,
   LANDING_TRIM,
   wingSizing,
+  centreboardPlanform,
+  flotationState,
   massStatement,
   thermalDesignCase,
   validateArrangement,
@@ -1725,3 +1727,111 @@ export const flightConfiguration = (() => {
     },
   }
 })()
+
+/**
+ * Everything the 3D views need to draw a vehicle, for EVERY design point.
+ *
+ * WHY THIS EXISTS. `arrangement` is the baseline and only the baseline, so every
+ * three-dimensional view in this app drew the same 118 m ship no matter which
+ * design point was selected. The minimum-viable point is 65 m and does not
+ * close; the stretch is 125 m. Drawing all three identically is the same class
+ * of defect as a number that appears twice, and it hid the one thing a reader
+ * most wants to see, which is how much bigger the ship has to get.
+ *
+ * The renderer takes one of these and does no model work at all. Every station,
+ * chord, span and diameter here comes from the same functions the mass
+ * statement and the stability gates use.
+ */
+export const shipGeometries = DESIGN_POINTS.map((design) => {
+  const config = BASELINE_ARRANGEMENT
+  const shape = hullShapeForPrismatic(design.hull.prismaticCoefficient)
+  const geometry = hullGeometry(m(design.hull.length), design.hull.finenessRatio, shape)
+  const fins = finPlanform(design, config)
+  const board = centreboardPlanform(design, config)
+  const flotation = flotationState(design, config)
+  const statement = massStatement(design, config)
+  const gondola = config.compartments.find((c) => c.id === 'gondola-structure')
+
+  /** @derived Stations along the hull. 96 is smooth at any width this renders at. */
+  const STATIONS = 96
+
+  return {
+    id: design.id,
+    name: design.name,
+    length: design.hull.length,
+    maxRadius: design.hull.length / design.hull.finenessRatio / 2,
+    cellCount: design.hull.cellCount,
+    radii: Array.from({ length: STATIONS + 1 }, (_, i) =>
+      hullRadiusAt(m(design.hull.length), design.hull.finenessRatio, i / STATIONS, shape),
+    ),
+    volume: geometry.volume,
+
+    fins: {
+      rootChord: fins.rootChord,
+      tipChord: fins.tipChord,
+      span: fins.span,
+      station: fins.station,
+      area: fins.area,
+      /** Fraction of the chord that is a movable rudder or elevator. */
+      controlChordFraction: config.rudderChordFraction,
+    },
+
+    wing: {
+      span: config.wingSpan,
+      area: config.wingArea,
+      station: config.wingStation,
+    },
+
+    centreboard: {
+      area: board.area,
+      span: board.span,
+      rootChord: board.rootChord,
+      tipChord: board.tipChord,
+      rootThickness: board.rootThickness,
+      station: board.station,
+    },
+
+    flotation: {
+      draft: flotation.draft,
+      freeboard: flotation.freeboard,
+      waterplaneArea: flotation.waterplaneArea,
+      waterborneLoad: flotation.waterborneLoad,
+    },
+
+    gondola: gondola
+      ? {
+          station: gondola.station,
+          extent: gondola.extent,
+          width: gondola.width,
+          height: gondola.height,
+        }
+      : null,
+
+    propulsors: config.propulsors.map((p) => ({
+      id: p.id,
+      station: p.station,
+      lateralOffset: p.lateralOffset,
+      heightFraction: p.heightFraction,
+      diameter: p.diameter,
+      ducted: p.ducted,
+      /** Radians either side of horizontal this unit can actually tilt. */
+      vectorAuthority: p.vectorAuthority,
+    })),
+
+    /**
+     * Station the mooring cone and drogue rode attach at.
+     *
+     * @derived The bow, as far forward as the structure goes. Single-point
+     * weathervaning off a bow drogue is what holds a 2,000 m2 sail head to
+     * wind, so the attachment has to be ahead of the centre of lateral
+     * resistance or the vehicle lies beam-on and is driven sideways.
+     */
+    mooringStation: 0.02,
+
+    closes: statement.liftMargin > 0,
+    liftMargin: statement.liftMargin,
+  }
+})
+
+export const shipGeometryFor = (id: string) =>
+  shipGeometries.find((g) => g.id === id) ?? shipGeometries[0]!

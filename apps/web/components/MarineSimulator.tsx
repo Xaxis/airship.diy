@@ -226,7 +226,7 @@ export function MarineSimulator({ data, radii, length }: MarineSimulatorProps) {
     // vehicle unreadable at the moment it matters, which is the one this view
     // exists to show. The car is drawn separately below, since the whole
     // subject here is the car meeting the water while the hull stays above it.
-    const built = buildShip({ hullSegments: 64, rings: false, car: false })
+    const built = buildShip({ hullSegments: 64, rings: false, car: false, mode: 'afloat' })
     const hullGroup = built.group
     ship.add(hullGroup)
 
