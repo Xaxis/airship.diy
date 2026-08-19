@@ -440,6 +440,12 @@ export const diurnalThermalCycle = (input: DiurnalInput): DiurnalCycle => {
   const stepSeconds = STEP_HOURS * SECONDS_PER_HOUR
   const hInternal = v(ENVELOPE_CONVECTION.internalCoefficient)
   const capacity = gasMass * gasSpecificHeat
+  /**
+   * @derived tau = m*c_p / (h*A). THE REASON SUPERHEAT PEAKS AFTER NOON: on the
+   * baseline it is about twenty minutes, so the gas is still climbing when the
+   * sun has started down.
+   */
+  const timeConstant = capacity / (hInternal * (envelopeArea as number))
 
   const baseAir = conditions.airTemperature as number
   /**
@@ -458,32 +464,57 @@ export const diurnalThermalCycle = (input: DiurnalInput): DiurnalCycle => {
   let gas = baseAir
   const samples: DiurnalSample[] = []
 
-  /** @derived Two days: the first discards the initial condition. */
-  const DAYS = 2
-  for (let day = 0; day < DAYS; day += 1) {
-    if (day === DAYS - 1) samples.length = 0
-    for (let hour = 0; hour < HOURS_PER_DAY; hour += STEP_HOURS) {
-      const air = airAt(hour)
-      const stepConditions: EnvelopeConditions = {
-        ...conditions,
-        airTemperature: K(air),
-        surfaceTemperature: K((conditions.surfaceTemperature as number) + (air - baseAir)),
-      }
-      const irradiance = surfaceIrradiance(latitude, dayOfYear, hour, conditions.cloudCover)
-      const surface = envelopeTemperature(K(gas), irradiance, stepConditions)
+  /**
+   * Spin-up, derived from the time constant rather than a whole discarded day.
+   *
+   * The gas starts at ambient, which is an arbitrary initial condition, so the
+   * integration has to run long enough for it to be forgotten before anything
+   * is recorded. That was a full extra day: 65 time constants, when 10 leaves
+   * 5e-5 of the initial error. On a hull-sizing bisection, which re-runs this
+   * for every candidate length, the wasted 20 hours were most of the cost.
+   *
+   * @derived exp(-10) = 4.5e-5 of the initial offset survives.
+   */
+  const SPIN_UP_TIME_CONSTANTS = 10
+  const spinUpHours = Math.min(
+    (SPIN_UP_TIME_CONSTANTS * timeConstant) / SECONDS_PER_HOUR,
+    HOURS_PER_DAY,
+  )
 
-      if (day === DAYS - 1) {
-        samples.push({
-          hour,
-          gasTemperature: K(gas),
-          envelopeTemperature: surface,
-          superheat: gas - air,
-        })
-      }
-
-      const flux = hInternal * (envelopeArea as number) * ((surface as number) - gas)
-      gas += (flux / capacity) * stepSeconds
+  for (let hour = -spinUpHours; hour < HOURS_PER_DAY; hour += STEP_HOURS) {
+    // The spin-up runs through the previous day's clock, so the gas arrives at
+    // local midnight having already seen a night.
+    const clockHour = ((hour % HOURS_PER_DAY) + HOURS_PER_DAY) % HOURS_PER_DAY
+    const air = airAt(clockHour)
+    const stepConditions: EnvelopeConditions = {
+      ...conditions,
+      airTemperature: K(air),
+      surfaceTemperature: K((conditions.surfaceTemperature as number) + (air - baseAir)),
     }
+    const irradiance = surfaceIrradiance(latitude, dayOfYear, clockHour, conditions.cloudCover)
+    const surface = envelopeTemperature(K(gas), irradiance, stepConditions)
+
+    if (hour >= 0) {
+      samples.push({
+        hour: clockHour,
+        gasTemperature: K(gas),
+        envelopeTemperature: surface,
+        superheat: gas - air,
+      })
+    }
+
+    // EXACT for the gas node, not forward Euler.
+    //
+    // The node is linear: dT/dt = (T_surface - T)/tau, so over a step with the
+    // surface held at its current value the solution is closed form. Euler
+    // approximates that exponential by its tangent, which is why it needed a
+    // one-minute step against a twenty-minute time constant to stay accurate.
+    //
+    // The scheme is still first order in the coupling, because the surface is
+    // recomputed from the gas at the start of each step, but it is exact in the
+    // stiff part and unconditionally stable, so the step is set by how fast the
+    // SUN moves rather than by numerical stability.
+    gas = (surface as number) + (gas - (surface as number)) * Math.exp(-stepSeconds / timeConstant)
   }
 
   let peakSuperheat = -Infinity

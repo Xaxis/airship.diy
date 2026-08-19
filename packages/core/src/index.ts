@@ -100,6 +100,7 @@ export {
   differentialYawMoment,
   finAreaToHoldHeading,
   finLiftCurveSlope,
+  finBodyLiftFactor,
   TAIL_DYNAMIC_PRESSURE_RATIO,
 } from './marine/navigation.js'
 

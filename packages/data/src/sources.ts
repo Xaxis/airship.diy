@@ -192,6 +192,13 @@ export const SOURCES: readonly Source[] = [
     note: 'PRIMARY. The clear-sky effective radiative sky temperature, T_sky = 0.0552 * T_air^1.5. This is what makes an envelope go BELOW ambient on a clear night.',
   },
   {
+    id: 'nasa-cr-137692',
+    title: 'Feasibility Study of Modern Airships, Phase I, Volume IV: Appendices (NASA CR-137692)',
+    author: 'Goodyear Aerospace Corporation',
+    year: 1975,
+    note: "PRIMARY PARAMETRIC SOURCE for tail sizing. Appendix G gives 4*A_fin = 1.10*V^(2/3)*(0.5+0.067*F)/F^(2/3) and a worked example this repository reproduces to 0.01 percent. Dimensionally sound, unlike the linear fin-area-to-volume ratios elsewhere in the literature.",
+  },
+  {
     id: 'khoury-airship-technology',
     title: 'Airship Technology, 2nd edition',
     author: 'G. A. Khoury (ed.)',

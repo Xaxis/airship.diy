@@ -1357,6 +1357,18 @@ export const navigation = (() => {
       (BASELINE_ARRANGEMENT.finStation - statement.centreOfBuoyancy.x / BASELINE.hull.length) *
       BASELINE.hull.length,
     aspectRatio: fins.span ** 2 / (fins.area / 4),
+    // TR 1307 lambda, so the polar and the yaw gate credit the fin with the
+    // same load on the hull. Omitting it here made the polar report a vehicle
+    // that weathervanes worse than the arrangement says it does.
+    bodyRadiusRatio: (() => {
+      const rootRadius = hullRadiusAt(
+        m(BASELINE.hull.length),
+        BASELINE.hull.finenessRatio,
+        BASELINE_ARRANGEMENT.finStation,
+        hullShapeForPrismatic(BASELINE.hull.prismaticCoefficient),
+      )
+      return rootRadius / (rootRadius + fins.span)
+    })(),
     rudderChordFraction: BASELINE_ARRANGEMENT.rudderChordFraction,
   }
 

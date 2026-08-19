@@ -7,6 +7,8 @@ import {
   ballastLoop,
   crossSectionDistribution,
   coveredArea,
+  finBodyLiftFactor,
+  finLiftCurveSlope,
   designThermalCase,
   type ThermalDesignCase,
   criticalDuctDiameter,
@@ -1181,18 +1183,20 @@ export const validateArrangement = (
    * aspect ratio, which is the same relation the hull aerodynamics use.
    */
   const exposedAspectRatio = fins.span ** 2 / (fins.area / 4)
-  /** @source The hull is an end plate, so the exposed fin behaves as half a wing. */
-  const REFLECTION_PLANE_FACTOR = 2
-  const effectiveAspectRatio = exposedAspectRatio * REFLECTION_PLANE_FACTOR
   /**
-   * @source Local dynamic pressure at the tail, as a fraction of free stream.
-   * The fin sits inside a boundary layer that is metres thick on a hull this
-   * long, and airship practice puts the loss at 10 to 20 percent.
+   * Body radius over semispan from the hull axis, TR 1307's lambda.
+   *
+   * This is what the criterion was missing. The fin was credited with the lift
+   * on its own panels and nothing else, when a panel on a body also induces a
+   * load on the body, and that load acts at the same tail arm and restores in
+   * the same direction. At this lambda the pair is worth 1.58 times the panels
+   * alone, so the minimum fin area the Munk moment demands was overstated by
+   * more than half a tail.
    */
-  const TAIL_DYNAMIC_PRESSURE_RATIO = 0.85
-  const finLiftSlope =
-    ((2 * Math.PI * effectiveAspectRatio) / (2 + Math.sqrt(effectiveAspectRatio ** 2 + 4))) *
-    TAIL_DYNAMIC_PRESSURE_RATIO
+  const finRootRadius = hullRadiusAt(m(length), finenessRatio, config.finStation, hullShapeForPrismatic(design.hull.prismaticCoefficient))
+  const bodyRadiusRatio = finRootRadius / (finRootRadius + fins.span)
+  // From core, so the yaw gate and the navigation polar cannot diverge again.
+  const finLiftSlope = finLiftCurveSlope(exposedAspectRatio, bodyRadiusRatio)
 
   const minimumFinArea =
     (2 * MUNK_REAL_FLUID_FACTOR * geometry.volume * (k2 - k1)) / (finLiftSlope * finArm)
@@ -1206,14 +1210,39 @@ export const validateArrangement = (
    */
   const yawFinArea = fins.area / 2
   const staticMargin = yawFinArea / minimumFinArea
-  /** @source Airship practice wants 1.3 to 1.8 in yaw. Below 1 the vehicle diverges. */
+  /**
+   * A DESIGN CHOICE THAT DEPARTS FROM HISTORICAL PRACTICE, and it is expensive,
+   * so it is worth being honest about which it is.
+   *
+   * This was documented as "airship practice wants 1.3 to 1.8 in yaw", cited to
+   * nothing, and it is not true. Munk says so in the very report this project
+   * takes the destabilising moment from: actual airships with fins "are
+   * statically unstable ... but not much so", the hull's moment being "nearly
+   * neutralized" by the fins. Goodyear's parametric tail, evaluated against this
+   * model's own criterion, lands at a margin near 0.8. Two sources fifty years
+   * apart, both below one.
+   *
+   * So every rigid airship that ever flew was directionally divergent and was
+   * flown anyway, on continuous helm. They could afford that: Akron carried a
+   * bridge watch and stood rudder watches around the clock, with relief.
+   *
+   * THIS VEHICLE CANNOT. Two people, multi-month, and the figure of merit is
+   * days aloft. A vehicle that diverges without continuous closed-loop control
+   * spends power holding itself straight, and it broaches the first time the
+   * autopilot faults while both crew are asleep. Buying static stability with
+   * tail mass is the trade, and it is a real trade rather than a rule: at this
+   * margin the tail is about 1.6 times what the historical fleet carried.
+   *
+   * @derived Above one by a margin that covers the uncertainty in fin
+   * effectiveness, which is the term that is not certain. The Munk moment is.
+   */
   const MINIMUM_YAW_STATIC_MARGIN = 1.3
   findings.push({
     id: 'yaw-static-margin',
     severity:
       staticMargin >= MINIMUM_YAW_STATIC_MARGIN ? 'pass' : staticMargin >= 1 ? 'warn' : 'fail',
     rule: `Fin area at least ${MINIMUM_YAW_STATIC_MARGIN} times the minimum that balances the Munk moment.`,
-    detail: `${yawFinArea.toFixed(0)} m2 of VERTICAL fin, half of the ${fins.area.toFixed(0)} m2 cruciform, against a ${minimumFinArea.toFixed(0)} m2 minimum on a ${finArm.toFixed(1)} m arm: a static margin of ${staticMargin.toFixed(2)}. The lift slope is ${finLiftSlope.toFixed(2)} per radian, from an exposed aspect ratio of ${exposedAspectRatio.toFixed(2)} doubled by the hull acting as an end plate and then knocked down ${((1 - TAIL_DYNAMIC_PRESSURE_RATIO) * 100).toFixed(0)} percent for the boundary layer the tail sits in. The Munk moment is certain and the fin effectiveness is not, so the margin is the honest part of this number.`,
+    detail: `${yawFinArea.toFixed(0)} m2 of VERTICAL fin, half of the ${fins.area.toFixed(0)} m2 cruciform, against a ${minimumFinArea.toFixed(0)} m2 minimum on a ${finArm.toFixed(1)} m arm: a static margin of ${staticMargin.toFixed(2)}. The lift slope is ${finLiftSlope.toFixed(2)} per radian, from an exposed aspect ratio of ${exposedAspectRatio.toFixed(2)} doubled by the hull acting as an end plate, knocked down 15 percent for the boundary layer the tail sits in, and multiplied by ${finBodyLiftFactor(bodyRadiusRatio).toFixed(2)} for the load the fin induces on the hull itself, which restores at the same arm. The Munk moment is certain and the fin effectiveness is not, so the margin is the honest part of this number.`,
   })
 
   // ---- can it put itself down and pick itself up again? -------------------

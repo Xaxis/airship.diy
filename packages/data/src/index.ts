@@ -88,3 +88,4 @@ export {
   STRUCTURAL_SCALING,
 } from './validation/structural-fleet.js'
 export { SOLAR, ENVELOPE_OPTICS, ENVELOPE_CONVECTION, SKY } from './thermal.js'
+export { GOODYEAR_FIN_SIZING, HISTORICAL_YAW_STATIC_MARGIN } from './validation/fin-sizing.js'

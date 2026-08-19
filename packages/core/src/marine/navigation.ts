@@ -86,6 +86,12 @@ export interface FinSet {
   /** Geometric aspect ratio of one fin, for its lift-curve slope. */
   readonly aspectRatio: number
   /**
+   * TR 1307's lambda: hull radius at the fin station over the semispan from the
+   * hull axis. Optional, and zero means "a bare surface in free air", which is
+   * what this module assumed before the carryover was credited.
+   */
+  readonly bodyRadiusRatio?: number
+  /**
    * Chord fraction of the movable trailing-edge surface, if there is one.
    *
    * THE RUDDER HAS TO BE IN THE YAW BALANCE. Leaving it out understates the
@@ -147,16 +153,60 @@ export interface NavigationPolar {
  * 2.34, on the identical surface, and the polar and the yaw gate each believed
  * their own.
  *
- * @source Helmbold's low-aspect-ratio relation, on the effective aspect ratio.
- * A fin against a body sees its own reflection in the hull, so its effective
- * aspect ratio is twice its geometric one.
+ * IT WAS MISSING THE BODY CARRYOVER, and that is a factor of 1.58 on this
+ * vehicle, which is most of a whole extra tail.
+ *
+ * A fin next to a body does two things. Its own panels carry more lift than
+ * they would alone, because the body's cross-flow adds upwash: NACA TR 1307
+ * calls that K_W(B). And the panels induce a load on the BODY itself, ahead of
+ * and around the root, which TR 1307 calls K_B(W). Both act at the tail arm and
+ * both restore the vehicle in yaw, so both belong in a stability criterion.
+ * This function counted neither.
+ *
+ * For a slender body the two sum exactly to (1 + lambda)^2, with lambda the
+ * body radius over the semispan measured from the body axis. This repository
+ * already had `panelLiftFactor` for K_W(B) and already used it on the WINGS.
+ * The fins never saw it.
+ *
+ * @source Helmbold's low-aspect-ratio relation on the effective aspect ratio,
+ * then TR 1307 slender-body wing-body interference. The hull acts as a
+ * reflection plane, so the exposed surface behaves as half a wing of twice the
+ * span and its effective aspect ratio is twice its geometric one. That is the
+ * SAME reference wing TR 1307's factors are defined against, which is why the
+ * two corrections compose rather than double-counting.
+ *
+ * @param bodyRadiusRatio lambda: body radius over semispan from the axis. Zero
+ * for a free surface, which recovers the old behaviour exactly.
  */
-export const finLiftCurveSlope = (exposedAspectRatio: number): number => {
+export const finLiftCurveSlope = (exposedAspectRatio: number, bodyRadiusRatio = 0): number => {
+  if (bodyRadiusRatio < 0 || bodyRadiusRatio >= 1) {
+    throw new RangeError(
+      `A body radius ratio of ${bodyRadiusRatio} is not a fin on a hull: it must be in [0, 1), ` +
+        `and at 1 the hull has swallowed the span so there is no panel left.`,
+    )
+  }
   /** @derived The hull acts as a reflection plane, doubling the effective aspect ratio. */
   const effective = exposedAspectRatio * 2
   const helmbold = (2 * Math.PI * effective) / (2 + Math.sqrt(effective * effective + 4))
-  return helmbold * TAIL_DYNAMIC_PRESSURE_RATIO
+  return helmbold * TAIL_DYNAMIC_PRESSURE_RATIO * finBodyLiftFactor(bodyRadiusRatio)
 }
+
+/**
+ * Total lift on a fin AND the body it is attached to, per unit of the lift the
+ * joined exposed panels would carry alone. K_W(B) + K_B(W).
+ *
+ * @source NACA TR 1307 (Pitts, Nielsen and Kaattari), slender-body theory, in
+ * which the two interference factors sum to (1 + lambda)^2 exactly.
+ *
+ * THE APPROXIMATION IT MAKES, stated because a stability margin turns on it:
+ * the carryover load sits on the hull around and ahead of the fin root rather
+ * than at the fin's own centre of pressure, so crediting it at the full tail
+ * arm is slightly optimistic. The carryover is concentrated near the root
+ * chord, which on this vehicle is within a few metres of the fin centroid on a
+ * 54 m arm, so the error is small and in the unconservative direction. A strip
+ * integration of the afterbody load would settle it.
+ */
+export const finBodyLiftFactor = (bodyRadiusRatio: number): number => (1 + bodyRadiusRatio) ** 2
 
 /**
  * @source Ratio of the dynamic pressure at the tail to the free-stream value.
@@ -302,7 +352,7 @@ export const navigationPolar = (
    * aspect ratio. The force acts at the fin centre of pressure and the moment is
    * that force times the arm.
    */
-  const finLiftSlope = finLiftCurveSlope(fins.aspectRatio)
+  const finLiftSlope = finLiftCurveSlope(fins.aspectRatio, fins.bodyRadiusRatio ?? 0)
 
   const rudderYawAuthority =
     q * fins.verticalArea * finLiftSlope * flapEffectiveness * MAXIMUM_RUDDER_DEFLECTION *

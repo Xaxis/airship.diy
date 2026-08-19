@@ -263,15 +263,25 @@ describe('what the arrangement did to the hull size', () => {
     expect(massStatement(at(90), BASELINE_ARRANGEMENT).liftMargin).toBeLessThan(0)
   })
 
-  it('closes near 104 m and needs about 112 m to be buildable', () => {
-    const exact = smallestClosingLength(BASELINE, BASELINE_ARRANGEMENT, 0)
-    const withGrowth = smallestClosingLength(BASELINE, BASELINE_ARRANGEMENT)
-    expect(exact).toBeGreaterThan(98)
-    expect(exact).toBeLessThan(110)
-    expect(withGrowth).toBeGreaterThan(106)
-    expect(withGrowth).toBeLessThan(118)
-    expect(withGrowth!).toBeGreaterThan(exact!)
-  })
+  it(
+    'closes near 104 m and needs about 112 m to be buildable',
+    () => {
+      const exact = smallestClosingLength(BASELINE, BASELINE_ARRANGEMENT, 0)
+      const withGrowth = smallestClosingLength(BASELINE, BASELINE_ARRANGEMENT)
+      expect(exact).toBeGreaterThan(98)
+      expect(exact).toBeLessThan(110)
+      expect(withGrowth).toBeGreaterThan(106)
+      expect(withGrowth).toBeLessThan(118)
+      expect(withGrowth!).toBeGreaterThan(exact!)
+    },
+    // Two bisections on hull length, each of which integrates the diurnal
+    // thermal cycle for every candidate, because gas mass goes as the cube of
+    // length and exchange area as the square, so the superheat swing that sizes
+    // the ballast really does move with the ship. This is the slowest honest
+    // test in the repository; the alternative is caching a thermal answer
+    // across lengths it does not apply to.
+    15000,
+  )
 
   it('carries the growth margin the baseline was chosen for', () => {
     const s = massStatement(BASELINE, BASELINE_ARRANGEMENT)
