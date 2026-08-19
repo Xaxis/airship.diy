@@ -1819,6 +1819,39 @@ export const shipGeometries = DESIGN_POINTS.map((design) => {
     })),
 
     /**
+     * The photovoltaic array: a band over the top of the hull.
+     *
+     * The primary power source, sized by the energy balance, and it appeared in
+     * no three-dimensional view of the vehicle at all. It is also why the
+     * thermal model has to care about optics: a module is nearly black in the
+     * solar band while the cover around it is deliberately reflective, so how
+     * much of the hull it covers is what sets the superheat.
+     */
+    array: {
+      halfAngle: design.power.arrayCoverageHalfAngle,
+      forwardStation: design.power.arrayForwardStation,
+      aftStation: design.power.arrayAftStation,
+    },
+
+    /**
+     * Where engine exhaust leaves the vehicle.
+     *
+     * Aft and well below the hull, and that is a hydrogen safety result rather
+     * than a styling choice: the confinement module refuses any hot gas path
+     * that runs near a cell.
+     */
+    exhaust: {
+      station: BASELINE_ARRANGEMENT.exhaustStation,
+      heightFraction: BASELINE_ARRANGEMENT.exhaustHeightFraction,
+    },
+
+    keel: {
+      forward: BASELINE_ARRANGEMENT.keelForward,
+      aft: BASELINE_ARRANGEMENT.keelAft,
+      width: BASELINE_ARRANGEMENT.keelWidth,
+    },
+
+    /**
      * Station the mooring cone and drogue rode attach at.
      *
      * @derived The bow, as far forward as the structure goes. Single-point

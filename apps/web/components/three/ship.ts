@@ -192,6 +192,8 @@ export interface ShipOptions {
   readonly car?: boolean
   readonly wings?: boolean
   readonly centreboard?: boolean
+  readonly array?: boolean
+  readonly drogue?: boolean
   readonly materials?: ShipMaterials
 }
 
@@ -216,8 +218,20 @@ export interface BuiltShip {
 export const buildShip = (options: ShipOptions = {}): BuiltShip => {
   const geometry =
     options.geometry ?? (options.designId ? shipGeometryFor(options.designId) : shipGeometries[0]!)
-  const { length, maxRadius, cellCount, fins, propulsors, wing, centreboard, gondola, flotation } =
-    geometry
+  const {
+    length,
+    maxRadius,
+    cellCount,
+    fins,
+    propulsors,
+    wing,
+    centreboard,
+    gondola,
+    flotation,
+    array,
+    exhaust,
+    mooringStation,
+  } = geometry
 
   const mode: ShipMode = options.mode ?? 'cruise'
   const segments = options.hullSegments ?? 64
@@ -277,6 +291,59 @@ export const buildShip = (options: ShipOptions = {}): BuiltShip => {
       disposables.push(ringGeometry)
       group.add(new THREE.Line(ringGeometry, ringMaterial))
     }
+  }
+
+  // ---- photovoltaic array, which was in no view of the vehicle ------------
+  // The primary power source. It is a band over the TOP of the hull, running
+  // from the forward station to the aft one and reaching the half-angle each
+  // side of the crown, and it is built on the hull's own radii so it lies on
+  // the surface rather than hovering above it.
+  //
+  // It is drawn because it is a third of the reason this vehicle looks the way
+  // it does, and because the thermal model's superheat answer turns on how much
+  // of the hull it covers: a module is nearly black in the solar band while the
+  // cover around it is deliberately reflective.
+  if ((options.array ?? true) && drawHull) {
+    /** @derived Stations and arc steps across the band. */
+    const ALONG = 48
+    const ACROSS = 16
+    /** @derived Lift the band off the skin so it does not z-fight the cover. */
+    const STANDOFF = 1.004
+
+    const positions: number[] = []
+    const indices: number[] = []
+    for (let i = 0; i <= ALONG; i += 1) {
+      const station = array.forwardStation + (i / ALONG) * (array.aftStation - array.forwardStation)
+      const r = radiusAt(geometry, station) * STANDOFF
+      const x = xAtStation(station, length)
+      for (let j = 0; j <= ACROSS; j += 1) {
+        // Measured from straight up, each way, to the coverage half-angle.
+        const theta = -array.halfAngle + (j / ACROSS) * 2 * array.halfAngle
+        positions.push(x, Math.cos(theta) * r, Math.sin(theta) * r)
+      }
+    }
+    for (let i = 0; i < ALONG; i += 1) {
+      for (let j = 0; j < ACROSS; j += 1) {
+        const a = i * (ACROSS + 1) + j
+        const b = a + ACROSS + 1
+        indices.push(a, b, a + 1)
+        indices.push(a + 1, b, b + 1)
+      }
+    }
+    const arrayGeom = new THREE.BufferGeometry()
+    arrayGeom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    arrayGeom.setIndex(indices)
+    arrayGeom.computeVertexNormals()
+    disposables.push(arrayGeom)
+
+    const arrayMaterial = new THREE.MeshStandardMaterial({
+      color: 0x11161d,
+      metalness: 0.55,
+      roughness: 0.32,
+      side: THREE.DoubleSide,
+    })
+    disposables.push(arrayMaterial)
+    group.add(new THREE.Mesh(arrayGeom, arrayMaterial))
   }
 
   // ---- cruciform tail, with SEPARATE movable surfaces ----------------------
@@ -510,6 +577,64 @@ export const buildShip = (options: ShipOptions = {}): BuiltShip => {
     )
     board.visible = mode === 'afloat'
     group.add(board)
+  }
+
+  // ---- exhaust, aft and low ----------------------------------------------
+  // Its position is a hydrogen safety result, not a styling choice: the
+  // confinement module refuses any hot gas path that runs near a cell, so the
+  // stack is at the tail and well below the hull.
+  {
+    const r = radiusAt(geometry, exhaust.station)
+    const stackLength = maxRadius * 0.35
+    const stack = new THREE.CylinderGeometry(maxRadius * 0.05, maxRadius * 0.06, stackLength, 12)
+    disposables.push(stack)
+    const mesh = new THREE.Mesh(stack, materials.structure)
+    mesh.position.set(xAtStation(exhaust.station, length), exhaust.heightFraction * r, 0)
+    group.add(mesh)
+  }
+
+  // ---- drogue, only when afloat ------------------------------------------
+  // SINGLE-POINT WEATHERVANING OFF THE BOW IS MANDATORY, and it had never been
+  // drawn. A hull this size afloat is a 2,000 m2 sail with almost no wetted
+  // area resisting it, so without a bow drogue the vehicle lies beam-on and is
+  // driven sideways. The rode runs forward from the mooring cone.
+  if ((options.drogue ?? true) && mode === 'afloat') {
+    const bowX = xAtStation(mooringStation, length)
+    const bowY = -radiusAt(geometry, mooringStation) * 0.4
+    /** @derived Rode scope, in hull lengths, drawn to show the geometry. */
+    const RODE_LENGTH = length * 0.55
+    const rodeMaterial = new THREE.LineBasicMaterial({
+      color: 0x9fb4c7,
+      transparent: true,
+      opacity: 0.65,
+    })
+    disposables.push(rodeMaterial)
+    const anchorPoint = new THREE.Vector3(
+      bowX + RODE_LENGTH,
+      -flotation.draft - maxRadius * 0.55,
+      0,
+    )
+    const rode = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(bowX, bowY, 0),
+      anchorPoint,
+    ])
+    disposables.push(rode)
+    group.add(new THREE.Line(rode, rodeMaterial))
+
+    // The sea anchor itself: a cone, mouth aft, which is what the windage
+    // module's drag coefficient is referenced to.
+    const canopy = new THREE.ConeGeometry(maxRadius * 0.16, maxRadius * 0.26, 16, 1, true)
+    canopy.rotateZ(Math.PI / 2)
+    disposables.push(canopy)
+    const canopyMaterial = new THREE.MeshStandardMaterial({
+      color: 0x7f9ab0,
+      roughness: 0.8,
+      side: THREE.DoubleSide,
+    })
+    disposables.push(canopyMaterial)
+    const cone = new THREE.Mesh(canopy, canopyMaterial)
+    cone.position.copy(anchorPoint)
+    group.add(cone)
   }
 
   // Where the waterline sits relative to the hull axis, so a scene can place
