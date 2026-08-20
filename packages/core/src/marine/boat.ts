@@ -7,8 +7,13 @@ import { DRAG_COEFFICIENT_BOW_ON } from './windage.js'
  * Working as a boat: resistance, making way, seakeeping, and touching down.
  *
  * THE THING THAT MAKES THIS NOT A BOAT PROBLEM. The load resting on the water
- * is the static heaviness, not the weight. A vehicle trimmed 500 kg heavy
- * displaces half a cubic metre. It is a cork with a 115 m sail on it.
+ * is the static heaviness, not the weight. A vehicle trimmed 600 kg heavy
+ * displaces six tenths of a cubic metre. It is a cork with a 118 m sail on it.
+ *
+ * The figures in this file's prose describe the baseline as an ILLUSTRATION and
+ * nothing reads them, which is exactly why several of them went stale: they
+ * said 115 m, 500 kg and 24,516 kg long after the design moved. A core module
+ * cannot import a design point, so the only defence is to check them.
  *
  * Every consequence follows from that one ratio, and most of them are the
  * opposite of what boat intuition says:
@@ -231,7 +236,7 @@ export const boatResistance = (
  * own displacement porpoises: the bow lifts, the hull rides on a shrinking
  * wetted length, and the pitch oscillation diverges. Planing craft manage it
  * with a wide flat run aft, trim tabs and a step; a 4.4 m wide gondola under a
- * 115 m envelope has none of those and cannot be trimmed against it.
+ * 118 m envelope has none of those and cannot be trimmed against it.
  *
  * The resistance model above happily reports a speed past this, because
  * resistance is all it knows. Nothing else in this module is valid there.
@@ -379,8 +384,14 @@ export const windwardSpeed = (
  *
  * @source NASA TN D-7295 (Thompson, 1973) for the XC-8A air cushion landing
  * system, and NASA CR-159002 (Bell/de Havilland, 1979) for the design study
- * comparisons. The XC-8A ran 8,200 Pa cushion and 16,400 Pa trunk on a 17,735
+ * comparisons. The XC-8A ran 8,140 Pa cushion and 16,375 Pa trunk on a 17,735
  * kg aeroplane.
+ *
+ * Those two figures were written here as 8,200 and 16,400, and forty lines
+ * further down as 8,140 and 16,375 with CR-159002 cited beside them. One
+ * aircraft, one pair of measurements, two roundings, and no way to tell from
+ * either site which was the source and which the paraphrase. The precise pair
+ * is the cited one, so the rounded restatement is the one that goes.
  */
 export type FloatType =
   /** A boat hull. Hydrostatically stiff, and at 35 mm of draft it also slams. */
@@ -431,8 +442,8 @@ const VENT_OVERSHOOT = 2.5
  *
  * It belongs here because the vehicle's resistance to being lifted by a wave is
  * NOT its mass: it is its mass plus the air it must accelerate with it. For the
- * baseline that is 24,516 kg plus 0.894 * 1.225 * 32,968 = 36,105 kg of air, or
- * 60,621 kg of effective heave inertia against a 10 kN load. Sixty to one. The
+ * baseline that is 25,772 kg plus 0.894 * 1.225 * 34,271 = 37,543 kg of air, or
+ * 63,314 kg of effective heave inertia against a 10 kN load. Sixty to one. The
  * vehicle is nearly fixed in heave while the sea moves a metre under it, and
  * that is precisely why the relative motion all lands in the suspension.
  */
