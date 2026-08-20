@@ -260,6 +260,9 @@ const computeThermalDesignCase = (design: DesignPoint): ThermalDesignCase => {
       arrayCoverage: arrayArea / (geometry.wettedArea as number),
       arrayEfficiency: design.power.moduleEfficiency,
       surfaceAlbedo: v(SOLAR.oceanAlbedo),
+      // The station altitude, which the irradiance needs: thin air admits more
+      // beam, and this vehicle does not live at sea level.
+      altitude: design.mission.altitude,
       cloudCover: 0,
     },
   })

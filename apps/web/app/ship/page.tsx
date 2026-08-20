@@ -235,10 +235,19 @@ export default function Page() {
             </p>
             <p>
               The worst superheat case is also not the obvious one. It arrives at{' '}
-              {(ballast.superheatCloudCover * 100).toFixed(0)} percent cloud, not a clear sky,
-              because cloud turns beam into diffuse and diffuse lands on half a convex hull where a
-              beam lands on a quarter of it, while the total irradiance barely moves until the sky
-              is mostly covered.
+              {(ballast.superheatCloudCover * 100).toFixed(0)} percent cloud, not a clear sky.
+              Cloud blocks the night-time radiative loss for twenty-four hours a day while only
+              cutting the solar gain for twelve, so the daily mean temperature of the envelope
+              rises even as its peak falls, and a gas volume with a twenty-minute time constant
+              follows the mean rather than the peak.
+            </p>
+            <p>
+              That result is bounded by something the model does not do: ambient air temperature is
+              an input and does not respond to cloud, when in reality the same blanket that keeps
+              the hull warm keeps the air warm. So the honest reading is that cloud does not
+              relieve the thermal problem, rather than that it makes it much worse. The swing, which
+              is what the ballast loop actually has to track, moves less than a tenth across the
+              whole range of skies.
             </p>
             <p>
               A vehicle afloat is sitting on unlimited ballast, and moving water costs about a

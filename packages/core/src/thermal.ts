@@ -1,4 +1,8 @@
-import { CONSTANTS, ENVELOPE_CONVECTION, ENVELOPE_OPTICS, SKY, SOLAR, v } from '@airship/data'
+import { CONSTANTS, ENVELOPE_CONVECTION, ENVELOPE_OPTICS, SKY, v } from '@airship/data'
+import { WPerM2, m, rad } from '@airship/units'
+
+import { solarIrradiance } from './solar.js'
+import type { SolarIrradiance } from './solar.js'
 import type { Kelvin, SquareMeters } from '@airship/units'
 import { K } from '@airship/units'
 
@@ -45,126 +49,75 @@ import { K } from '@airship/units'
 
 const SIGMA = v(CONSTANTS.sigma)
 
-/** @derived Degrees to radians. */
-const DEG = Math.PI / 180
+/**
+ * SOLAR GEOMETRY COMES FROM `solar.ts`, WHICH ALREADY HAD IT.
+ *
+ * This module was written with its own copy of Cooper's declination, the hour
+ * angle, and Meinel's air-mass attenuation with 1/cos(z) capped at the horizon.
+ * All of it already existed in the array module, and two implementations of one
+ * piece of physics is the defect this repository exists to prevent.
+ *
+ * The copy was also WORSE in the two ways that mattered:
+ *
+ *   1. It took the air mass as 1/cos(z) and capped it, because that form
+ *      diverges at the horizon. `solar.ts` uses Kasten and Young 1989, which is
+ *      the standard relation and needs no cap.
+ *   2. IT IGNORED ALTITUDE, and that is an error rather than an inelegance.
+ *      `solarIrradiance` scales the optical path by the pressure ratio, so thin
+ *      air admits more beam. This vehicle lives at 2,000 m and the thermal model
+ *      was computing its superheat from sea-level irradiance, understating the
+ *      solar gain on the very surface it was solving for.
+ */
 
-/** @derived Hours in a day, and degrees of hour angle per hour. */
+/** @derived Hours in a day. */
 const HOURS_PER_DAY = 24
-const DEGREES_PER_HOUR = 360 / HOURS_PER_DAY
-
-/**
- * Solar declination, radians.
- *
- * @source Cooper's equation, as given in Duffie and Beckman. Accurate to about
- * 0.5 degrees, which is well inside everything else here.
- */
-export const solarDeclination = (dayOfYear: number): number => {
-  /** @derived Earth's axial tilt, degrees. */
-  const AXIAL_TILT = 23.45
-  /** @derived Cooper's phase: day 284 is the September equinox crossing. */
-  const PHASE_DAY = 284
-  /** @derived Days in the year Cooper's equation is written on. */
-  const DAYS = 365
-  return AXIAL_TILT * DEG * Math.sin(2 * Math.PI * ((PHASE_DAY + dayOfYear) / DAYS))
-}
-
-/**
- * Cosine of the solar zenith angle. Negative means the sun is below the horizon.
- *
- * @derived cos(z) = sin(lat)sin(dec) + cos(lat)cos(dec)cos(hour angle).
- */
-export const solarZenithCosine = (
-  latitude: number,
-  dayOfYear: number,
-  solarHour: number,
-): number => {
-  const declination = solarDeclination(dayOfYear)
-  const hourAngle = (solarHour - HOURS_PER_DAY / 2) * DEGREES_PER_HOUR * DEG
-  const lat = latitude * DEG
-  return (
-    Math.sin(lat) * Math.sin(declination) +
-    Math.cos(lat) * Math.cos(declination) * Math.cos(hourAngle)
-  )
-}
-
-export interface SolarIrradiance {
-  /** Direct beam, normal to the sun, W/m2. */
-  readonly directNormal: number
-  /** Diffuse from the sky dome, on a horizontal surface, W/m2. */
-  readonly diffuseHorizontal: number
-  /** Total on a horizontal surface, W/m2, which is what the ground reflects. */
-  readonly globalHorizontal: number
-  /** Cosine of the zenith angle, clamped at zero. */
-  readonly zenithCosine: number
-}
 
 /**
  * Irradiance at the hull, with cloud.
  *
- * @source Meinel's air-mass law, I_dn = I0 * tau^(AM^0.678), with AM = 1/cos(z).
- * It is the simplest form that reproduces clear-sky direct normal irradiance to
- * a few percent, and it fails gracefully: at low sun the air mass grows and the
- * beam collapses, which is the correct behaviour rather than an extrapolation.
- *
- * The air mass is capped because 1/cos(z) diverges at the horizon while the
- * real path length does not, the atmosphere being curved.
- *
  * CLOUD DIMS THE SUN AS WELL AS WARMING THE SKY, and leaving out the first half
- * of that inverts the answer: an early version of this module applied cloud
- * only to the sky's radiative temperature, so overcast came out with MORE
- * superheat than clear sky, which is the opposite of what an overcast day does.
+ * of that inverts the answer: an early version of this module applied cloud only
+ * to the sky's radiative temperature, so overcast came out with MORE superheat
+ * than clear sky, which is the opposite of what an overcast day does.
  *
  * @source Kasten and Czeplak's relation for global horizontal irradiance under
  * cloud, G = G_clear * (1 - 0.75 * c^3.4). Under full overcast the beam is gone
- * and what remains is diffuse, so the split is shifted with the total.
+ * and what remains is diffuse, so the split shifts with the total.
  */
 export const surfaceIrradiance = (
   latitude: number,
   dayOfYear: number,
   solarHour: number,
+  altitude: number,
   cloudCover = 0,
 ): SolarIrradiance => {
   if (cloudCover < 0 || cloudCover > 1) {
     throw new RangeError(`Cloud cover ${cloudCover} is not a fraction of the sky.`)
   }
-  const zenithCosine = Math.max(solarZenithCosine(latitude, dayOfYear, solarHour), 0)
-  if (zenithCosine <= 0) {
-    return { directNormal: 0, diffuseHorizontal: 0, globalHorizontal: 0, zenithCosine: 0 }
-  }
 
-  /** @source Kasten and Young cap the air mass near 38 at the horizon. */
-  const MAXIMUM_AIR_MASS = 38
-  const airMass = Math.min(1 / zenithCosine, MAXIMUM_AIR_MASS)
-  /** @source Meinel's exponent on the air mass. */
-  const MEINEL_EXPONENT = 0.678
-
-  const clearDirectNormal =
-    v(SOLAR.constant) * v(SOLAR.clearSkyTransmittance) ** airMass ** MEINEL_EXPONENT
-  const clearBeamHorizontal = clearDirectNormal * zenithCosine
-  const clearGlobal = clearBeamHorizontal * (1 + v(SOLAR.clearSkyDiffuseFraction))
+  const clear = solarIrradiance(rad(latitude * (Math.PI / 180)), dayOfYear, solarHour, m(altitude))
+  const sinElevation = Math.max(Math.sin(clear.elevation), 0)
+  if (sinElevation <= 0) return clear
 
   /** @source Kasten and Czeplak: the coefficient and the exponent both. */
   const CLOUD_ATTENUATION = 0.75
   /** @source Kasten and Czeplak's exponent on the cloud fraction. */
   const CLOUD_EXPONENT = 3.4
-  const globalHorizontal = clearGlobal * (1 - CLOUD_ATTENUATION * cloudCover ** CLOUD_EXPONENT)
+  const globalHorizontal =
+    (clear.globalHorizontal as number) * (1 - CLOUD_ATTENUATION * cloudCover ** CLOUD_EXPONENT)
 
   // The beam survives in proportion to the clear sky remaining, and everything
-  // else in the total is diffuse. At full overcast the beam is zero and the
-  // hull sees only a uniformly bright dome.
-  const beamHorizontal = clearBeamHorizontal * (1 - cloudCover)
-  const directNormal = zenithCosine > 0 ? beamHorizontal / zenithCosine : 0
-  const diffuseHorizontal = Math.max(globalHorizontal - beamHorizontal, 0)
+  // else in the total is diffuse. At full overcast the hull sees only a
+  // uniformly bright dome.
+  const beamHorizontal = (clear.directNormal as number) * sinElevation * (1 - cloudCover)
 
-  return { directNormal, diffuseHorizontal, globalHorizontal, zenithCosine }
+  return {
+    ...clear,
+    directNormal: WPerM2(beamHorizontal / sinElevation),
+    diffuseHorizontal: WPerM2(Math.max(globalHorizontal - beamHorizontal, 0)),
+    globalHorizontal: WPerM2(globalHorizontal),
+  }
 }
-
-/** Clear-sky irradiance, which is `surfaceIrradiance` with no cloud. */
-export const clearSkyIrradiance = (
-  latitude: number,
-  dayOfYear: number,
-  solarHour: number,
-): SolarIrradiance => surfaceIrradiance(latitude, dayOfYear, solarHour, 0)
 
 /**
  * Effective radiative temperature of a clear sky, K.
@@ -231,6 +184,14 @@ export interface EnvelopeConditions {
   readonly surfaceAlbedo: number
   /** Fraction of the sky obscured by cloud, 0 for clear. */
   readonly cloudCover: number
+  /**
+   * Station altitude, m.
+   *
+   * REQUIRED, because the optical path scales with the pressure ratio and this
+   * vehicle does not live at sea level. Leaving it out is what made the first
+   * version of this module understate its own solar gain.
+   */
+  readonly altitude: number
 }
 
 /**
@@ -292,19 +253,25 @@ export const envelopeTemperature = (
    * sky dome couples through A/2, because a convex body presents the same
    * projected area to every direction and the dome fills half the sphere.
    *
-   * SO DIFFUSE IS TWICE AS EFFECTIVE AS BEAM PER UNIT OF HORIZONTAL IRRADIANCE,
-   * and that is why this model's worst superheat case is BROKEN CLOUD rather
-   * than clear sky: moderate cloud converts beam into diffuse while
-   * Kasten-Czeplak says it barely touches the total, so the hull collects more
-   * of a slightly smaller number. It is a real effect and it is worth stating
-   * because it is counterintuitive, and because it turns on exactly these two
-   * geometric factors: if you convince yourself both should be A/4, clear sky
+   * SO DIFFUSE IS TWICE AS EFFECTIVE AS BEAM PER UNIT OF HORIZONTAL IRRADIANCE.
+   *
+   * This module once concluded from that that BROKEN CLOUD was the worst
+   * superheat case, on the reasoning that moderate cloud turns beam into
+   * diffuse while barely touching the total. The conclusion was an artifact of
+   * this module's own duplicated solar code, which assumed a clear-sky diffuse
+   * fraction of ten percent of the beam. `solar.ts`, which the model now reads
+   * instead, uses a cited Duffie and Beckman correlation and gives far less
+   * diffuse on a clear day at altitude, where there is little atmosphere to
+   * scatter in. The geometric factor below is still right; the conclusion drawn
+   * from it was not. That is what happens when a second copy of a piece of
+   * physics is allowed to disagree quietly with the first: it turns into an
+   * argument about the vehicle. If you convince yourself both should be A/4, clear sky
    * becomes the design case again.
    */
   const geometricFlux =
-    irradiance.directNormal * irradiance.zenithCosine * BEAM_PROJECTION +
-    irradiance.diffuseHorizontal * HEMISPHERE +
-    surfaceAlbedo * irradiance.globalHorizontal * HEMISPHERE
+    (irradiance.directNormal as number) * Math.max(Math.sin(irradiance.elevation), 0) * BEAM_PROJECTION +
+    (irradiance.diffuseHorizontal as number) * HEMISPHERE +
+    surfaceAlbedo * (irradiance.globalHorizontal as number) * HEMISPHERE
 
   // Electrical conversion is defined on the light INCIDENT on the module, not
   // on what the module absorbs, so it is taken off the flux over the covered
@@ -561,13 +528,25 @@ export interface ThermalDesignCase {
 /**
  * The worst thermal case, swept rather than asserted.
  *
- * Cloud cover is swept because the answer is NOT MONOTONIC in it and the design
- * case is interior. Clear sky gives the worst supercooling, because the sky is
- * coldest; broken cloud around 0.6 gives the worst superheat, because it turns
- * beam into diffuse and diffuse couples to a convex hull twice as well. Taking
- * either endpoint alone understates the vehicle's ballast requirement.
+ * Cloud cover is swept because the two excursions peak at OPPOSITE ends of it
+ * and a system that must survive both is sized on the sum.
+ *
+ * Clear sky gives the worst supercooling, because the sky is coldest. Heavy
+ * cloud gives the worst superheat, and the reason is not the obvious one: cloud
+ * blocks the night-time radiative loss for twenty-four hours a day while only
+ * cutting the solar gain for twelve, so the daily MEAN envelope temperature
+ * rises even though its peak falls. A gas node with a twenty-minute time
+ * constant tracks the mean.
+ *
+ * THE LIMITATION THAT BOUNDS THAT RESULT. Ambient air temperature is an input
+ * to this model and does not respond to cloud. In reality the same blanket that
+ * keeps the hull warm keeps the air warm, which is why cloudy nights are mild,
+ * so gas-minus-ambient under overcast is overstated here. The defensible
+ * reading is that cloud does not RELIEVE the thermal problem, not that it makes
+ * it much worse. The swing, which is what the ballast loop actually tracks,
+ * moves less than ten percent across the whole range.
  */
-/** @derived Cloud fractions swept. Twenty steps resolves the interior peak. */
+/** @derived Cloud fractions swept, finely enough to place either peak. */
 const DEFAULT_CLOUD_STEPS = 20
 
 export const designThermalCase = (
