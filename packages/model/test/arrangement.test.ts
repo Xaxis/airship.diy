@@ -312,12 +312,19 @@ describe('what the arrangement did to the hull size', () => {
     // trim out. Where that happens is a property of the arrangement rather
     // than a bug in it, and it is worth pinning because it moves whenever
     // anything heavy changes station.
-    for (const length of [95, 105, 115, 120]) {
+    //
+    // IT MOVED, AND THE MOVE IS THE POINT. The boundary was between 120 and
+    // 125 m. Shrinking the tail from a 1.3 span fraction to 1.05 took roughly
+    // 170 m2 of fin off station 0.9, which is the longest lever on the ship, so
+    // the same arrangement now balances out to 135 m. A test that pins where a
+    // limit sits will fail when the design gets better, and that is the correct
+    // behaviour: the number is worth knowing and worth re-reading.
+    for (const length of [95, 105, 115, 120, 125, 135]) {
       const findings = validateArrangement(at(length), BASELINE_ARRANGEMENT)
       const trim = findings.find((f) => f.id === 'trim-authority')
       expect(`${length}: ${trim?.severity}`).toBe(`${length}: pass`)
     }
-    for (const length of [125, 140, 150]) {
+    for (const length of [140, 150]) {
       const findings = validateArrangement(at(length), BASELINE_ARRANGEMENT)
       const trim = findings.find((f) => f.id === 'trim-authority')
       expect(`${length}: ${trim?.severity}`).toBe(`${length}: fail`)

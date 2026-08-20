@@ -442,8 +442,8 @@ const VENT_OVERSHOOT = 2.5
  *
  * It belongs here because the vehicle's resistance to being lifted by a wave is
  * NOT its mass: it is its mass plus the air it must accelerate with it. For the
- * baseline that is 25,772 kg plus 0.894 * 1.225 * 34,271 = 37,543 kg of air, or
- * 63,314 kg of effective heave inertia against a 10 kN load. Sixty to one. The
+ * baseline that is 25,404 kg plus 0.894 * 1.225 * 34,271 = 37,543 kg of air, or
+ * 62,947 kg of effective heave inertia against a 10 kN load. Sixty to one. The
  * vehicle is nearly fixed in heave while the sea moves a metre under it, and
  * that is precisely why the relative motion all lands in the suspension.
  */

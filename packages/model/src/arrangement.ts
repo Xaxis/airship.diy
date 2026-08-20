@@ -30,7 +30,20 @@ import {
   COMPLETE_SHIP_DRAG_COEFFICIENT,
   PROPULSIVE_EFFICIENCY,
 } from '@airship/core'
-import { v, AKRON_STRUCTURE, CENTREBOARD, CONSTANTS, CREW, EMPTY_WEIGHT_PER_GAS_VOLUME, ENGINE_CONSUMABLES, GAS, SOLAR, WATER, barrierFilm } from '@airship/data'
+import {
+  v,
+  AKRON_STRUCTURE,
+  CENTREBOARD,
+  CONSTANTS,
+  CREW,
+  EMPTY_WEIGHT_PER_GAS_VOLUME,
+  ENGINE_CONSUMABLES,
+  GAS,
+  SEA_STATE,
+  SOLAR,
+  WATER,
+  barrierFilm,
+} from '@airship/data'
 import { kg, m, m3, K, rad, kgPerM3, W, SI } from '@airship/units'
 
 import { dumpableInventory } from './configuration.js'
@@ -1518,15 +1531,37 @@ export const validateArrangement = (
       ) +
       gondolaForClearance.height * GONDOLA_HANG_FRACTION +
       gondolaForClearance.height / 2
-    const clearance = keelDepth - lowerFinTipDepth
+    const stillWaterClearance = keelDepth - lowerFinTipDepth
+
+    /**
+     * THE GATE HAS TO BE AGAINST A WAVE, NOT AGAINST A MILLPOND.
+     *
+     * It measured clearance over the static waterline and passed at 0.4 m,
+     * which is less than the crest of the sea this vehicle is supposed to float
+     * in. A tail that clears calm water and dips in a slight sea has not
+     * cleared anything.
+     *
+     * @derived Design condition is the largest wave of sea state 3, "slight".
+     * The largest wave in a record runs about 1.86 times the significant height
+     * and a crest is half a wave, so the crest is 0.93 * Hs above mean level.
+     * Sea state 3 is the honest floor: a vehicle that can only rest on water
+     * calmer than that is not a boat, and the seakeeping module already refuses
+     * to call anything rougher acceptable.
+     */
+    const DESIGN_SEA_STATE = 3
+    const designState = SEA_STATE.find((state) => state.code === DESIGN_SEA_STATE)
+    /** @derived Largest wave is 1.86 Hs; its crest above mean level is half that. */
+    const CREST_FACTOR = 1.86 / 2
+    const designCrest = (designState?.significantWaveHeight ?? 0) * CREST_FACTOR
+    const clearance = stillWaterClearance - designCrest
 
     findings.push({
       id: 'lower-fin-clears-the-water',
       severity: clearance >= 0 ? 'pass' : 'fail',
-      rule: 'The lowest point of the tail is above the keel, so the vehicle can float without immersing a fin.',
+      rule: `The lowest point of the tail clears the crest of a sea state ${DESIGN_SEA_STATE} wave, so the vehicle can float without immersing a fin.`,
       detail:
         clearance >= 0
-          ? `The lower fin tip is ${lowerFinTipDepth.toFixed(1)} m below the hull axis against a ${keelDepth.toFixed(1)} m keel, clearing by ${clearance.toFixed(1)} m.`
+          ? `The lower fin tip is ${lowerFinTipDepth.toFixed(1)} m below the hull axis against a ${keelDepth.toFixed(1)} m keel, clearing still water by ${stillWaterClearance.toFixed(1)} m and the ${designCrest.toFixed(2)} m crest of a sea state ${DESIGN_SEA_STATE} wave by ${clearance.toFixed(1)} m.`
           : `THE TAIL IS IN THE WATER. The lower fin tip reaches ${lowerFinTipDepth.toFixed(1)} m below the hull axis while the gondola keel is at ${keelDepth.toFixed(1)} m, so the fin hangs ${Math.abs(clearance).toFixed(1)} m below the part of the ship meant to float and is immersed to that depth every time the vehicle lands. A surface sized for air loads is a slamming panel in water, and it is an uncontrolled lateral plane aft of the centre of lateral resistance, which fights the bow drogue the mooring case depends on. A symmetric cruciform cannot fix this at any size, because the lower fin grows with the upper one. The answer is an inverted-Y or X tail, which is a configuration change and not a number.`,
     })
   }

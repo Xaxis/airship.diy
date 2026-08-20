@@ -710,7 +710,24 @@ export const BASELINE_ARRANGEMENT: Configuration = {
    */
   tailRollOffset: Math.PI / 4,
   finStation: 0.9,
-  finSpanFraction: 1.3,
+  /**
+   * Sized TO the stability requirement rather than well past it.
+   *
+   * @derived It was 1.3, which gave a yaw static margin of 2.09 against a
+   * requirement of 1.3: the insurance for uncertain fin effectiveness was being
+   * counted twice, once inside the requirement and again in the span. At 1.05
+   * the margin is 1.55, which is 19 percent of headroom on a gate that already
+   * contains its own allowance.
+   *
+   * Every other axis improves with it, which is what made this an easy call
+   * rather than a trade. Lift margin rises 368 kg, and days aloft is the figure
+   * of merit. Projected side area falls 118 m2, and windage is what makes
+   * mooring hard. And the tail's clearance over the water goes from 0.4 m to
+   * 2.5 m, which is the one that actually mattered: 0.4 m is INSIDE the design
+   * wave, so the old span passed the clearance gate on still water and would
+   * have dipped a fin in any real sea.
+   */
+  finSpanFraction: 1.05,
   // The usual aircraft control-surface proportion. Larger buys authority the
   // vehicle does not need and costs hinge line and actuation.
   rudderChordFraction: 0.3,

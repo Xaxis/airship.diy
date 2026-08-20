@@ -45,15 +45,19 @@ describe('prose in packages/core that quotes the baseline', () => {
   it('has boat.ts quoting the heave inertia the model computes', () => {
     // THE WORKED EXAMPLE THAT DRIFTED FURTHEST, because it is three numbers
     // multiplied together and every one of them moved.
+    //
+    // This guard earned its place one commit after it was written: shrinking
+    // the tail took 368 kg off the ship and the docstring went stale the same
+    // afternoon. That is the loop working rather than a nuisance.
     const ship = Math.round(MASS.total)
     const gas = Math.round(MASS.gasVolume)
-    expect(ship).toBe(25772)
+    expect(ship).toBe(25404)
     expect(gas).toBe(34271)
 
     const text = read('marine/boat.ts')
-    expect(text).toContain('25,772 kg plus')
+    expect(text).toContain('25,404 kg plus')
     expect(text).toContain('34,271 = 37,543 kg of air')
-    expect(text).toContain('63,314 kg of effective heave inertia')
+    expect(text).toContain('62,947 kg of effective heave inertia')
   })
 
   it('quotes ONE cushion pressure for the XC-8A, not two', () => {
